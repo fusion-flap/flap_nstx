@@ -16,7 +16,6 @@ import numpy as np
 import copy
 import subprocess
 import pims
-
 import flap
 #from .spatcal import *
 
@@ -32,6 +31,8 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         # read the data
     if (exp_id is None):
         raise ValueError('exp_id should be set for NSTX GPI.')
+    if (type(exp_id) is not int):
+        raise TypeError("exp_id should be an integer.")
 
     default_options = {'Local datapath':'data',
                        'Datapath':None,
@@ -45,10 +46,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                        'Start delay': 0,
                        'End delay': 0
                        }
-    _options = flap.config.merge_options(default_options,options,data_source=data_source)
+    _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
     folder={
-               ''   : 'Phantom71-5040',
+               '_0_': 'Phantom71-5040',
                '_1_': 'Phantom710-9206',
                '_2_': 'Phantom73-6747',
                '_3_': 'Phantom73-6663',
@@ -70,16 +71,20 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         year=2010
     
     if (year < 2006):
-        cam=''
+        cam='_0_'
     if (year == 2007 or year == 2008):
         cam='_1_'
     if (year == 2009):
         cam='_2_'
     if (year == 2010):
         cam='_5_'
+        
+    if (year < 2006):
+        file_name='nstx'+str(exp_id)+'.cin'
+    else:
+        file_name='nstx'+cam+str(exp_id)+'.cin'
 
-    file_name='nstx'+cam+str(exp_id)+'.cin'
-
+    
     file_folder=_options['Datapath']+'/'+folder[cam]+\
                 '/'+str(year)+'/'
     remote_file_name=file_folder+file_name
@@ -124,10 +129,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         #return ti - tt
     
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
-                                               unit='Seconds',
+                                               unit='ms',
                                                mode=flap.CoordinateMode(equidistant=True),
-                                               start=time_arr[0],
-                                               step=time_arr[1]-time_arr[0],
+                                               start=time_arr[0]*1000.,
+                                               step=(time_arr[1]-time_arr[0])*1000.,
                                                #shape=time_arr.shape,
                                                dimension_list=[0]
                                                )))
@@ -160,21 +165,12 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     #approximation for the transformation between pixel and spatial coordinates
     #This needs to be updated as soon as more information is available on the
     #calibration coordinates.
-    
-
-    
+      
     coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])
     coeff_z=np.asarray([0.18090118,3.0657776,70.544312])
-    #n_px=data_object.data.shape[1]
-    #n_py=data_object.data.shape[2]
-    #calib=np.zeros([n_px,n_py,2])
-    #for i in range(n_px):
-    #    for j in range(n_py):
-    #        calib[i,j,0]=coeff_r * np.asarray([i,j,1])
-    #        calib[i,j,1]=coeff_z * np.asarray([i,j,1])
-    #        
+     
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-                                               unit='m',
+                                               unit='mm',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_r[2],
                                                step=[coeff_r[0],coeff_r[1]],
@@ -182,7 +178,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                               unit='m',
+                                               unit='mm',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_z[2],
                                                step=[coeff_z[0],coeff_z[1]],
@@ -212,9 +208,6 @@ def add_coordinate(data_object,
     #Only fluctuating data is remaining
     #Should not be saved or only as the whole dataset raw-average=subtract
     #The original data should be reconstructable
-    raise NotImplementedError('Not implemented yet')
-    
-def subtract_baseline(): 
     raise NotImplementedError('Not implemented yet')
     
 def register():
