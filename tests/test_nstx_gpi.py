@@ -22,8 +22,9 @@ def test_NSTX_GPI_data():
     flap.list_data_objects()
     plt.close('all')
     print("**** Plotting GPI")
-    #flap.plot('ABES',slicing={'Time':flap.Intervals(3.26,3.28)},summing={'Time':'Mean'},axes='Channel')
-    flap.plot('GPI',plot_type='anim-image',slicing={'Time':flap.Intervals(0.40,0.41)},axes=['Device R','Device z','Time'],options={'Z range':[0,512],'Wait':0.0,'Clear':False})
+    flap.plot('GPI',plot_type='animation',slicing={'Time':flap.Intervals(400.,410.)},axes=['Device R','Device z','Time'],options={'Z range':[0,512],'Wait':0.0,'Clear':False})
+    #flap.plot('GPI',plot_type='animation',slicing={'Time':flap.Intervals(0.40,0.41)},axes=['Image y','Image x','Time'],options={'Z range':[0,512],'Wait':0.0,'Clear':False})
+    
 # Reading configuration file in the test directory
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"test_nstx_gpi.cfg")
