@@ -16,6 +16,7 @@ import numpy as np
 import copy
 import subprocess
 import pims
+
 import flap
 #from .spatcal import *
 
@@ -44,7 +45,8 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                        'Phase' : None,
                        'State' : None,
                        'Start delay': 0,
-                       'End delay': 0
+                       'End delay': 0,
+                       'Download only': False
                        }
     _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
@@ -57,6 +59,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                '_5_': 'Phantom710-9205',
                '_6_': 'Miro4-9373'
             }
+    data_title='NSTX GPI data'
     if (exp_id < 118929):
         year=2005
     if (exp_id >= 118929) and (exp_id < 122270):
@@ -78,13 +81,11 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         cam='_2_'
     if (year == 2010):
         cam='_5_'
-        
+    
     if (year < 2006):
         file_name='nstx'+str(exp_id)+'.cin'
     else:
         file_name='nstx'+cam+str(exp_id)+'.cin'
-
-    
     file_folder=_options['Datapath']+'/'+folder[cam]+\
                 '/'+str(year)+'/'
     remote_file_name=file_folder+file_name
@@ -92,6 +93,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     if not os.path.exists(_options['Local datapath']):
         raise SystemError("The local datapath cannot be found.")
         return
+    
     if not (os.path.exists(local_file_folder+file_name)):
         if not (os.path.exists(local_file_folder)):
             try:
@@ -107,16 +109,24 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         sts = os.waitpid(p.pid, 0)
         if not (os.path.exists(local_file_folder+file_name)):
             raise SystemError("The file couldn't be transferred to the local directory.")
+    if (_options['Download only']):
+            d = flap.DataObject(data_array=np.asarray([0,1]),
+                        data_unit=None,
+                        coordinates=None,
+                        exp_id=exp_id,
+                        data_title=data_title,
+                        info={'Options':_options},
+                        data_source="NSTX_GPI")
+            return d
         
     images=pims.Cine(local_file_folder+file_name)
-    
-    data_arr=np.asarray(images[:], dtype=np.uint16)
-    data_unit = flap.Unit(name='Signal',unit='Digit')
-    
-    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
-                        +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
 
-    data_title='NSTX GPI data'
+    data_arr=np.asarray(images[:], dtype=np.int16)
+    data_unit = flap.Unit(name='Signal',unit='Digit')
+
+    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
+                    +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
+
     coord = [None]*6
     
     
@@ -209,6 +219,6 @@ def add_coordinate(data_object,
     #Should not be saved or only as the whole dataset raw-average=subtract
     #The original data should be reconstructable
     raise NotImplementedError('Not implemented yet')
-    
+
 def register():
     flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
