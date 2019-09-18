@@ -16,8 +16,10 @@ import numpy as np
 import copy
 import subprocess
 import pims
+from scipy import interpolate
 
 import flap
+import flap_mdsplus
 #from .spatcal import *
 
 if (flap.VERBOSE):
@@ -214,11 +216,59 @@ def add_coordinate(data_object,
                    coordinates,
                    exp_id=None,
                    options=None): 
-        #subtracts the average image from the data
-    #Only fluctuating data is remaining
-    #Should not be saved or only as the whole dataset raw-average=subtract
-    #The original data should be reconstructable
-    raise NotImplementedError('Not implemented yet')
+    #This part of the code provides normalized flux coordinates for the GPI data
+    if ('Device phi' in coordinates):
+        try:
+            gpi_time=data_object.coordinate('Time')[0][:,0,0]
+            gpi_r_coord=data_object.coordinate('Device R')[0]
+            gpi_z_coord=data_object.coordinate('Device z')[0]
+        except:
+            raise ValueError('R,z or t coordinates are missing.')
+        try:
+            psi_rz_obj=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\PSIRZ',
+                                     exp_id=data_object.exp_id,
+                                     object_name='PSIRZ_FOR_COORD')
+            psi_mag=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIMAG',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIMAG_FOR COORD')
+            psi_bdry=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIBRY',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIBRY_FOR_COORD')
+        except:
+            raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
+        try:
+            psi_values=psi_rz_obj.data
+            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
+            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
+            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+        except:
+            raise ValueError("The flux data cannot be found.")
+        #Do the interpolation
+        psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
+        try:
+            for index_t in range(psi_t_coord.shape[0]):
+                points=np.asarray([psi_r_coord[index_t,:,:].flatten(),psi_z_coord[index_t,:,:].flatten()]).transpose()
+                values=((psi_values[index_t]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])).flatten()
+                psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
+            psi_values_total_interpol=np.zeros(data_object.data.shape)
+            for index_r in range(gpi_r_coord.shape[1]):
+                for index_z in range(gpi_r_coord.shape[2]):
+                    psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
+        except:
+            raise ValueError("An error has occured during the interpolation.")
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Device phi',
+                                       unit='',
+                                       mode=flap.CoordinateMode(equidistant=False),
+                                       values=psi_values_total_interpol,
+                                       shape=psi_values_total_interpol.shape,
+                                       dimension_list=[0,1,2]
+                                       )))
+        data_object.coordinates.append(new_coordinates)
+        
+        return data_object
 
 def register():
     flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
