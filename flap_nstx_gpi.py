@@ -16,8 +16,10 @@ import numpy as np
 import copy
 import subprocess
 import pims
+from scipy import interpolate
 
 import flap
+import flap_mdsplus
 #from .spatcal import *
 
 if (flap.VERBOSE):
@@ -32,6 +34,8 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         # read the data
     if (exp_id is None):
         raise ValueError('exp_id should be set for NSTX GPI.')
+    if (type(exp_id) is not int):
+        raise TypeError("exp_id should be an integer.")
 
     default_options = {'Local datapath':'data',
                        'Datapath':None,
@@ -43,12 +47,13 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                        'Phase' : None,
                        'State' : None,
                        'Start delay': 0,
-                       'End delay': 0
+                       'End delay': 0,
+                       'Download only': False
                        }
-    _options = flap.config.merge_options(default_options,options,data_source=data_source)
+    _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
     folder={
-               ''   : 'Phantom71-5040',
+               '_0_': 'Phantom71-5040',
                '_1_': 'Phantom710-9206',
                '_2_': 'Phantom73-6747',
                '_3_': 'Phantom73-6663',
@@ -56,6 +61,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                '_5_': 'Phantom710-9205',
                '_6_': 'Miro4-9373'
             }
+    data_title='NSTX GPI data'
     if (exp_id < 118929):
         year=2005
     if (exp_id >= 118929) and (exp_id < 122270):
@@ -70,16 +76,18 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         year=2010
     
     if (year < 2006):
-        cam=''
+        cam='_0_'
     if (year == 2007 or year == 2008):
         cam='_1_'
     if (year == 2009):
         cam='_2_'
     if (year == 2010):
         cam='_5_'
-
-    file_name='nstx'+cam+str(exp_id)+'.cin'
-
+    
+    if (year < 2006):
+        file_name='nstx'+str(exp_id)+'.cin'
+    else:
+        file_name='nstx'+cam+str(exp_id)+'.cin'
     file_folder=_options['Datapath']+'/'+folder[cam]+\
                 '/'+str(year)+'/'
     remote_file_name=file_folder+file_name
@@ -87,6 +95,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     if not os.path.exists(_options['Local datapath']):
         raise SystemError("The local datapath cannot be found.")
         return
+    
     if not (os.path.exists(local_file_folder+file_name)):
         if not (os.path.exists(local_file_folder)):
             try:
@@ -102,16 +111,24 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         sts = os.waitpid(p.pid, 0)
         if not (os.path.exists(local_file_folder+file_name)):
             raise SystemError("The file couldn't be transferred to the local directory.")
+    if (_options['Download only']):
+            d = flap.DataObject(data_array=np.asarray([0,1]),
+                        data_unit=None,
+                        coordinates=None,
+                        exp_id=exp_id,
+                        data_title=data_title,
+                        info={'Options':_options},
+                        data_source="NSTX_GPI")
+            return d
         
     images=pims.Cine(local_file_folder+file_name)
-    
-    data_arr=np.asarray(images[:], dtype=np.uint16)
-    data_unit = flap.Unit(name='Signal',unit='Digit')
-    
-    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
-                        +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
 
-    data_title='NSTX GPI data'
+    data_arr=np.asarray(images[:], dtype=np.int16)
+    data_unit = flap.Unit(name='Signal',unit='Digit')
+
+    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
+                    +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
+
     coord = [None]*6
     
     
@@ -124,10 +141,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         #return ti - tt
     
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
-                                               unit='Seconds',
+                                               unit='ms',
                                                mode=flap.CoordinateMode(equidistant=True),
-                                               start=time_arr[0],
-                                               step=time_arr[1]-time_arr[0],
+                                               start=time_arr[0]*1000.,
+                                               step=(time_arr[1]-time_arr[0])*1000.,
                                                #shape=time_arr.shape,
                                                dimension_list=[0]
                                                )))
@@ -160,21 +177,12 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     #approximation for the transformation between pixel and spatial coordinates
     #This needs to be updated as soon as more information is available on the
     #calibration coordinates.
-    
-
-    
+      
     coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])
     coeff_z=np.asarray([0.18090118,3.0657776,70.544312])
-    #n_px=data_object.data.shape[1]
-    #n_py=data_object.data.shape[2]
-    #calib=np.zeros([n_px,n_py,2])
-    #for i in range(n_px):
-    #    for j in range(n_py):
-    #        calib[i,j,0]=coeff_r * np.asarray([i,j,1])
-    #        calib[i,j,1]=coeff_z * np.asarray([i,j,1])
-    #        
+     
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-                                               unit='m',
+                                               unit='mm',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_r[2],
                                                step=[coeff_r[0],coeff_r[1]],
@@ -182,7 +190,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                               unit='m',
+                                               unit='mm',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_z[2],
                                                step=[coeff_z[0],coeff_z[1]],
@@ -208,14 +216,59 @@ def add_coordinate(data_object,
                    coordinates,
                    exp_id=None,
                    options=None): 
-        #subtracts the average image from the data
-    #Only fluctuating data is remaining
-    #Should not be saved or only as the whole dataset raw-average=subtract
-    #The original data should be reconstructable
-    raise NotImplementedError('Not implemented yet')
-    
-def subtract_baseline(): 
-    raise NotImplementedError('Not implemented yet')
-    
+    #This part of the code provides normalized flux coordinates for the GPI data
+    if ('Device phi' in coordinates):
+        try:
+            gpi_time=data_object.coordinate('Time')[0][:,0,0]
+            gpi_r_coord=data_object.coordinate('Device R')[0]
+            gpi_z_coord=data_object.coordinate('Device z')[0]
+        except:
+            raise ValueError('R,z or t coordinates are missing.')
+        try:
+            psi_rz_obj=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\PSIRZ',
+                                     exp_id=data_object.exp_id,
+                                     object_name='PSIRZ_FOR_COORD')
+            psi_mag=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIMAG',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIMAG_FOR COORD')
+            psi_bdry=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIBRY',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIBRY_FOR_COORD')
+        except:
+            raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
+        try:
+            psi_values=psi_rz_obj.data
+            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
+            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
+            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+        except:
+            raise ValueError("The flux data cannot be found.")
+        #Do the interpolation
+        psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
+        try:
+            for index_t in range(psi_t_coord.shape[0]):
+                points=np.asarray([psi_r_coord[index_t,:,:].flatten(),psi_z_coord[index_t,:,:].flatten()]).transpose()
+                values=((psi_values[index_t]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])).flatten()
+                psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
+            psi_values_total_interpol=np.zeros(data_object.data.shape)
+            for index_r in range(gpi_r_coord.shape[1]):
+                for index_z in range(gpi_r_coord.shape[2]):
+                    psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
+        except:
+            raise ValueError("An error has occured during the interpolation.")
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Device phi',
+                                       unit='',
+                                       mode=flap.CoordinateMode(equidistant=False),
+                                       values=psi_values_total_interpol,
+                                       shape=psi_values_total_interpol.shape,
+                                       dimension_list=[0,1,2]
+                                       )))
+        data_object.coordinates.append(new_coordinates)
+        
+        return data_object
+
 def register():
     flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
