@@ -17,6 +17,7 @@ import copy
 import subprocess
 import pims
 from scipy import interpolate
+import matplotlib.pyplot as plt
 
 import flap
 import flap_mdsplus
@@ -217,7 +218,7 @@ def add_coordinate(data_object,
                    exp_id=None,
                    options=None): 
     #This part of the code provides normalized flux coordinates for the GPI data
-    if ('Device phi' in coordinates):
+    if ('Flux r' in coordinates):
         try:
             gpi_time=data_object.coordinate('Time')[0][:,0,0]
             gpi_r_coord=data_object.coordinate('Device R')[0]
@@ -232,20 +233,21 @@ def add_coordinate(data_object,
             psi_mag=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\SSIMAG',
                                      exp_id=data_object.exp_id,
-                                     object_name='SSIMAG_FOR COORD')
+                                     object_name='SSIMAG_FOR_COORD')
             psi_bdry=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\SSIBRY',
                                      exp_id=data_object.exp_id,
                                      object_name='SSIBRY_FOR_COORD')
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
-        try:
+        #try:
+        if True:
             psi_values=psi_rz_obj.data
             psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
             psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
             psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
-        except:
-            raise ValueError("The flux data cannot be found.")
+        #except:
+        #    raise ValueError("The flux data cannot be found.")
         #Do the interpolation
         psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
         try:
@@ -259,7 +261,7 @@ def add_coordinate(data_object,
                     psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
         except:
             raise ValueError("An error has occured during the interpolation.")
-        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Device phi',
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux r',
                                        unit='',
                                        mode=flap.CoordinateMode(equidistant=False),
                                        values=psi_values_total_interpol,
@@ -268,7 +270,134 @@ def add_coordinate(data_object,
                                        )))
         data_object.coordinates.append(new_coordinates)
         
-        return data_object
+    if ('Flux theta' in coordinates):
+        try:
+            gpi_time=data_object.coordinate('Time')[0][:,0,0]
+            gpi_r_coord=data_object.coordinate('Device R')[0]
+            gpi_z_coord=data_object.coordinate('Device z')[0]
+        except:
+            raise ValueError('R,z or t coordinates are missing.')
+        try:
+            psi_rz_obj=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\PSIRZ',
+                                     exp_id=data_object.exp_id,
+                                     object_name='PSIRZ_FOR_COORD')
+            r_mag_axis=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\RMAXIS',
+                                     exp_id=data_object.exp_id,
+                                     object_name='RMAXIS_FOR_COORD')
+            z_mag_axis=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\ZMAXIS',
+                                     exp_id=data_object.exp_id,
+                                     object_name='ZMAXIS_FOR_COORD')
+            psi_mag=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIMAG',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIMAG_FOR_COORD')
+            psi_bry=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\SSIBRY',
+                                     exp_id=data_object.exp_id,
+                                     object_name='SSIBRY_FOR_COORD')            
+        except:
+            raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
+        try:
+        #if True:
+            psi_values=psi_rz_obj.data
+            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
+            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
+            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+        except:
+            raise ValueError("The flux data cannot be found.")
+        
+        nlevel=101
+        angle_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
+#        plt.figure()
+        for index_t in range(psi_t_coord.shape[0]):
+#            plt.cla()
+            poloidal_coord=np.zeros([0,3])
+            psi_contour=plt.contour(psi_r_coord[index_t,:,:].transpose(),
+                                    psi_z_coord[index_t,:,:].transpose(),
+                                    psi_values[index_t,:,:], levels=nlevel)
+            for index_collections in range(len(psi_contour.collections)):
+                n_paths=len(psi_contour.collections[index_collections].get_paths())
+                if n_paths > 0:
+                    for index_paths in range(n_paths):
+                        path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices
+                        #plt.scatter(path[:,0],path[:,1])
+                        #plt.close()
+                            
+                        np.argmin(np.abs(path[:,1]))
+                        arclength=0.
+                        current_path_angles=[]
+                        arclength_0=np.sqrt((path[0,0]-path[-1,0])**2 +
+                                            (path[0,1]-path[-1,1])**2)
+                        for index_path_points in range(-1,len(path[:,0])-1):
+                            arclength += np.sqrt((path[index_path_points+1,0]-path[index_path_points,0])**2 +
+                                                 (path[index_path_points+1,1]-path[index_path_points,1])**2)
+                            current_path_angles.append([path[index_path_points+1,0],
+                                                        path[index_path_points+1,1],
+                                                        arclength-arclength_0])
+                        current_path_angles=np.asarray(current_path_angles)
+                        min_ind=0
+                        for index_path_points in range(len(path[:,0])):
+                            if ((np.abs(path[index_path_points,1]-z_mag_axis.data[index_t]*1000.) <
+                                 np.abs(path[min_ind,1]-z_mag_axis.data[index_t]*1000.))   and 
+                               (path[index_path_points,0] > r_mag_axis.data[index_t]*1000.)):
+                                min_ind=index_path_points
+                                #plt.scatter(path[min_ind,0],path[min_ind,1])
+                        #print('last min ind',min_ind)
+                        #plt.scatter(path[min_ind,0],path[min_ind,1])
+                        #print(path[min_ind,0],path[min_ind,1])
+                        rotation=(current_path_angles[min_ind,2]/(arclength-arclength_0))*2.*np.pi
+#                        print(rotation)
+#                        print(current_path_angles[min_ind,2]/(arclength-arclength_0))
+                        #current_path_angles[:,2] *= 2.*np.pi/(arclength-arclength_0)
+                        current_path_angles[:,2] = (current_path_angles[:,2]/(arclength-arclength_0))*2*np.pi
+                        #print((current_path_angles[min_ind,2]/(arclength-arclength_0))*2.*np.pi)
+                        current_path_angles[:,2] = -1*(current_path_angles[:,2]-rotation)
+                        for i_angle in range(len(current_path_angles[:,2])):
+                            if current_path_angles[i_angle,2] > np.pi:
+                                current_path_angles[i_angle,2] -= 2*np.pi
+                            if current_path_angles[i_angle,2] < -np.pi:
+                                current_path_angles[i_angle,2] += 2*np.pi    
+                        #print(current_path_angles[:,2])
+                        #print(current_path_angles[:,2].min())
+                        poloidal_coord=np.append(poloidal_coord,current_path_angles, axis=0)
+#                    print(poloidal_coord.shape)
+#                    print(current_path_angles)
+            #print(poloidal_coord)
+            points=poloidal_coord[:,(1,0)]
+            values=poloidal_coord[:,2]
+#            print(points.shape)
+#            print(values.shape)
+            angle_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
+#            print(angle_values_spat_interpol[index_t,:,:])
+#            plt.cla()
+#            plt.scatter(points[:,1],points[:,0])
+#            
+#            plt.pause(1)
+            plt.cla()
+            plt.tricontourf(points[:,1],points[:,0],values, levels=51)
+            #plt.colorbar()  
+            plt.scatter(gpi_r_coord[0,:,:],gpi_z_coord[0,:,:])
+            plt.show()
+            plt.pause(1)
+        #Temporal interpolation for the angle values
+        angle_values_total_interpol=np.zeros(data_object.data.shape)
+        for index_r in range(gpi_r_coord.shape[1]):
+            for index_z in range(gpi_r_coord.shape[2]):
+                angle_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,angle_values_spat_interpol[:,index_r,index_z])             
+ #       print(angle_values_total_interpol[100,:,:])
+ #       print(angle_values_spat_interpol[40,:,:])
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux theta',
+                                       unit='',
+                                       mode=flap.CoordinateMode(equidistant=False),
+                                       values=angle_values_total_interpol,
+                                       shape=angle_values_total_interpol.shape,
+                                       dimension_list=[0,1,2]
+                                       )))
+        data_object.coordinates.append(new_coordinates)        
+    return data_object
 
 def register():
     flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
