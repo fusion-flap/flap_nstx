@@ -18,9 +18,9 @@ import subprocess
 import pims
 from scipy import interpolate
 import matplotlib.pyplot as plt
-
+from matplotlib import path as pltPath
 import flap
-import flap_mdsplus
+
 #from .spatcal import *
 
 if (flap.VERBOSE):
@@ -109,7 +109,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         
         p = subprocess.Popen(["scp", _options['User']+"@"+_options['Server']+':'+
                               remote_file_name, local_file_folder])
-        sts = os.waitpid(p.pid, 0)
+        os.waitpid(p.pid, 0)
         if not (os.path.exists(local_file_folder+file_name)):
             raise SystemError("The file couldn't be transferred to the local directory.")
     if (_options['Download only']):
@@ -240,14 +240,10 @@ def add_coordinate(data_object,
                                      object_name='SSIBRY_FOR_COORD')
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
-        #try:
-        if True:
-            psi_values=psi_rz_obj.data
-            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
-            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
-            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
-        #except:
-        #    raise ValueError("The flux data cannot be found.")
+        psi_values=psi_rz_obj.data
+        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
+        psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
+        psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
         #Do the interpolation
         psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
         try:
@@ -290,14 +286,16 @@ def add_coordinate(data_object,
                                      name='\EFIT01::\ZMAXIS',
                                      exp_id=data_object.exp_id,
                                      object_name='ZMAXIS_FOR_COORD')
-            psi_mag=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIMAG',
-                                     exp_id=data_object.exp_id,
-                                     object_name='SSIMAG_FOR_COORD')
-            psi_bry=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIBRY',
-                                     exp_id=data_object.exp_id,
-                                     object_name='SSIBRY_FOR_COORD')            
+            r_bdry_obj=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\RBDRY',
+                                     exp_id=exp_id,
+                                     object_name='SEP X OBJ'
+                                     )
+            z_bdry_obj=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\ZBDRY',
+                                     exp_id=exp_id,
+                                     object_name='SEP Y OBJ'
+                                     )
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
         try:
@@ -306,27 +304,29 @@ def add_coordinate(data_object,
             psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
             psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
             psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+            r_bdry=r_bdry_obj.data*1000.
+            z_bdry=z_bdry_obj.data*1000.
+            r_maxis=r_mag_axis.data*1000.
+            z_maxis=z_mag_axis.data*1000.
         except:
             raise ValueError("The flux data cannot be found.")
         
         nlevel=101
         angle_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
-#        plt.figure()
         for index_t in range(psi_t_coord.shape[0]):
-#            plt.cla()
             poloidal_coord=np.zeros([0,3])
+            #Get the contour plot paths of the constant psi surfaces
             psi_contour=plt.contour(psi_r_coord[index_t,:,:].transpose(),
                                     psi_z_coord[index_t,:,:].transpose(),
                                     psi_values[index_t,:,:], levels=nlevel)
-            for index_collections in range(len(psi_contour.collections)):
-                n_paths=len(psi_contour.collections[index_collections].get_paths())
+            for index_collections in range(len(psi_contour.collections)): #Iterate through all the constant surfaces
+                n_paths=len(psi_contour.collections[index_collections].get_paths()) #Get the actual paths, there might be more for one constant outside the separatrix.
                 if n_paths > 0:
                     for index_paths in range(n_paths):
-                        path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices
-                        #plt.scatter(path[:,0],path[:,1])
-                        #plt.close()
-                            
-                        np.argmin(np.abs(path[:,1]))
+                        path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices # Get the actual coordinates of the curve.   
+                        #np.argmin(np.abs(path[:,1]))
+                        #The following code calculates the angles. The full arclength is calculated along with the partial arclengths.
+                        # The angle is then difined as the fraction of the arclength fraction and the entire arclength.
                         arclength=0.
                         current_path_angles=[]
                         arclength_0=np.sqrt((path[0,0]-path[-1,0])**2 +
@@ -339,64 +339,134 @@ def add_coordinate(data_object,
                                                         arclength-arclength_0])
                         current_path_angles=np.asarray(current_path_angles)
                         min_ind=0
+                        #The angles needs to be measured from the midplane. Hence a correction rotation subtracted from the angle.
                         for index_path_points in range(len(path[:,0])):
-                            if ((np.abs(path[index_path_points,1]-z_mag_axis.data[index_t]*1000.) <
-                                 np.abs(path[min_ind,1]-z_mag_axis.data[index_t]*1000.))   and 
-                               (path[index_path_points,0] > r_mag_axis.data[index_t]*1000.)):
+                            if ((np.abs(path[index_path_points,1]-z_maxis[index_t]) <
+                                 np.abs(path[min_ind,1]-z_maxis[index_t]))   and 
+                               (path[index_path_points,0] > r_maxis[index_t])):
                                 min_ind=index_path_points
-                                #plt.scatter(path[min_ind,0],path[min_ind,1])
-                        #print('last min ind',min_ind)
-                        #plt.scatter(path[min_ind,0],path[min_ind,1])
-                        #print(path[min_ind,0],path[min_ind,1])
                         rotation=(current_path_angles[min_ind,2]/(arclength-arclength_0))*2.*np.pi
-#                        print(rotation)
-#                        print(current_path_angles[min_ind,2]/(arclength-arclength_0))
-                        #current_path_angles[:,2] *= 2.*np.pi/(arclength-arclength_0)
                         current_path_angles[:,2] = (current_path_angles[:,2]/(arclength-arclength_0))*2*np.pi
-                        #print((current_path_angles[min_ind,2]/(arclength-arclength_0))*2.*np.pi)
                         current_path_angles[:,2] = -1*(current_path_angles[:,2]-rotation)
+                        #The angles are corrected to be between -Pi and +Pi
                         for i_angle in range(len(current_path_angles[:,2])):
                             if current_path_angles[i_angle,2] > np.pi:
                                 current_path_angles[i_angle,2] -= 2*np.pi
                             if current_path_angles[i_angle,2] < -np.pi:
                                 current_path_angles[i_angle,2] += 2*np.pi    
-                        #print(current_path_angles[:,2])
-                        #print(current_path_angles[:,2].min())
                         poloidal_coord=np.append(poloidal_coord,current_path_angles, axis=0)
-#                    print(poloidal_coord.shape)
-#                    print(current_path_angles)
-            #print(poloidal_coord)
+                        
             points=poloidal_coord[:,(1,0)]
-            values=poloidal_coord[:,2]
-#            print(points.shape)
-#            print(values.shape)
-            angle_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
-#            print(angle_values_spat_interpol[index_t,:,:])
-#            plt.cla()
-#            plt.scatter(points[:,1],points[:,0])
-#            
-#            plt.pause(1)
-            plt.cla()
-            plt.tricontourf(points[:,1],points[:,0],values, levels=51)
-            #plt.colorbar()  
-            plt.scatter(gpi_r_coord[0,:,:],gpi_z_coord[0,:,:])
-            plt.show()
-            plt.pause(1)
+            values=poloidal_coord[:,2]                        
+                        
+            #No point of having coordinates outside the separatrix
+            #The following needs to be done:
+            #1. Calculate the angles at 90% of the separatrix
+            boundary_fraction=0.90
+            boundary_data=np.asarray([r_bdry[index_t],z_bdry[index_t]])
+            points_at_fraction=np.asarray([(boundary_data[0,:]-r_maxis[index_t])*boundary_fraction+r_maxis[index_t],
+                                     (boundary_data[1,:]-z_maxis[index_t])*boundary_fraction+z_maxis[index_t]])
+            values_at_fraction=interpolate.griddata(points,values,(points_at_fraction[1,:],points_at_fraction[0,:]),method='cubic')
+            values_at_fraction[np.isnan(values_at_fraction)]=0.
+            #2. Redefine the poloidal coord vector to only have points inside the 95% of the separatrix
+            bfrac_path=[]
+            for index_bdry in range(len(points_at_fraction[0,:])):
+                bfrac_path.append((points_at_fraction[0,index_bdry],points_at_fraction[1,index_bdry]))
+            bfrac_path=pltPath.Path(bfrac_path)
+            
+            poloidal_coord_new=np.zeros([0,3])
+            poloidal_coord_new=[[0,0,0]]
+            for index_poloidal_coord in range(len(poloidal_coord[:,0])):
+                if (bfrac_path.contains_point(poloidal_coord[index_poloidal_coord,(0,1)])):
+                    poloidal_coord_new.append(poloidal_coord[index_poloidal_coord,:])
+
+            poloidal_coord_new=np.asarray(poloidal_coord_new)[1:-1]
+            if (len(poloidal_coord_new[:,0]) < 4):
+                points=poloidal_coord[:,(1,0)]
+                values=poloidal_coord[:,2]    
+            else:      
+            #3. Add points to poloidal coord vector with some resolution (close to the EFIT resolution)
+                for index_expansion in range(21):
+                    zoom=(index_expansion * 0.05) + 1.
+                    expanded_points=np.asarray([(boundary_data[0,:]-r_maxis[index_t])*zoom+r_maxis[index_t],
+                                                (boundary_data[1,:]-z_maxis[index_t])*zoom+z_maxis[index_t]])
+                    
+                    new_points=np.asarray([expanded_points[0,:],expanded_points[1,:],values_at_fraction])
+                    poloidal_coord_new=np.append(poloidal_coord_new,new_points.transpose(), axis=0)
+                points=poloidal_coord_new[:,(1,0)]
+                values=poloidal_coord_new[:,2]
+            #4. Do the interpolation with the redefined poloidal coordinates.
+            #The angles are calculated for the GPI's coordinate frame.
+            angle_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,
+                                                                         values,
+                                                                         (gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),
+                                                                         method='cubic').transpose()
+            if (options is not None and options['Debug']):
+            #if True:
+                plt.cla()
+                plt.tricontourf(points[:,1],points[:,0],values, levels=51)
+                #plt.colorbar()  
+                plt.scatter(gpi_r_coord[0,:,:],gpi_z_coord[0,:,:])
+                plt.scatter(r_bdry[index_t,:],z_bdry[index_t,:])
+                plt.axis('equal')
+                plt.show()
+                plt.pause(1)
+            
         #Temporal interpolation for the angle values
         angle_values_total_interpol=np.zeros(data_object.data.shape)
         for index_r in range(gpi_r_coord.shape[1]):
             for index_z in range(gpi_r_coord.shape[2]):
-                angle_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,angle_values_spat_interpol[:,index_r,index_z])             
- #       print(angle_values_total_interpol[100,:,:])
- #       print(angle_values_spat_interpol[40,:,:])
+                angle_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,angle_values_spat_interpol[:,index_r,index_z])
+        plt.cla()
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux theta',
-                                       unit='',
+                                       unit='rad',
                                        mode=flap.CoordinateMode(equidistant=False),
                                        values=angle_values_total_interpol,
                                        shape=angle_values_total_interpol.shape,
                                        dimension_list=[0,1,2]
                                        )))
-        data_object.coordinates.append(new_coordinates)        
+        data_object.coordinates.append(new_coordinates)
+        
+    if ('Device theta' in coordinates):
+        try:
+            gpi_time=data_object.coordinate('Time')[0][:,0,0]
+            gpi_r_coord=data_object.coordinate('Device R')[0]
+            gpi_z_coord=data_object.coordinate('Device z')[0]
+        except:
+            raise ValueError('R,z or t coordinates are missing.')
+        try:
+            r_mag_axis=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\RMAXIS',
+                                     exp_id=data_object.exp_id,
+                                     object_name='RMAXIS_FOR_COORD')
+            z_mag_axis=flap.get_data('NSTX_MDSPlus',
+                                     name='\EFIT01::\ZMAXIS',
+                                     exp_id=data_object.exp_id,
+                                     object_name='ZMAXIS_FOR_COORD')
+        except:
+            raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
+        try:
+        #if True:
+            t_maxis=r_mag_axis.coordinate('Time')[0]*1000.
+            r_maxis=r_mag_axis.data*1000.
+            z_maxis=z_mag_axis.data*1000.
+        except:
+            raise ValueError("The flux data cannot be found.")
+        r_maxis_at_gpi_range=np.interp(gpi_time,t_maxis,r_maxis)
+        z_maxis_at_gpi_range=np.interp(gpi_time,t_maxis,z_maxis)
+        poloidal_angles=np.zeros(gpi_r_coord.shape)
+        for index_t in range(gpi_time.shape[0]):
+            y=gpi_z_coord[index_t,:,:]-z_maxis_at_gpi_range[index_t]
+            x=gpi_r_coord[index_t,:,:]-r_maxis_at_gpi_range[index_t]
+            poloidal_angles[index_t,:,:]=np.arctan(y/x)
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Device theta',
+                               unit='rad',
+                               mode=flap.CoordinateMode(equidistant=False),
+                               values=poloidal_angles,
+                               shape=poloidal_angles.shape,
+                               dimension_list=[0,1,2]
+                               )))
+        data_object.coordinates.append(new_coordinates)
     return data_object
 
 def register():
