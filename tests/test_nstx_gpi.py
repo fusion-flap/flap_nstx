@@ -5,7 +5,6 @@ Created on Fri May 10 18:50:28 2019
 @author: Mate Lampert (mlampert@pppl.gov)
 """
 
-import matplotlib.pyplot as plt
 import os
 
 import flap
