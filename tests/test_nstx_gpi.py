@@ -149,5 +149,5 @@ flap.config.read(file_name=fn)
 
 
 #test_flap_time()
-#test_NSTX_GPI_data_animation()
-test_NSTX_GPI_norm_flux_coord()
+test_NSTX_GPI_data_animation()
+#test_NSTX_GPI_norm_flux_coord()
