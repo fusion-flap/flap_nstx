@@ -51,6 +51,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                        'End delay': 0,
                        'Download only': False
                        }
+    
     _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
     folder={
