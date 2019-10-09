@@ -36,7 +36,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     if (exp_id is None):
         raise ValueError('exp_id should be set for NSTX GPI.')
     if (type(exp_id) is not int):
-        raise TypeError("exp_id should be an integer.")
+        raise TypeError("exp_id should be an integer and not %s"%(type(exp_id)))
 
     default_options = {'Local datapath':'data',
                        'Datapath':None,
@@ -127,11 +127,22 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
 
     data_arr=np.asarray(images[:], dtype=np.int16)
     data_unit = flap.Unit(name='Signal',unit='Digit')
+    
+    #time data cannot be directly extracted from a PIMS file as it is stored as ms timestamps 
+    #and it is converted to datetime which is somehow not precise.
+    #The following two codes are giving equivalent results within the framerate accuracy of the measurement.
+    
+    #trigger_time = datetime + second fraction of the first frame - datetime - second fraction of the trigger time
+    #trigger_time=(images.frame_time_stamps[0][0].timestamp()+images.frame_time_stamps[0][1]-
+    #              images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction'])
 
-    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
-                    +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
-
+    #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
+    #The frame_rate corresponds with the one from IDL.
+    trigger_time=images.header_dict['first_image_no']/images.frame_rate
+    
+    
     coord = [None]*6
+    
     
     
         #def get_time_to_trigger(self, i):
@@ -145,8 +156,8 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
                                                unit='ms',
                                                mode=flap.CoordinateMode(equidistant=True),
-                                               start=time_arr[0]*1000.,
-                                               step=(time_arr[1]-time_arr[0])*1000.,
+                                               start=trigger_time*1000.,
+                                               step=1/float(images.frame_rate)*1000.,
                                                #shape=time_arr.shape,
                                                dimension_list=[0]
                                                )))
@@ -199,8 +210,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                dimension_list=[1,2]
                                                )))
     
-    _options["Trigger time"]=images.trigger_time['second_fraction']
+    _options["Trigger time [ms]"]=trigger_time*1000.
     _options["FPS"]=images.frame_rate
+    _options["Sample time [ms]"]=1/float(images.frame_rate)*1000.
+    _options["Exposure time [s]"]=images.tagged_blocks['exposure_only'][0] 
     _options["X size"]=images.frame_shape[0]
     _options["Y size"]=images.frame_shape[1]
     _options["Bits"]=images.bitmapinfo_dict["bi_bit_count"]

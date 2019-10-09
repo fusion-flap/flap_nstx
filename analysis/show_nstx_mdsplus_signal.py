@@ -17,7 +17,7 @@ flap_nstx.register()
 flap_mdsplus.register('NSTX_MDSPlus')
 
 def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
-                             new_plot=True):
+                             new_plot=False):
     
     if (exp_id is None and time_range is None):
         print('The correct way to call the code is the following:\n')
@@ -50,8 +50,10 @@ def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
         raise ValueError('The read data are not a single channel time series. Returning...')
     if new_plot:
         plt.figure()
+    else:
+        plt.cla()
     flap.plot(object_name, options=plot_options)
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"test_nstx_gpi.cfg")
+fn = os.path.join(thisdir,"flap_nstx.cfg")
 flap.config.read(file_name=fn)   
