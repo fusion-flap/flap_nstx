@@ -115,17 +115,18 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
             raise SystemError("The file couldn't be transferred to the local directory.")
     if (_options['Download only']):
             d = flap.DataObject(data_array=np.asarray([0,1]),
-                        data_unit=None,
-                        coordinates=None,
-                        exp_id=exp_id,
-                        data_title=data_title,
-                        info={'Options':_options},
-                        data_source="NSTX_GPI")
+                                data_unit=None,
+                                coordinates=None,
+                                exp_id=exp_id,
+                                data_title=data_title,
+                                info={'Options':_options},
+                                data_source="NSTX_GPI")
             return d
         
     images=pims.Cine(local_file_folder+file_name)
 
-    data_arr=np.asarray(images[:], dtype=np.int16)
+    data_arr=np.flip(np.asarray(images[:], dtype=np.int16),2) #The original data is 80x64, this line converts it to 64x80
+    
     data_unit = flap.Unit(name='Signal',unit='Digit')
     
     #time data cannot be directly extracted from a PIMS file as it is stored as ms timestamps 
