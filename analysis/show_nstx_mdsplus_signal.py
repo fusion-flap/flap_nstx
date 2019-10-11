@@ -13,6 +13,7 @@ import flap_nstx
 import flap_mdsplus
 import matplotlib.pyplot as plt
 
+
 flap_nstx.register()
 flap_mdsplus.register('NSTX_MDSPlus')
 
@@ -56,6 +57,7 @@ def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
         plt.cla()
     flap.plot(object_name, options=plot_options)
     #flap.plot(object_name)
+    
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")

@@ -139,7 +139,7 @@ def show_nstx_gpi_video(exp_id=None, time_range=None, plot_filtered=False,
                        'Colormap':'jet'})
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"test_nstx_gpi.cfg")
+fn = os.path.join(thisdir,"flap_nstx.cfg")
 flap.config.read(file_name=fn)            
 
 #show_nstx_gpi_video(exp_id=141918, time_range=[250.,260.], plot_filtered=True, cache_data=False, plot_efit=True, flux_coordinates=False)
