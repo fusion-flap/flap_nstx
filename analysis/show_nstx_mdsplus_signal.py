@@ -18,7 +18,8 @@ flap_nstx.register()
 flap_mdsplus.register('NSTX_MDSPlus')
 
 def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
-                             new_plot=False, yrange=None, smooth=None):
+                             new_plot=False, yrange=None, smooth=None, y_range=None,
+                             filter_freq=None):
     
     if (exp_id is None and time_range is None):
         print('The correct way to call the code is the following:\n')
@@ -39,9 +40,11 @@ def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
         if (type(time_range) is not list and len(time_range) != 2):
             raise TypeError('time_range needs to be a list with two elements.')
         time_range=[time_range[0]/1000., time_range[1]/1000.]    
-
+    if y_range is not None:
+        yrange=y_range
     plot_options={'X range': time_range,
-                  'Y range': yrange}
+                  'Y range': yrange,
+                  'All points': True}
 
     object_name=str(exp_id)+'_mds_t'+tree+'_n'+node
     d=flap.get_data('NSTX_MDSPlus',
@@ -55,6 +58,12 @@ def show_nstx_mdsplus_signal(exp_id=None, time_range=None, tree=None, node=None,
         plt.figure()
     else:
         plt.cla()
+    if filter_freq is not None:
+        
+        d=flap.filter_data(object_name,output_name=object_name+'_filtered',coordinate='Time',
+                   options={'Type':'Lowpass','f_high':filter_freq/1e3,
+                            'Design':'Chebyshev II'}) #Data is in milliseconds
+        object_name=object_name+'_filtered'
     flap.plot(object_name, options=plot_options)
     #flap.plot(object_name)
     

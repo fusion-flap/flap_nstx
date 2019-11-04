@@ -40,7 +40,13 @@ def show_nstx_gpi_video(exp_id=None, time_range=None, plot_filtered=False,
         flap.delete_data_object('*')
     if exp_id is not None:
         print("\n------- Reading NSTX GPI data --------")
-        d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+        if cache_data:
+            try:
+                d=flap.get_data_object_ref(exp_id=exp_id,object_name='GPI')
+            except:
+                print('Data is not cached, it needs to be read.')
+        else:
+            d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
         object_name='GPI'
     else:
         raise ValueError('The experiment ID needs to be set.')
