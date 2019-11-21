@@ -17,8 +17,10 @@ import copy
 import subprocess
 import pims
 from scipy import interpolate
+
 import matplotlib.pyplot as plt
 from matplotlib import path as pltPath
+
 import flap
 
 #from .spatcal import *
@@ -155,10 +157,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
         #return ti - tt
     
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
-                                               unit='ms',
+                                               unit='s',
                                                mode=flap.CoordinateMode(equidistant=True),
-                                               start=trigger_time*1000.,
-                                               step=1/float(images.frame_rate)*1000.,
+                                               start=trigger_time,
+                                               step=1/float(images.frame_rate),
                                                #shape=time_arr.shape,
                                                dimension_list=[0]
                                                )))
@@ -192,11 +194,11 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     #This needs to be updated as soon as more information is available on the
     #calibration coordinates.
       
-    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])
-    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])
+    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
+    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
      
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-                                               unit='mm',
+                                               unit='m',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_r[2],
                                                step=[coeff_r[0],coeff_r[1]],
@@ -204,16 +206,16 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                               unit='mm',
+                                               unit='m',
                                                mode=flap.CoordinateMode(equidistant=True),
                                                start=coeff_z[2],
                                                step=[coeff_z[0],coeff_z[1]],
                                                dimension_list=[1,2]
                                                )))
     
-    _options["Trigger time [ms]"]=trigger_time*1000.
+    _options["Trigger time [s]"]=trigger_time
     _options["FPS"]=images.frame_rate
-    _options["Sample time [ms]"]=1/float(images.frame_rate)*1000.
+    _options["Sample time [s]"]=1/float(images.frame_rate)
     _options["Exposure time [s]"]=images.tagged_blocks['exposure_only'][0] 
     _options["X size"]=images.frame_shape[0]
     _options["Y size"]=images.frame_shape[1]
@@ -256,15 +258,16 @@ def add_coordinate(data_object,
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
         psi_values=psi_rz_obj.data
-        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
-        psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
-        psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]
+        psi_r_coord=psi_rz_obj.coordinate('Device R')[0]
+        psi_z_coord=psi_rz_obj.coordinate('Device z')[0]
         #Do the interpolation
         psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
         try:
             for index_t in range(psi_t_coord.shape[0]):
                 points=np.asarray([psi_r_coord[index_t,:,:].flatten(),psi_z_coord[index_t,:,:].flatten()]).transpose()
                 values=((psi_values[index_t]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])).flatten()
+                values[np.isnan(values)]=0.
                 psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
             psi_values_total_interpol=np.zeros(data_object.data.shape)
             for index_r in range(gpi_r_coord.shape[1]):
@@ -272,6 +275,7 @@ def add_coordinate(data_object,
                     psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
         except:
             raise ValueError("An error has occured during the interpolation.")
+        psi_values_total_interpol[np.isnan(psi_values_total_interpol)]=0.
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux r',
                                        unit='',
                                        mode=flap.CoordinateMode(equidistant=False),
@@ -282,6 +286,7 @@ def add_coordinate(data_object,
         data_object.coordinates.append(new_coordinates)
         
     if ('Flux theta' in coordinates):
+        print("ADDING FLUX THETA IS DEPRECATED AND MIGHT FAIL.")
         try:
             gpi_time=data_object.coordinate('Time')[0][:,0,0]
             gpi_r_coord=data_object.coordinate('Device R')[0]
@@ -316,13 +321,13 @@ def add_coordinate(data_object,
         try:
         #if True:
             psi_values=psi_rz_obj.data
-            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
-            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
-            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
-            r_bdry=r_bdry_obj.data*1000.
-            z_bdry=z_bdry_obj.data*1000.
-            r_maxis=r_mag_axis.data*1000.
-            z_maxis=z_mag_axis.data*1000.
+            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]
+            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]
+            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]
+            r_bdry=r_bdry_obj.data
+            z_bdry=z_bdry_obj.data
+            r_maxis=r_mag_axis.data
+            z_maxis=z_mag_axis.data
         except:
             raise ValueError("The flux data cannot be found.")
         
@@ -462,9 +467,9 @@ def add_coordinate(data_object,
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
         try:
         #if True:
-            t_maxis=r_mag_axis.coordinate('Time')[0]*1000.
-            r_maxis=r_mag_axis.data*1000.
-            z_maxis=z_mag_axis.data*1000.
+            t_maxis=r_mag_axis.coordinate('Time')[0]
+            r_maxis=r_mag_axis.data
+            z_maxis=z_mag_axis.data
         except:
             raise ValueError("The flux data cannot be found.")
         r_maxis_at_gpi_range=np.interp(gpi_time,t_maxis,r_maxis)
