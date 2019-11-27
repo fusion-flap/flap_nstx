@@ -244,15 +244,15 @@ def add_coordinate(data_object,
             raise ValueError('R,z or t coordinates are missing.')
         try:
             psi_rz_obj=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\PSIRZ',
+                                     name='\EFIT02::\PSIRZ',
                                      exp_id=data_object.exp_id,
                                      object_name='PSIRZ_FOR_COORD')
             psi_mag=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIMAG',
+                                     name='\EFIT02::\SSIMAG',
                                      exp_id=data_object.exp_id,
                                      object_name='SSIMAG_FOR_COORD')
             psi_bdry=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIBRY',
+                                     name='\EFIT02::\SSIBRY',
                                      exp_id=data_object.exp_id,
                                      object_name='SSIBRY_FOR_COORD')
         except:
@@ -263,18 +263,20 @@ def add_coordinate(data_object,
         psi_z_coord=psi_rz_obj.coordinate('Device z')[0]
         #Do the interpolation
         psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
-        try:
-            for index_t in range(psi_t_coord.shape[0]):
-                points=np.asarray([psi_r_coord[index_t,:,:].flatten(),psi_z_coord[index_t,:,:].flatten()]).transpose()
-                values=((psi_values[index_t]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])).flatten()
-                values[np.isnan(values)]=0.
-                psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
-            psi_values_total_interpol=np.zeros(data_object.data.shape)
-            for index_r in range(gpi_r_coord.shape[1]):
-                for index_z in range(gpi_r_coord.shape[2]):
-                    psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
-        except:
-            raise ValueError("An error has occured during the interpolation.")
+
+        for index_t in range(psi_t_coord.shape[0]):
+            points=np.asarray([psi_r_coord[index_t,:,:].flatten(),
+                               psi_z_coord[index_t,:,:].flatten()]).transpose()
+            psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,psi_values[index_t,:,:].transpose().flatten(),
+                                                                       np.asarray([gpi_r_coord[0,:,:].flatten(),gpi_z_coord[0,:,:].flatten()]).transpose(),method='cubic').reshape(psi_values_spat_interpol[index_t,:,:].shape)
+            psi_values_spat_interpol[index_t,:,:]=(psi_values_spat_interpol[index_t,:,:]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])
+        psi_values_spat_interpol[np.isnan(psi_values_spat_interpol)]=0.
+        psi_values_total_interpol=np.zeros(data_object.data.shape)
+        
+        for index_r in range(gpi_r_coord.shape[1]):
+            for index_z in range(gpi_r_coord.shape[2]):
+                psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])       
+
         psi_values_total_interpol[np.isnan(psi_values_total_interpol)]=0.
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux r',
                                        unit='',
@@ -308,12 +310,12 @@ def add_coordinate(data_object,
                                      object_name='ZMAXIS_FOR_COORD')
             r_bdry_obj=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\RBDRY',
-                                     exp_id=exp_id,
+                                     exp_id=data_object.exp_id,
                                      object_name='SEP X OBJ'
                                      )
             z_bdry_obj=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\ZBDRY',
-                                     exp_id=exp_id,
+                                     exp_id=data_object.exp_id,
                                      object_name='SEP Y OBJ'
                                      )
         except:
@@ -385,7 +387,7 @@ def add_coordinate(data_object,
             boundary_fraction=0.90
             boundary_data=np.asarray([r_bdry[index_t],z_bdry[index_t]])
             points_at_fraction=np.asarray([(boundary_data[0,:]-r_maxis[index_t])*boundary_fraction+r_maxis[index_t],
-                                     (boundary_data[1,:]-z_maxis[index_t])*boundary_fraction+z_maxis[index_t]])
+                                           (boundary_data[1,:]-z_maxis[index_t])*boundary_fraction+z_maxis[index_t]])
             values_at_fraction=interpolate.griddata(points,values,(points_at_fraction[1,:],points_at_fraction[0,:]),method='cubic')
             values_at_fraction[np.isnan(values_at_fraction)]=0.
             #2. Redefine the poloidal coord vector to only have points inside the 95% of the separatrix

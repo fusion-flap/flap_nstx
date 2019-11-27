@@ -111,7 +111,7 @@ def show_nstx_gpi_video(exp_id=None,
             
         if plot_flux:
             d=flap.get_data('NSTX_MDSPlus',
-                            name='\EFIT01::\PSIRZ',
+                            name='\EFIT02::\PSIRZ',
                             exp_id=exp_id,
                             object_name='PSI RZ OBJ'
                             )
@@ -119,10 +119,10 @@ def show_nstx_gpi_video(exp_id=None,
                                               'Plot':True,
                                               'Colormap':None,
                                               'nlevel':51}}
-        oplot_options['line']={'trial':{'Horizontal':[[0.200,'red'],[0.250,'blue']],
-                                        'Vertical':[[1.450,'red'],[1.500,'blue']],
-                                        'Plot':True
-                                       }}
+        #oplot_options['line']={'trial':{'Horizontal':[[0.200,'red'],[0.250,'blue']],
+        #                                'Vertical':[[1.450,'red'],[1.500,'blue']],
+        #                                'Plot':True
+        #                               }}
             
     else:
         oplot_options=None
@@ -130,8 +130,6 @@ def show_nstx_gpi_video(exp_id=None,
     if flux_coordinates:
         print("**** Adding Flux r coordinates")
         d.add_coordinate(coordinates='Flux r',exp_id=exp_id)
-#        print("**** Adding Flux theta coordinates")                            #Deprecated, not reliable
-#        d.add_coordinate(coordinates='Flux theta',exp_id=exp_id)
         x_axis='Flux r'
         y_axis='Device z'
     elif device_coordinates:
@@ -143,16 +141,6 @@ def show_nstx_gpi_video(exp_id=None,
     if new_plot:
         plt.figure()
         
-
-    if save_video:
-        if time_range is not None:
-            video_filename='NSTX_GPI_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'.mp4'
-        else:
-            video_filename='NSTX_GPI_'+str(exp_id)+'_FULL.mp4'
-    else:
-        video_filename=None
-    if video_saving_only:
-        save_video=True
 
     if normalize is not None:
         print("**** Normalizing GPI ****")
@@ -175,6 +163,16 @@ def show_nstx_gpi_video(exp_id=None,
             d.data = d.data/coefficient.data #This should be checked to some extent, it works with smaller matrices
         else:
             raise ValueError('Normalize can either be "Time averaged" or "Time dependent".')
+            
+    if save_video:
+        if time_range is not None:
+            video_filename='NSTX_GPI_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'.mp4'
+        else:
+            video_filename='NSTX_GPI_'+str(exp_id)+'_FULL.mp4'
+    else:
+        video_filename=None
+    if video_saving_only:
+        save_video=True
         
     if not save_video:
         flap.plot(object_name,plot_type='animation',

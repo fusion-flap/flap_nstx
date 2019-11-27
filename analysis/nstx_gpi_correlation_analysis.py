@@ -20,9 +20,6 @@ import flap_mdsplus
 
 import matplotlib.style as pltstyle
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-
-import numpy as np
 
 publication=False
 
@@ -70,7 +67,15 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                                   cache_data=False,
                                   normalize=False,           #Calculate coherency if True
                                   plot=False,
-                                  plot_phase=False
+                                  plot_phase=False,
+                                  axes=['Image x', 'Image y', 'Frequency'],
+                                  hanning=True,
+                                  colormap=None,
+                                  video_saving_only=False,
+                                  video_filename=None,
+                                  save_video=False,
+                                  comment=None,
+                                  zlog=False
                                   ):
     
     #139901 [300,307]
@@ -117,10 +122,6 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                                                  )
         d.data = d.data/normalizer.data #This should be checked to some extent, it works with smaller matrices
     
-#    for index_x in range(d.data.shape[0]):
-#        for index_y in range(d.data.shape[1]):
-#            d.data[:,index_x,index_y] /= normalizer.data[index_x,index_y]
-    
     #Calculate the crosspower spectra for the timerange between the reference pixel and all the other pixels
     if reference_pixel is None and reference_position is None and reference_flux is None:
         calculate_apsd=True
@@ -146,15 +147,10 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                            'Range':frange,
                            'Logarithmic':flog,
                            'Interval_n':interval_n,
-                           'Hanning':False,
+                           'Hanning':hanning,
                            'Trend removal':None,
                            },
                    output_name=object_name)
-        if plot:
-            flap.plot(object_name, exp_id=exp_id,
-                      plot_type='animation', 
-                      axes=['Image x', 'Image y', 'Frequency'], 
-                      options={'Plot units': {'Frequency':'kHz'}})
     else:
         object_name='GPI_CPSD'
         flap.cpsd('GPI_SLICED',exp_id=exp_id,
@@ -164,27 +160,92 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                            'Range':frange,
                            'Logarithmic':flog,
                            'Interval_n':interval_n,
-                           'Hanning':False,
+                           'Hanning':hanning,
                            'Normalize':normalize,
                            'Trend removal':None,
                            },
                    output_name=object_name)
-        flap.abs_value('GPI_CPSD',exp_id=exp_id,
+        flap.abs_value(object_name,exp_id=exp_id,
                        output_name='GPI_CPSD_ABS')
-        flap.phase('GPI_CPSD',exp_id=exp_id,
-                   output_name='GPI_CPSD_PHASE')
+        flap.phase(object_name,exp_id=exp_id,
+                   output_name='GPI_CPSD_PHASE')    
+    if not save_video:
         if plot:
-            if plot_phase:
-                flap.plot('GPI_CPSD_PHASE', exp_id=exp_id,
-                          plot_type='animation', 
-                          axes=['Image x', 'Image y', 'Frequency'], 
-                          options={'Plot units': {'Frequency':'kHz'}})
+            if calculate_apsd:
+                object_name='GPI_APSD'
             else:
-                flap.plot('GPI_CPSD_ABS', exp_id=exp_id,
-                          plot_type='animation', 
-                          axes=['Image x', 'Image y', 'Frequency'], 
-                          options={'Plot units': {'Frequency':'kHz'}})
-        
+                if plot_phase:
+                    object_name='GPI_CPSD_PHASE'
+                else:
+                    object_name='GPI_CPSD_ABS'
+            flap.plot(object_name, exp_id=exp_id,
+                      plot_type='anim-contour', 
+                      axes=axes, 
+                      options={'Force axes':True,
+                               'Colormap':colormap,
+                               'Plot units':{'Device R':'mm',
+                                             'Device z':'mm',
+                                             'Frequency':'kHz'},
+                               'Log z':zlog})
+    else:
+        if video_filename is None:
+            if time_range is not None:
+                video_filename='NSTX_GPI_'+str(exp_id)
+                if calculate_apsd:
+                    video_filename+='_APSD'
+                else:
+                    video_filename+='_CPSD'
+                    if plot_phase:
+                        video_filename+='_PHASE'
+                    else:
+                        video_filename+='_ABS'
+                video_filename+='_'+str(time_range[0])+'_'+str(time_range[1])
+                if reference_pixel is not None:
+                    video_filename+='_PIX_'+str(reference_pixel[0])+'_'+str(reference_pixel[1])
+                if reference_position is not None:
+                    video_filename+='_POS_'+str(reference_position[0])+'_'+str(reference_position[1])
+                if reference_flux is not None:
+                    video_filename+='_FLX_'+str(reference_flux[0])+'_'+str(reference_flux[1])
+                video_filename+='_FRES_'+str(fres)
+                if comment is not None:
+                    video_filename+=comment
+                video_filename+='.mp4'            
+            else:
+                video_filename='NSTX_GPI_CPSD_'+str(exp_id)+'_FULL.mp4'      
+        if video_saving_only:
+            import matplotlib
+            current_backend=matplotlib.get_backend()
+            matplotlib.use('agg')
+            waittime=0.
+        else:
+            waittime=1.
+            
+        if calculate_apsd:
+            object_name='GPI_APSD'
+        else:
+            if plot_phase:
+                object_name='GPI_CPSD_PHASE'
+            else:
+                object_name='GPI_CPSD_ABS'
+                
+        flap.plot(object_name, exp_id=exp_id,
+                  plot_type='anim-contour', 
+                  axes=axes, 
+                  options={'Force axes':True,
+                           'Colormap':colormap,
+                           'Plot units':{'Device R':'mm',
+                                         'Device z':'mm',
+                                         'Frequency':'kHz'},
+                           'Waittime':waittime,
+                           'Video file':video_filename,
+                           'Video format':'mp4',
+                           'Log z':zlog})
+                           
+            
+        if video_saving_only:
+            import matplotlib
+            matplotlib.use(current_backend)
+
     #Calculate the cross-correlation functions for the timerange between the reference pixel and all the other pixels
     #Save all the data and the settings. The filename should resembe the settings.
     
@@ -209,7 +270,8 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
                                         normalize_signal=False,
                                         normalize=True,           #Calculate correlation if True (instead of covariance)
                                         plot=False,
-                                        plot_acf=False
+                                        plot_acf=False,
+                                        axes=['Image x', 'Image y', 'Time lag']
                                        ):
     
     if time_range is None:
@@ -307,7 +369,7 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
             
             flap.plot(object_name, exp_id=exp_id,
                       plot_type='animation', 
-                      axes=['Image x', 'Image y', 'Time lag'], 
+                      axes=axes, 
                       options={'Plot units': {'Time lag':'us'}, 
                                'Z range':[0,1]},)     
 
