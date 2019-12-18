@@ -75,7 +75,8 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                                   video_filename=None,
                                   save_video=False,
                                   comment=None,
-                                  zlog=False
+                                  zlog=False,
+                                  save_for_paraview=False
                                   ):
     
     #139901 [300,307]
@@ -179,7 +180,7 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                 else:
                     object_name='GPI_CPSD_ABS'
             flap.plot(object_name, exp_id=exp_id,
-                      plot_type='anim-contour', 
+                      plot_type='animation', 
                       axes=axes, 
                       options={'Force axes':True,
                                'Colormap':colormap,
@@ -235,7 +236,7 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                            'Colormap':colormap,
                            'Plot units':{'Device R':'mm',
                                          'Device z':'mm',
-                                         'Frequency':'kHz'},
+                                         },
                            'Waittime':waittime,
                            'Video file':video_filename,
                            'Video format':'mp4',
@@ -300,14 +301,14 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
     #Normalize the data for the maximum cloud distribution
     if normalize_signal:
         normalizer=calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
-                                                 f_high=1e2,            # Low pass filter frequency in Hz
-                                                 design=filter_design,    # IIR filter design (from scipy)
-                                                 test=False,               # Testing input
-                                                 filter_data=True,         # IIR LPF the data
-                                                 time_range=None,          # Timer range for the averaging in ms [t1,t2]
-                                                 calc_around_max=False,    # Calculate the average around the maximum of the GPI signal
-                                                 time_window=50.,          # The time window for the calc_around_max calculation
-                                                 cache_data=True,          #
+                                                 f_high=1e2,                # Low pass filter frequency in Hz
+                                                 design=filter_design,      # IIR filter design (from scipy)
+                                                 test=False,                # Testing input
+                                                 filter_data=True,          # IIR LPF the data
+                                                 time_range=None,           # Timer range for the averaging in ms [t1,t2]
+                                                 calc_around_max=False,     # Calculate the average around the maximum of the GPI signal
+                                                 time_window=50.,           # The time window for the calc_around_max calculation
+                                                 cache_data=True,           
                                                  verbose=False,
                                                  )
         d.data = d.data/normalizer.data #This should be checked to some extent, it works with smaller matrices

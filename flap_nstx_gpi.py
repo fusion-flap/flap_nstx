@@ -197,21 +197,46 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
     coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
      
+#   This part is not producing appropriate results due to the equidistant spacing and double
+#   coefficients. Slicing is only possible for single steps.    
+    
+#    coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_r[2],
+#                                               step=[coeff_r[0],coeff_r[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
+#    
+#    coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_z[2],
+#                                               step=[coeff_z[0],coeff_z[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
+    r_coordinates=np.zeros([64,80])
+    z_coordinates=np.zeros([64,80])
+    for i_x in range(64):
+        for i_y in range(80):
+            r_coordinates[i_x,i_y]=coeff_r[0]*i_x+coeff_r[1]*i_y+coeff_r[2]
+            z_coordinates[i_x,i_y]=coeff_z[0]*i_x+coeff_z[1]*i_y+coeff_z[2]
+
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-                                               unit='m',
-                                               mode=flap.CoordinateMode(equidistant=True),
-                                               start=coeff_r[2],
-                                               step=[coeff_r[0],coeff_r[1]],
-                                               dimension_list=[1,2]
-                                               )))
+                                            unit='m',
+                                            mode=flap.CoordinateMode(equidistant=False),
+                                            values=r_coordinates,
+                                            shape=r_coordinates.shape,
+                                            dimension_list=[1,2]
+                                            )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                               unit='m',
-                                               mode=flap.CoordinateMode(equidistant=True),
-                                               start=coeff_z[2],
-                                               step=[coeff_z[0],coeff_z[1]],
-                                               dimension_list=[1,2]
-                                               )))
+                                           unit='m',
+                                           mode=flap.CoordinateMode(equidistant=False),
+                                           values=z_coordinates,
+                                           shape=z_coordinates.shape,
+                                           dimension_list=[1,2]
+                                           )))
     
     _options["Trigger time [s]"]=trigger_time
     _options["FPS"]=images.frame_rate

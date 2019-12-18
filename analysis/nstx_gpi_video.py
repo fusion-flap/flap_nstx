@@ -16,7 +16,8 @@ from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_norm_coeff
 import flap_mdsplus
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-
+from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
 
 flap_nstx.register()
 flap_mdsplus.register('NSTX_MDSPlus')
@@ -89,7 +90,7 @@ def show_nstx_gpi_video(exp_id=None,
                            options={'Type':'Highpass','f_low':1e2,
                                     'Design':'Chebyshev II'}) #Data is in milliseconds
        
-    if plot_flux or plot_separatrix:
+    if ((plot_flux or plot_separatrix) and not flux_coordinates):
         print('Gathering MDSPlus EFIT data.')
         oplot_options={}
         if plot_separatrix:
@@ -132,6 +133,10 @@ def show_nstx_gpi_video(exp_id=None,
         d.add_coordinate(coordinates='Flux r',exp_id=exp_id)
         x_axis='Flux r'
         y_axis='Device z'
+        if plot_separatrix:
+            oplot_options={}
+            oplot_options['line']={'separatrix':{'Vertical':[[1.0,'red']],
+                                                 'Plot':True}}
     elif device_coordinates:
         x_axis='Device R'
         y_axis='Device z'
@@ -196,7 +201,8 @@ def show_nstx_gpi_video(exp_id=None,
             matplotlib.use('agg')
             waittime=0.
         else:
-            waittime=1.
+            waittime=1./24.
+            waittime=0.
         flap.plot(object_name,plot_type='anim-image',
                   exp_id=exp_id,
                   slicing=slicing_range,
@@ -233,6 +239,7 @@ def show_nstx_gpi_video_frames(exp_id=None,
                            new_plot=True,
                            save_pdf=False,
                            colormap='gist_ncar',
+                           save_for_paraview=False,
                            ):
     
     if time_range is None:
@@ -416,6 +423,97 @@ def show_nstx_gpi_timetrace(exp_id=None,
         else:
             filename='NSTX_'+str(exp_id)+'_GPI_mean.pdf'
         plt.savefig(filename)
+        
+def show_nstx_gpi_slice_traces(exp_id=None,
+                               time_range=None,
+                               x_slices=np.linspace(0,60,14),
+                               y_slices=np.linspace(0,70,16),
+                               x_summing=False,
+                               y_summing=False,
+                               z_range=[0,512],
+                               zlog=False,
+                               filename=None,
+                               filter_data=False,
+                               save_pdf=False,
+                               pdf_saving_only=False):
+    
+    if pdf_saving_only:
+        import matplotlib
+        current_backend=matplotlib.get_backend()
+        matplotlib.use('agg')
+    import matplotlib.pyplot as plt
+    if save_pdf:
+        pdf=PdfPages(filename)
+    plt.cla() 
+    if filename is None:
+        filename='NSTX_GPI_SLICE_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'.pdf'
+    
+    flap.get_data('NSTX_GPI', exp_id=exp_id, name='', object_name='GPI')
+        
+    if filter_data:
+        flap.filter_data('GPI',exp_id=exp_id,
+                     coordinate='Time',
+                     options={'Type':'Highpass',
+                              'f_low':1e2,
+                              'Design':'Chebyshev II'})
+    if not x_summing:
+        for i in range(len(x_slices)):
+            plt.figure()
+            flap.plot('GPI', plot_type='image', 
+                      axes=['Time', 'Image y'], 
+                      slicing={'Time':flap.Intervals(time_range[0],time_range[1]), 'Image x':x_slices[i]}, 
+                      #plot_options={'levels':100}, 
+                      options={'Z range':z_range,'Log z':zlog})
+            plt.title('NSTX GPI '+str(exp_id)+' Image x = '+str(int(x_slices[i])))
+            if save_pdf:
+                pdf.savefig()
+                plt.close()
+    else:
+        plt.figure()
+        flap.plot('GPI', plot_type='image', 
+                  axes=['Time', 'Image y'], 
+                  slicing={'Time':flap.Intervals(time_range[0],time_range[1])}, 
+                  summing={'Image x':'Mean'},
+                  #plot_options={'levels':100}, 
+                  options={'Z range':z_range,'Log z':zlog})
+        plt.title('NSTX GPI '+str(exp_id)+' Mean x pixels')
+        if save_pdf:
+            pdf.savefig()
+            plt.close()
+    if not x_summing:    
+        for j in range(len(y_slices)):
+            if not y_summing:
+                slicing={'Time':flap.Intervals(time_range[0],time_range[1]), 'Image y':y_slices[i]}
+            else:
+                slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
+            plt.figure()
+            flap.plot('GPI', plot_type='image', 
+                      axes=['Time', 'Image x'], 
+                      slicing=slicing,
+                      summing=y_summing_opt,
+                      #plot_options={'levels':100}, 
+                      options={'Z range':z_range,'Log z':zlog})
+            plt.title('NSTX GPI '+str(exp_id)+' Image y = '+str(int(y_slices[j])))
+            if save_pdf:
+                pdf.savefig()
+                plt.close()
+    else:
+        plt.figure()
+        flap.plot('GPI', plot_type='image', 
+                  axes=['Time', 'Image x'], 
+                  slicing={'Time':flap.Intervals(time_range[0],time_range[1])}, 
+                  summing={'Image y':'Mean'},
+                  #plot_options={'levels':100}, 
+                  options={'Z range':z_range,'Log z':zlog})
+        plt.title('NSTX GPI '+str(exp_id)+' Mean y pixels')
+        if save_pdf:
+            pdf.savefig()
+            plt.close()
+    if save_pdf:
+        pdf.close() 
+    if pdf_saving_only:
+        import matplotlib
+        matplotlib.use(current_backend)
 
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
