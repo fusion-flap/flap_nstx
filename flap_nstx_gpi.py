@@ -10,23 +10,25 @@ Needs pims package installed
 e.g.: conda install -c conda-forge pims
 
 """
-
+#Core imports
 import os
-import numpy as np
 import copy
 import subprocess
+#CINE reader import
 import pims
-from scipy import interpolate
-
+#FLAP imports
+try:
+    flap
+except:
+    import flap
+#Scientic package imports
 import matplotlib.pyplot as plt
 from matplotlib import path as pltPath
-
-import flap
-
-#from .spatcal import *
+import numpy as np
+from scipy import interpolate
 
 if (flap.VERBOSE):
-    print("Importing flap_nstx_gpi")
+    print("Importing flap_nstx")
     
     
 def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, coordinates=None, data_source=None):

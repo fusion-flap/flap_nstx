@@ -7,20 +7,29 @@ Created on Mon Nov 11 11:38:06 2019
 """
 
 # -*- coding: utf-8 -*-
-
+#Core imports
 import os
+#Flap imports
+try:
+    flap
+    flap_nstx
+    flap_mdsplus
+except:
+    import flap
+    import flap_nstx
+    flap_nstx.register()
+    import flap_mdsplus
+    flap_mdsplus.register('NSTX_MDSPlus')
+    
+thisdir = os.path.dirname(os.path.realpath(__file__))
+fn = os.path.join(thisdir,"flap_nstx.cfg")
+flap.config.read(file_name=fn) 
 
-import flap
-import flap_nstx
-from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_norm_coeff
-import flap_mdsplus
+#Scientific package imports
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
-
-flap_nstx.register()
-flap_mdsplus.register('NSTX_MDSPlus')
 
 def show_nstx_gpi_video(exp_id=None, 
                         time_range=None,
@@ -151,7 +160,7 @@ def show_nstx_gpi_video(exp_id=None,
         print("**** Normalizing GPI ****")
         if normalize in ['Time averaged','Time dependent']:
             if normalize == 'Time averaged':
-                coefficient=calculate_nstx_gpi_norm_coeff(exp_id=exp_id,              # Experiment ID
+                coefficient=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,              # Experiment ID
                                                           time_range=normalizer_time_range,
                                                           f_high=1e2,               # Low pass filter frequency in Hz
                                                           design='Chebyshev II',    # IIR filter design (from scipy)
@@ -244,7 +253,6 @@ def show_nstx_gpi_video_frames(exp_id=None,
     
     if time_range is None:
         print('time_range is None, the entire shot is plotted.')
-        slicing_range=None
     else:    
         if (type(time_range) is not list and len(time_range) != 2):
             raise TypeError('time_range needs to be a list with two elements.')
@@ -484,8 +492,10 @@ def show_nstx_gpi_slice_traces(exp_id=None,
         for j in range(len(y_slices)):
             if not y_summing:
                 slicing={'Time':flap.Intervals(time_range[0],time_range[1]), 'Image y':y_slices[i]}
+                y_summing_opt=None
             else:
                 slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
+                y_summing_opt={'Image y':'Mean'}
             plt.figure()
             flap.plot('GPI', plot_type='image', 
                       axes=['Time', 'Image x'], 
@@ -513,11 +523,6 @@ def show_nstx_gpi_slice_traces(exp_id=None,
         pdf.close() 
     if pdf_saving_only:
         import matplotlib
-        matplotlib.use(current_backend)
-
-    
-thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
-flap.config.read(file_name=fn)            
+        matplotlib.use(current_backend)           
 
 #show_nstx_gpi_video(exp_id=141918, time_range=[250.,260.], plot_filtered=True, cache_data=False, plot_efit=True, flux_coordinates=False)

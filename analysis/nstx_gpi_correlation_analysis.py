@@ -6,18 +6,30 @@ Created on Fri Nov  8 14:58:31 2019
 @author: mlampert
 """
 
-
+#Core imports
 import os
 
-#import copy
+#FLAP imports
+try:
+    flap
+except:
+    import flap
+try:
+    flap_nstx
+except:
+    import flap_nstx
+    flap_nstx.register()
+try:
+    flap_mdsplus
+except:
+    import flap_mdsplus
+    flap_mdsplus.register('NSTX_MDSPlus')
 
-import flap
-import flap_nstx
-from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_norm_coeff
-from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_reference
-
-import flap_mdsplus
-
+thisdir = os.path.dirname(os.path.realpath(__file__))
+fn = os.path.join(thisdir,"flap_nstx.cfg")
+flap.config.read(file_name=fn)  
+    
+#Scientific library imports
 import matplotlib.style as pltstyle
 import matplotlib.pyplot as plt
 
@@ -44,9 +56,6 @@ if publication:
 
 else:
     pltstyle.use('default')
-
-flap_nstx.register()
-flap_mdsplus.register('NSTX_MDSPlus')
 
 # The following code is deprecated. The gas cloud has a certain time evolution which is
 # averaged. This should only be used for quiescent time ranges, not for e.g. ELMs.
@@ -110,17 +119,17 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
     
     #Normalize the data for the maximum cloud distribution
     if normalize_signal:
-        normalizer=calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
-                                                 f_high=1e2,            # Low pass filter frequency in Hz
-                                                 design='Chebyshev II',    # IIR filter design (from scipy)
-                                                 test=False,               # Testing input
-                                                 filter_data=True,         # IIR LPF the data
-                                                 time_range=None,          # Timer range for the averaging in ms [t1,t2]
-                                                 calc_around_max=False,    # Calculate the average around the maximum of the GPI signal
-                                                 time_window=50.,          # The time window for the calc_around_max calculation
-                                                 cache_data=True,          #
-                                                 verbose=False,
-                                                 )
+        normalizer=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
+                                                                     f_high=1e2,            # Low pass filter frequency in Hz
+                                                                     design='Chebyshev II',    # IIR filter design (from scipy)
+                                                                     test=False,               # Testing input
+                                                                     filter_data=True,         # IIR LPF the data
+                                                                     time_range=None,          # Timer range for the averaging in ms [t1,t2]
+                                                                     calc_around_max=False,    # Calculate the average around the maximum of the GPI signal
+                                                                     time_window=50.,          # The time window for the calc_around_max calculation
+                                                                     cache_data=True,          #
+                                                                     verbose=False,
+                                                                     )
         d.data = d.data/normalizer.data #This should be checked to some extent, it works with smaller matrices
     
     #Calculate the crosspower spectra for the timerange between the reference pixel and all the other pixels
@@ -129,13 +138,13 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
         print('No reference is defined, returning autopower spectra.')
     else:
         calculate_apsd=False
-        reference_signal=calculate_nstx_gpi_reference('GPI', exp_id=exp_id,
-                                                      time_range=time_range,
-                                                      reference_pixel=reference_pixel,
-                                                      reference_area=reference_area,
-                                                      reference_position=reference_position,
-                                                      reference_flux=reference_flux,
-                                                      output_name='GPI_REF')
+        reference_signal=flap_nstx.analysis.calculate_nstx_gpi_reference('GPI', exp_id=exp_id,
+                                                                         time_range=time_range,
+                                                                         reference_pixel=reference_pixel,
+                                                                         reference_area=reference_area,
+                                                                         reference_position=reference_position,
+                                                                         reference_flux=reference_flux,
+                                                                         output_name='GPI_REF')
     
     flap.slice_data('GPI',exp_id=exp_id,
                     slicing={'Time':flap.Intervals(time_range[0],time_range[1])},
@@ -273,7 +282,7 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
                                         plot=False,
                                         plot_acf=False,
                                         axes=['Image x', 'Image y', 'Time lag']
-                                       ):
+                                        ):
     
     if time_range is None:
         print('The time range needs to set for the calculation.')
@@ -300,17 +309,17 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
     
     #Normalize the data for the maximum cloud distribution
     if normalize_signal:
-        normalizer=calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
-                                                 f_high=1e2,                # Low pass filter frequency in Hz
-                                                 design=filter_design,      # IIR filter design (from scipy)
-                                                 test=False,                # Testing input
-                                                 filter_data=True,          # IIR LPF the data
-                                                 time_range=None,           # Timer range for the averaging in ms [t1,t2]
-                                                 calc_around_max=False,     # Calculate the average around the maximum of the GPI signal
-                                                 time_window=50.,           # The time window for the calc_around_max calculation
-                                                 cache_data=True,           
-                                                 verbose=False,
-                                                 )
+        normalizer=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
+                                                                     f_high=1e2,                # Low pass filter frequency in Hz
+                                                                     design=filter_design,      # IIR filter design (from scipy)
+                                                                     test=False,                # Testing input
+                                                                     filter_data=True,          # IIR LPF the data
+                                                                     time_range=None,           # Timer range for the averaging in ms [t1,t2]
+                                                                     calc_around_max=False,     # Calculate the average around the maximum of the GPI signal
+                                                                     time_window=50.,           # The time window for the calc_around_max calculation
+                                                                     cache_data=True,           
+                                                                     verbose=False,
+                                                                     )
         d.data = d.data/normalizer.data #This should be checked to some extent, it works with smaller matrices
     
     #SLicing data to the input time range    
@@ -344,12 +353,12 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
         calculate_acf=False
                 
     if not calculate_acf:
-        calculate_nstx_gpi_reference('GPI_SLICED_FILTERED', exp_id=exp_id,
-                                     reference_pixel=reference_pixel,
-                                     reference_area=reference_area,
-                                     reference_position=reference_position,
-                                     reference_flux=reference_flux,
-                                     output_name='GPI_REF')
+        flap_nstx.analysis.calculate_nstx_gpi_reference('GPI_SLICED_FILTERED', exp_id=exp_id,
+                                                         reference_pixel=reference_pixel,
+                                                         reference_area=reference_area,
+                                                         reference_position=reference_position,
+                                                         reference_flux=reference_flux,
+                                                         output_name='GPI_REF')
         
         flap.ccf('GPI_SLICED_FILTERED',exp_id=exp_id,
                   ref='GPI_REF',
@@ -373,7 +382,3 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
                       axes=axes, 
                       options={'Plot units': {'Time lag':'us'}, 
                                'Z range':[0,1]},)     
-
-thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
-flap.config.read(file_name=fn)

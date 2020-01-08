@@ -12,21 +12,14 @@ import copy
 #FLAP modules
 try:
     flap
+    flap_nstx
+    flap_mdsplus
 except:
     import flap
-try:
-    flap_nstx
-except:
     import flap_nstx
     flap_nstx.register()
-try:
-    flap_mdsplus    
-except:
     import flap_mdsplus
     flap_mdsplus.register('NSTX_MDSPlus')
-from flap_nstx.analysis.nstx_gpi_filament_finder import find_filaments
-#from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_norm_coeff
-#from flap_nstx.analysis.nstx_gpi_tools import calculate_nstx_gpi_reference
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -38,6 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
+import pickle
 #Plot settings for publications
 publication=False
 
@@ -398,18 +392,11 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,
             #DIRECT calculation:
             try:
                 coeff=np.polyfit(time_lag[ind_not_nan], displacement[ind_not_nan], 1)
-                velocity=coeff[0]
-#                plt.plot(displacement[ind_not_nan],time_lag[ind_not_nan])
-#                plt.plot(displacement[ind_not_nan],displacement[ind_not_nan]*coeff[0]+coeff[1])
-#                plt.pause(0.001)
-#                plt.cla()               
+                velocity=coeff[0]            
             except:
                 coeff=[0,0]
                 velocity=0.
             velocity_matrix[j_range,i_time]=velocity
-#            plt.plot(displacement_vector,ccf_max_correlation)
-#            plt.pause(0.001)
-#            plt.cla()
             try:
                 coeff, var_matrix = curve_fit(gauss, 
                                               displacement_vector, 
@@ -418,16 +405,7 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,
                 correlation_length_matrix[j_range,i_time]=2.3548*coeff[2]
             except:
                 correlation_length_matrix[j_range,i_time]=0.
-#            try:
-#                coeff=np.polyfit(time_lag[ind_not_nan],displacement[ind_not_nan], 1)
-#            except:
-#                coeff=[0,0]
-#            velocity_matrix[j_range,i_time]=coeff[0]
-            
-            
-            
-            
-            
+
         print('Calculation done: '+str((i_time+1)/n_time*100)+'%')
         
     r_coordinate_vector=flap.slice_data('GPI_FILTERED',
@@ -531,15 +509,36 @@ def gauss(x, *p):
 
 def calculate_nstx_gpi_filament_velocity(exp_id=None,                           #Shot number
                                          time_range=None,                       #The time range for the calculation
+                                         #Inputs for preprocessing
                                          ref_pixel=[10,40],                     #Reference pixel for finding the filament peaks
-                                         xrange=[0,32],                         #The xrange for the calculation in image x
-                                         yrange=[10,70],                        #The xrange for the calculation in image x
-                                         taures=50e-6,                          #Time resolution to find the filaments around the found peak
+                                         xrange=[0,32],                         #The xrange for the calculation in image x, if x_average, then the averaging range (also the range for peak finding)
+                                         x_average=False,                       #Averaging in x direction, not effective when radial is set
+                                         yrange=[10,70],                        #The yrange for the calculation in image y, if y_average, then the averaging range (also the range for peak finding)
+                                         y_average=False,                       #Averaging in y direction, not effective when poloidal is set
+                                         normalize=False,                       #Normalize the signal (should be implemented differently for poloidal and vertical)
+                                         #Peak finding inputs:
+                                         width_range=[1,30],                    #Setting for the peak finding algorithm
+                                         vertical_sum=False,                    #Setting for the peak finding algorithm
+                                         horizontal_sum=False,                  #Setting for the peak finding algorithm
                                          radial=False,                          #Calculate the radial velocity
                                          poloidal=False,                        #Calculate the poloidal velocity
+                                         #Temporal maximum finding inputs
+                                         temporal_maximum=False,                #Calculate the maximum time shift of the time traces of the signal instead of maximum position (not time resolved)
+                                         taures=10e-6,                          #Time resolution to find the filaments around the found peak
+                                         maximum_shift_avg=False,               #Calculate the velocities from the maximum averaged time shift (NOT WORKING FOR RADIAL)
+                                         maximum_shift=False,                   #Calculate the valocites with fit_window shifted times (gives scattered results) (DEPRECATED)
+                                         fit_window=5,                          #Window for the linear fit of the filament (+- value, FYI: 1 is too low)
+                                         #Spatial maximum finding inputs
+                                         spatial_maximum=False,                 #Calculate the velocities based on a spatial maximum movement of the filaments (structure tracking)
+                                         spatial_correlation_thres=0.5,         #Correlation threshold for the spatial correlation calculation.
+                                         #Test options:
+                                         test=False,                            #Plot the results
+                                         ploterror=False,                       #Plot the errors during the test.
+                                         #Output options:
+                                         return_times=False,                    #Return the maximum times and displacement vector (for debugging mainly).
                                          cache_data=True,                       #Cache the data or try to open is from cache
                                          pdf=True,                              #Print the results into a PDF
-                                         nocalc=False,                          #NOTIMPLEMENTED, NOT ENTIRELY SURE WHAT TO SAVE (PROBABLY ONLY THE RESULTS IS OK)
+                                         nocalc=False,                          #Restore the results from the pickle file
                                          ):
     
     """
@@ -549,29 +548,321 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
     peaks with linear regression.
     """
     
-    #Read the data
+    #Handle input variable errors
     if time_range is None:
         print('The time range needs to set for the calculation.')
         return
     else:    
         if (type(time_range) is not list and len(time_range) != 2):
             raise TypeError('time_range needs to be a list with two elements.')
-    if exp_id is not None:
-        print("\n------- Reading NSTX GPI data --------")
-        if cache_data:
-            try:
-                d=flap.get_data_object_ref(exp_id=exp_id,object_name='GPI')
-            except:
-                print('Data is not cached, it needs to be read.')
-                d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
-        else:
+            
+    if exp_id is None:
+        raise ValueError('The experiment ID needs to be set.')
+    if temporal_maximum and maximum_shift+maximum_shift_avg != 1:
+        raise IOError('Only one type of calculation should be set.')
+    if spatial_maximum+temporal_maximum != 1:
+        raise IOError('Only one type of calculation should be set.')
+    if radial+poloidal != 1:
+        raise IOError('Either radial or poloidal can be calculated, not both at the same time.')
+        
+    #Read the data
+    print("\n------- Reading NSTX GPI data --------")
+    if cache_data:
+        try:
+            d=flap.get_data_object_ref(exp_id=exp_id,object_name='GPI')
+        except:
+            print('Data is not cached, it needs to be read.')
             d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
     else:
-        raise ValueError('The experiment ID needs to be set.')
-    #Slice it to the time range
-    flap.slice_data('GPI', slicing={'Time':flap.Intervals(time_range[0],time_range[1])}, output_name='GPI_SLICED')
-    #Find the peaks of the filaments
-    find_filaments('GPI_SLICED')
-    #Find the time lags between radially or poloidally adjacent pixels
-    #Fit a line on the displacement vs. time lag function
-    #Profit.
+        d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+
+    comment='ref_'+str(ref_pixel[0])+'_'+str(ref_pixel[1])
+    if radial:
+        comment+='_rad'
+    if poloidal:
+        comment+='_pol'
+    if maximum_shift_avg:
+        comment+='_max_shift_avg'
+    if maximum_shift:
+        comment+='_max_shift'
+    if time_delay_avg:
+        comment+='_STTDE_avg'
+    if time_delay:
+        comment+='_STTDE'
+    pickle_filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+                                                time_range=time_range,
+                                                purpose='filament velocity trace',
+                                                comment=comment,
+                                                extension='pickle')
+    if os.path.exists(pickle_filename) and nocalc:
+        try:
+            pickle.load(open(pickle_filename, 'rb'))
+        except:
+            print('The pickle file cannot be loaded. Recalculating the results.')
+            nocalc=False
+    elif nocalc:
+        print('The pickle file cannot be loaded. Recalculating the results.')
+        nocalc=False  
+        
+    if not nocalc:
+        #Slice it to the time range
+        flap.slice_data('GPI', slicing={'Time':flap.Intervals(time_range[0],time_range[1])}, output_name='GPI_SLICED')
+        #Find the peaks of the filaments
+        filament_times=flap_nstx.analysis.find_filaments('GPI_SLICED', 
+                                                         ref_pixel=ref_pixel,
+                                                         horizontal_sum=horizontal_sum,
+                                                         xrange=xrange,
+                                                         vertical_sum=vertical_sum,
+                                                         yrange=yrange,
+                                                         width_range=width_range,
+                                                         normalize=normalize,
+                                                         test=test)
+        flap.slice_data('GPI', 
+                        slicing={'Time':flap.Intervals(time_range[0]-taures*80,
+                                                       time_range[1]+taures*80)},
+                        output_name='GPI_SLICED')
+        #Find the time lags between radially or poloidally adjacent pixels
+        n_filaments=len(filament_times)
+ 
+    if poloidal:
+        displacement=d.coordinate('Device z')[0][0,ref_pixel[0],yrange[0]:yrange[1]]
+        displacement-=displacement[0]
+        #First approach: maximum shift calculation and line fitting in the taures
+        if maximum_shift_avg or maximum_shift:
+            if not nocalc:
+                maximum_times=np.zeros([n_filaments,yrange[1]-yrange[0]])
+                if maximum_shift_avg:
+                    velocity_matrix=np.zeros([n_filaments,3]) #[:,0]=times, [:,1]=velocities,[:,2]=velocity error
+                    velocity_matrix[:,0]=filament_times
+                else:
+                    velocity_matrix=np.zeros([n_filaments,(yrange[1]-yrange[0]),3]) #[:,0]=times, [:,1]=velocities,[:,2]=velocity error
+                for index_filaments in range(n_filaments):
+                    #Above the reference pixels:
+                    maximum_times[index_filaments,ref_pixel[1]-yrange[0]]=filament_times[index_filaments]
+                    for index_pol_channel in range(ref_pixel[1],yrange[1]):
+                        if index_pol_channel == ref_pixel[1]:                          #This is necessary, because parabola fitting is also necessary for the peak times, not just the neighboring pixels.
+                            filament_time_range=[filament_times[index_filaments]-taures,
+                                                 filament_times[index_filaments]+taures]
+                        else:
+                            filament_time_range=[maximum_times[index_filaments,index_pol_channel-yrange[0]-1]-taures,
+                                                 maximum_times[index_filaments,index_pol_channel-yrange[0]-1]+taures]
+                        #print(filament_time_range[0],filament_time_range[1],ref_pixel[0],index_pol_channel)
+                        
+                        if x_average:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':flap.Intervals(xrange[0],xrange[1]),
+                                     'Image y':index_pol_channel}
+                            summing={'Image x':'Mean'}
+                        else:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':ref_pixel[0],
+                                     'Image y':index_pol_channel}
+                            summing=None
+                            
+                        d=flap.slice_data('GPI_SLICED', slicing=slicing, summing=summing)
+                        coeff=np.polyfit(d.coordinate('Time')[0][:],d.data,2)
+                        max_time=-coeff[1]/(2*coeff[0])
+                        if max_time < filament_time_range[0] or max_time > filament_time_range[1]:
+                            max_time=d.coordinate('Time')[0][np.argmax(d.data)]
+                        maximum_times[index_filaments,index_pol_channel-yrange[0]]=max_time
+    
+                    #Below the reference pixels
+                    for index_pol_channel in range(ref_pixel[1]-1,yrange[0]-1,-1):
+                        
+                        filament_time_range=[maximum_times[index_filaments,index_pol_channel-yrange[0]+1]-taures,
+                                             maximum_times[index_filaments,index_pol_channel-yrange[0]+1]+taures]
+                        if x_average:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':flap.Intervals(xrange[0],xrange[1]),
+                                     'Image y':index_pol_channel}
+                            summing={'Image x':'Mean'}
+                        else:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':ref_pixel[0],
+                                     'Image y':index_pol_channel}
+                            summing=None
+                            
+                        d=flap.slice_data('GPI_SLICED', slicing=slicing, summing=summing)
+                        coeff=np.polyfit(d.coordinate('Time')[0][:],d.data,2)
+                        max_time=-coeff[1]/(2*coeff[0])
+                        if max_time < filament_time_range[0] or max_time > filament_time_range[1]:
+                            max_time=d.coordinate('Time')[0][np.argmax(d.data)]
+                        maximum_times[index_filaments,index_pol_channel-yrange[0]]=max_time
+                    if maximum_shift:
+                        for index_pol_channel in range(yrange[0]+fit_window,yrange[1]-fit_window): 
+                           coeff,cov=np.polyfit(displacement[index_pol_channel-fit_window-yrange[0]:index_pol_channel-yrange[0]+fit_window+1],
+                                                maximum_times[index_filaments,index_pol_channel-fit_window-yrange[0]:index_pol_channel+fit_window+1-yrange[0]],1,cov=True)
+                           velocity_matrix[index_filaments,index_pol_channel-yrange[0],0]=np.mean(maximum_times[index_filaments,index_pol_channel-fit_window-yrange[0]:index_pol_channel+fit_window+1-yrange[0]])
+                           velocity_matrix[index_filaments,index_pol_channel-yrange[0],1]=1/coeff[0]
+                           velocity_matrix[index_filaments,index_pol_channel-yrange[0],2]=np.sqrt(cov[0][0])/coeff[0]**2
+                    else:
+                        coeff,cov=np.polyfit(displacement,maximum_times[index_filaments,:],1,cov=True)
+                        velocity_matrix[index_filaments,1]=1/coeff[0]
+                        velocity_matrix[index_filaments,2]=np.sqrt(cov[0][0])/coeff[0]**2
+                if maximum_shift:
+                    velocity_matrix=velocity_matrix[:,fit_window:-fit_window,:] #No data in the beginning and at the end due to the 3 point linear fit
+                    velocity_matrix=velocity_matrix.reshape([n_filaments*(yrange[1]-yrange[0]-2*fit_window),3])
+                    sorted_ind=np.argsort(velocity_matrix[:,0])
+                    velocity_matrix=velocity_matrix[sorted_ind,:]
+                pickle_object=[ref_pixel,velocity_matrix,maximum_times,'ref_pix,velocity_matrix,maximum_times']
+                pickle.dump(pickle_object,open(pickle_filename, 'wb'))
+            else: #NOCALC
+                print('--- Loading data from pickle file ---')
+                ref_pixel, velocity_matrix, maximum_times, comment = pickle.load(open(pickle_filename, 'rb'))
+                
+            if test:
+                plt.figure()
+                flap.plot('GPI', exp_id, 
+                          slicing={'Time':flap.Intervals(time_range[0],time_range[1]), 
+                                   'Image x':ref_pixel[0]}, 
+                          plot_type='contour', 
+                          axes=['Time', 'Image y'], 
+                          plot_options={'levels':51})
+                for i in range(len(maximum_times[:,0])):
+                    plt.plot(maximum_times[i,:],np.arange(yrange[0],yrange[1]))
+                plt.figure()
+                plt.scatter(velocity_matrix[:,0],velocity_matrix[:,1]/1000)
+                if ploterror:
+                    plt.errorbar(velocity_matrix[:,0],
+                                 velocity_matrix[:,1]/1000, 
+                                 yerr=velocity_matrix[:,2]/1000,
+                                 marker='o')
+                plt.xlabel('Time [s]')
+                plt.ylabel('Poloidal velocity [km/s]')
+                plt.ylim([-50,50])
+                plt.show()
+            if return_times:
+                return velocity_matrix, maximum_times, displacement
+            else:
+                return velocity_matrix
+            #Profit.
+    if radial:
+        displacement=d.coordinate('Device R')[0][0,xrange[0]:xrange[1],ref_pixel[1]]
+        displacement-=displacement[0]
+        if maximum_shift_avg or maximum_shift:
+            if not nocalc:
+                maximum_times=np.zeros([n_filaments,xrange[1]-xrange[0]])
+                if maximum_shift_avg:
+                    velocity_matrix=np.zeros([n_filaments,3]) #[:,0]=times, [:,1]=velocities,[:,2]=velocity error
+                    velocity_matrix[:,0]=filament_times
+                else:
+                    velocity_matrix=np.zeros([n_filaments,(xrange[1]-xrange[0]),3]) #[:,0]=times, [:,1]=velocities,[:,2]=velocity error
+                for index_filaments in range(n_filaments):
+                    #Above the reference pixels:
+                    maximum_times[index_filaments,ref_pixel[0]-xrange[0]]=filament_times[index_filaments]
+                    for index_rad_channel in range(ref_pixel[0],xrange[1]):
+                        if index_rad_channel == ref_pixel[0]:                          #This is necessary, because parabola fitting is also necessary for the peak times, not just the neighboring pixels.
+                            filament_time_range=[filament_times[index_filaments]-taures,
+                                                 filament_times[index_filaments]+taures]
+                        else:
+                            filament_time_range=[maximum_times[index_filaments,index_rad_channel-xrange[0]-1]-taures,
+                                                 maximum_times[index_filaments,index_rad_channel-xrange[0]-1]+taures]
+                        #print(filament_time_range[0],filament_time_range[1],ref_pixel[0],index_rad_channel)
+                        
+                        if y_average:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':index_rad_channel,
+                                     'Image y':flap.Intervals(yrange[0],yrange[1])}
+                            summing={'Image x':'Mean'}
+                        else:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':index_rad_channel,
+                                     'Image y':ref_pixel[1]}
+                            summing=None
+                            
+                        d=flap.slice_data('GPI_SLICED', slicing=slicing, summing=summing)
+                        coeff=np.polyfit(d.coordinate('Time')[0][:],d.data,2)
+                        max_time=-coeff[1]/(2*coeff[0])
+                        if max_time < filament_time_range[0] or max_time > filament_time_range[1]:
+                            max_time=d.coordinate('Time')[0][np.argmax(d.data)]
+                        maximum_times[index_filaments,index_rad_channel-xrange[0]]=max_time
+    
+                    #Below the reference pixels
+                    for index_rad_channel in range(ref_pixel[0]-1,xrange[0]-1,-1):
+                        
+                        filament_time_range=[maximum_times[index_filaments,index_rad_channel-xrange[0]+1]-taures,
+                                             maximum_times[index_filaments,index_rad_channel-xrange[0]+1]+taures]
+                        if y_average:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':index_rad_channel,
+                                     'Image y':flap.Intervals(yrange[0],yrange[1])}
+                            summing={'Image x':'Mean'}
+                        else:
+                            slicing={'Time':flap.Intervals(filament_time_range[0],filament_time_range[1]),
+                                     'Image x':index_rad_channel,
+                                     'Image y':ref_pixel[1]}
+                            summing=None
+                            
+                        d=flap.slice_data('GPI_SLICED', slicing=slicing, summing=summing)
+                        coeff=np.polyfit(d.coordinate('Time')[0][:],d.data,2)
+                        max_time=-coeff[1]/(2*coeff[0])
+                        if max_time < filament_time_range[0] or max_time > filament_time_range[1]:
+                            max_time=d.coordinate('Time')[0][np.argmax(d.data)]
+                        maximum_times[index_filaments,index_rad_channel-xrange[0]]=max_time
+                    if maximum_shift:
+                        for index_rad_channel in range(xrange[0]+fit_window,xrange[1]-fit_window): 
+                           coeff,cov=np.polyfit(displacement[index_rad_channel-fit_window-xrange[0]:index_rad_channel-xrange[0]+fit_window+1],
+                                                maximum_times[index_filaments,index_rad_channel-fit_window-xrange[0]:index_rad_channel+fit_window+1-xrange[0]],1,cov=True)
+                           velocity_matrix[index_filaments,index_rad_channel-xrange[0],0]=np.mean(maximum_times[index_filaments,index_rad_channel-fit_window-xrange[0]:index_rad_channel+fit_window+1-xrange[0]])
+                           velocity_matrix[index_filaments,index_rad_channel-xrange[0],1]=1/coeff[0]
+                           velocity_matrix[index_filaments,index_rad_channel-xrange[0],2]=np.sqrt(cov[0][0])/coeff[0]**2
+                    else:
+                        coeff,cov=np.polyfit(displacement,maximum_times[index_filaments,:],1,cov=True)
+                        velocity_matrix[index_filaments,1]=1/coeff[0]
+                        velocity_matrix[index_filaments,2]=np.sqrt(cov[0][0])/coeff[0]**2
+                if maximum_shift:
+                    velocity_matrix=velocity_matrix[:,fit_window:-fit_window,:] #No data in the beginning and at the end due to the 3 point linear fit
+                    velocity_matrix=velocity_matrix.reshape([n_filaments*(xrange[1]-xrange[0]-2*fit_window),3])
+                    sorted_ind=np.argsort(velocity_matrix[:,0])
+                    velocity_matrix=velocity_matrix[sorted_ind,:]
+                pickle_object=[ref_pixel,velocity_matrix,maximum_times,'ref_pix,velocity_matrix,maximum_times']
+                pickle.dump(pickle_object,open(pickle_filename, 'wb'))
+            else: #NOCALC
+                print('--- Loading data from pickle file ---')
+                ref_pixel, velocity_matrix, maximum_times, comment = pickle.load(open(pickle_filename, 'rb'))
+                
+            if test:
+                plt.figure()
+                flap.plot('GPI', exp_id, 
+                          slicing={'Time':flap.Intervals(time_range[0],time_range[1]), 
+                                   'Image y':ref_pixel[1]}, 
+                          plot_type='contour', 
+                          axes=['Time', 'Image x'], 
+                          plot_options={'levels':51})
+                for i in range(len(maximum_times[:,0])):
+                    plt.plot(maximum_times[i,:],np.arange(xrange[0],xrange[1]))
+                plt.figure()
+                plt.scatter(velocity_matrix[:,0],velocity_matrix[:,1]/1000)
+                if ploterror:
+                    plt.errorbar(velocity_matrix[:,0],
+                                 velocity_matrix[:,1]/1000, 
+                                 yerr=velocity_matrix[:,2]/1000,
+                                 marker='o')
+                plt.xlabel('Time [s]')
+                plt.ylabel('Radial velocity [km/s]')
+                plt.ylim([-50,50])
+                plt.show()
+            if return_times:
+                return velocity_matrix, maximum_times, displacement
+            else:
+                return velocity_matrix
+            #Profit.
+def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                           #Shot number
+                                          time_range=None,                       #The time range for the calculation
+                                          #Inputs for preprocessing
+                                          normalize=False,                       #Normalize the signal (should be implemented differently for poloidal and vertical)
+                                          #Peak finding inputs:
+                                          #Spatial maximum finding inputs
+                                          correlation_thres=0.5,         #Correlation threshold for the spatial correlation calculation.
+                                          #Test options:
+                                          test=False,                            #Plot the results
+                                          ploterror=False,                       #Plot the errors during the test.
+                                          #Output options:
+                                          radial=False,                          #Calculate the radial velocity
+                                          poloidal=False,                        #Calculate the poloidal velocity
+                                          return_times=False,                    #Return the maximum times and displacement vector (for debugging mainly).
+                                          cache_data=True,                       #Cache the data or try to open is from cache
+                                          pdf=True,                              #Print the results into a PDF
+                                          nocalc=False,                          #Restore the results from the pickle file
+                                          ):
+    raise NotImplementedError('Not implemented yet.')
