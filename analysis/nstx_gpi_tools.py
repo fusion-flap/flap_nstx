@@ -9,15 +9,9 @@ Created on Mon Nov 11 13:37:37 2019
 import os
 
 #Importing and setting up the FLAP environment
-try:
-    flap
-except:
-    import flap
-try:
-    flap_nstx
-except:
-    import flap_nstx
-    flap_nstx.register()
+import flap
+import flap_nstx
+flap_nstx.register()
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -415,23 +409,22 @@ def detrend_multidim(data_object=None,
             non_detrend_dim=np.where(np.logical_and(alldim != dim1,alldim != dim2))[0][0]
             n_fit=d.data.shape[non_detrend_dim]
             for i in range(n_fit):
-                index=[i] ** ndim
-                index[dim1]=Ellipsis
-                index[dim2]=Ellipsis
+                index=[slice(None)] * total_dim
+                index[non_detrend_dim]=i
                 values=np.reshape(d.data[tuple(index)],d.data.shape[dim[0]]*d.data.shape[dim[1]])
                 coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
     if ndim == 3:
-        coord_obj_1=flap.get_coordinate_object(coordinates[0])
-        coord_obj_2=flap.get_coordinate_object(coordinates[1])
-        coord_obj_3=flap.get_coordinate_object(coordinates[2])
+        coord_obj_1=d.get_coordinate_object(coordinates[0])
+        coord_obj_2=d.get_coordinate_object(coordinates[1])
+        coord_obj_3=d.get_coordinate_object(coordinates[2])
         dim1=coord_obj_1.dimension_list
         dim2=coord_obj_2.dimension_list
         dim3=coord_obj_3.dimension_list
         dim=np.unique(np.append(np.append(dim1,dim2),dim3))
-        points=[[i**l * j**m * k**n for l in range(order+1) for m in range(order-l+1) for n in range(order-l-m+1)] for i in range(d.data.shape[dim[0]]) for j in range(d.data.shape[dim[1]]) for k in range(d.data.shape[dim[2]])]
+        points=np.asarray([[i**l * j**m * k**n for l in range(order+1) for m in range(order-l+1) for n in range(order-l-m+1)] for i in range(d.data.shape[dim[0]]) for j in range(d.data.shape[dim[1]]) for k in range(d.data.shape[dim[2]])])
         if ndim == total_dim:
             values=np.reshape(d.data,d.data.shape[dim[0]]*d.data.shape[dim[1]]*d.data.shape[dim[2]])
             coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
@@ -443,9 +436,8 @@ def detrend_multidim(data_object=None,
             non_detrend_dim=np.where(np.logical_and(alldim != dim1,alldim != dim2))[0][0]
             n_fit=d.data.shape[non_detrend_dim]
             for i in range(n_fit):
-                index=[i] ** ndim
-                index[dim1]=Ellipsis
-                index[dim2]=Ellipsis
+                index=[slice(None)] * total_dim
+                index[non_detrend_dim]=i
                 values=np.reshape(d.data[tuple(index)],d.data.shape[dim[0]]*d.data.shape[dim[1]])
                 coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
                 trend=np.dot(points,coeff)

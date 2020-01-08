@@ -17,10 +17,7 @@ import subprocess
 #CINE reader import
 import pims
 #FLAP imports
-try:
-    flap
-except:
-    import flap
+import flap
 #Scientic package imports
 import matplotlib.pyplot as plt
 from matplotlib import path as pltPath
