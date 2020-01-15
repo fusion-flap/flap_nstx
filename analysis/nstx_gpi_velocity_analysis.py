@@ -24,7 +24,9 @@ import matplotlib.style as pltstyle
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
-
+from scipy.signal import correlate2d
+from scipy.signal import correlate
+from scipy.signal import peak_widths
 import pickle
 #Plot settings for publications
 publication=False
@@ -68,11 +70,11 @@ def calculate_nstx_gpi_avg_velocity(exp_id=None,
                                     ):
     
     """ The code calculates the fluctuation velocity from the slope of the time
-    lag between a reference channel (middle of the range). The data is filtered
-    to frange first, then the cross-correlation functions are calculated between
-    a row or line of pixels crossing the average x or y range depending on the
-    radial/poloidal setting. The velocity is calculated from the channel separation
-    and the slope of the fitted line.
+    lag between a reference channel (middle of the range) and all the other pixels.
+    The data is filtered to frange first, then the cross-correlation functions are 
+    calculated between a row or line of pixels crossing the average x or y range 
+    depending on the radial/poloidal setting. The velocity is calculated from the 
+    channel separation and the slope of the fitted line.
     
     INPUTs:
         exp_id: shot number
@@ -227,23 +229,31 @@ def calculate_nstx_gpi_avg_velocity(exp_id=None,
         plt.ylabel('v_rad [m/s]')
         plt.title('z vs. v_rad '+str(exp_id)+' @ ['+str(time_range[0])+','+str(time_range[1])+']s')
 
-def calculate_nstx_gpi_smooth_velocity(exp_id=None,
-                                       time_range=None,
-                                       time_res=None,
-                                       xrange=[0,63],
-                                       yrange=[10,70],
-                                       frange=[10e3,1e6],
-                                       f_low=10e3,
-                                       taurange=None,
-                                       taures=2.5e-6,
-                                       interval_n=1,
-                                       radial=False,
-                                       poloidal=False,
-                                       cache_data=True,
-                                       pdf=True,
-                                       correlation_threshold=0.6,
-                                       nocalc=False
+def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
+                                       time_range=None,             #Time range of the calculation
+                                       time_res=100e-6,             #Time resolution of the calculation
+                                       xrange=[0,63],               #Range of the calculation
+                                       yrange=[10,70],              #Range of the calculation
+                                       f_low=10e3,                  #Highpass filtering of the signal
+                                       taurange=None,               #Range of the CCF time delay calculation
+                                       taures=2.5e-6,               #Resoltuion of the CCF calculation
+                                       interval_n=1,                #Number of intervals the signal is split to
+                                       radial=False,                #Calculate the radial velocity
+                                       poloidal=False,              #Calculate the poloidal velocity
+                                       cache_data=True,             #Cache the signal
+                                       pdf=True,                    #Save the plots into a pdf
+                                       correlation_threshold=0.6,   #Threshold for the correlation calculation
+                                       nocalc=False                 #Load the results from a file
                                        ):
+    
+    """
+    The code calculates a 1D-1D (pol/rad vs. rad/pol vs. time) velocity evolution.
+    It slices the data to the given ranges and then calculates the velocity
+    distribution in the range with cross-correlation based time delay estimation.
+    If poloidal velocity is needed, it's radial distribution is calculated and
+    vica versa. It's time resolution is limited to around 40frames.
+    """
+    
     if time_range is None:
         print('The time range needs to set for the calculation.')
         print('There is no point of calculating the entire time range.')
@@ -263,10 +273,10 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,
             d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
     else:
         raise ValueError('The experiment ID needs to be set.')
-    if taurange is None:
-        taurange = [-time_res/interval_n/2,time_res/interval_n/2]
     if time_res is None:
         raise ValueError('The time resolution needs to be set for the calculation.')
+    if taurange is None:
+        taurange = [-time_res/interval_n/2,time_res/interval_n/2]
     if time_res/interval_n < (taurange[1]-taurange[0]):
         raise ValueError('The time resolution divided by the interval number is smaller than the taurange of the CCF calculation.')
     
@@ -579,10 +589,6 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
         comment+='_max_shift_avg'
     if maximum_shift:
         comment+='_max_shift'
-    if time_delay_avg:
-        comment+='_STTDE_avg'
-    if time_delay:
-        comment+='_STTDE'
     pickle_filename=flap_nstx.analysis.filename(exp_id=exp_id, 
                                                 time_range=time_range,
                                                 purpose='filament velocity trace',
@@ -841,22 +847,224 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
             else:
                 return velocity_matrix
             #Profit.
-def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                           #Shot number
-                                          time_range=None,                       #The time range for the calculation
-                                          #Inputs for preprocessing
-                                          normalize=False,                       #Normalize the signal (should be implemented differently for poloidal and vertical)
-                                          #Peak finding inputs:
+def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          #Shot number
+                                          time_range=None,                      #The time range for the calculation
+                                          x_range=[0,63],                       #X range for the calculation
+                                          y_range=[0,79],                       #Y range for the calculation
+                                          #Inputs for processing
+                                          normalize=False,                      #Normalize the signal
+                                          subtraction_order=3,                  #Order of the 2D polynomial for background subtraction
+                                          parabola_fit=True,                    #Fit a parabola on top of the cross-correlation function (CCF) peak
+                                          fitting_range=10,                     #Fitting range of the peak of CCF
                                           #Spatial maximum finding inputs
-                                          correlation_thres=0.5,         #Correlation threshold for the spatial correlation calculation.
+                                          coherence=False,                      #Calculate the coherence instead of the correlation (not yet working)
+                                          #Structure size calculation:
+                                          structure_size=False,
                                           #Test options:
-                                          test=False,                            #Plot the results
-                                          ploterror=False,                       #Plot the errors during the test.
+                                          plot=False,                           #Plot the results
+                                          pdf=True,                             #Print the results into a PDF
                                           #Output options:
-                                          radial=False,                          #Calculate the radial velocity
-                                          poloidal=False,                        #Calculate the poloidal velocity
-                                          return_times=False,                    #Return the maximum times and displacement vector (for debugging mainly).
-                                          cache_data=True,                       #Cache the data or try to open is from cache
-                                          pdf=True,                              #Print the results into a PDF
-                                          nocalc=False,                          #Restore the results from the pickle file
+                                          cache_data=True,                      #Cache the data or try to open is from cache
+                                          nocalc=False,                         #Restore the results from the pickle file
+                                          test=False                            #Test the results
                                           ):
-    raise NotImplementedError('Not implemented yet.')
+    
+    """
+    Calculate frame by frame average frame velocity of the NSTX GPI signal. The
+    code takes subsequent frames, calculates the 2D correlation function between
+    the two and finds the maximum. Based on the pixel shift and the sampling
+    time of the signal, the radial and poloidal velocity is calculated.
+    The code assumes that the structures present in the subsequent frames are
+    propagating with the same velocity. If there are multiple structures
+    propagating in e.g. different direction or with different velocities, their
+    effects are averaged over.
+    """
+    
+    #Input error handling
+    #Read data
+    print("\n------- Reading NSTX GPI data --------")
+    if cache_data:
+        try:
+            d=flap.get_data_object_ref(exp_id=exp_id,object_name='GPI')
+        except:
+            print('Data is not cached, it needs to be read.')
+            d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+    else:
+        d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+  
+    #Slice the data
+    slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+             'Image x':flap.Intervals(x_range[0],x_range[1]),
+             'Image y':flap.Intervals(y_range[0],y_range[1])}
+    d=flap.slice_data('GPI', exp_id=exp_id, 
+                    slicing=slicing,
+                    output_name='GPI_SLICED_FULL')
+    #Normalize data
+    if normalize:
+        d_norm=flap.slice_data('GPI_SLICED_FULL', summing={'Time':'Mean'})
+        d.data=d.data/d_norm.data
+    #Filter data
+    print("*** Filtering the data ***")
+    d=flap.filter_data('GPI_SLICED_FULL',exp_id=exp_id,
+                     coordinate='Time',
+                     options={'Type':'Highpass',
+                              'f_low':100.,
+                              'Design':'Chebyshev II'},
+                     output_name='GPI_FILTERED')
+    #Subtract trend from data
+    d=flap_nstx.analysis.detrend_multidim('GPI_FILTERED', order=subtraction_order, coordinates=['Image x', 'Image y'], output_name='GPI_FILTERED_DETREND')
+    #Calculate correlation between subsequent frames in the data
+    time_dim=d.get_coordinate_object('Time').dimension_list[0]
+    n_frames=d.data.shape[time_dim]
+
+    time=d.coordinate('Time')[0][0:-1,0,0]
+    sample_time=time[1]-time[0]
+    r_velocity=np.zeros(len(time))
+    z_velocity=np.zeros(len(time))
+    r_size=np.zeros(len(time))
+    z_size=np.zeros(len(time))
+    
+    for i_frames in range(n_frames-1):
+        frame1=np.asarray(d.data[i_frames,:,:],dtype='float64')
+        frame2=np.asarray(d.data[i_frames+1,:,:],dtype='float64')
+        if coherence:
+            autocorr_frame1=flap_nstx.analysis.subtract_photon_peak_2D(correlate2d(frame1,frame1, mode='full'))
+            autocorr_frame2=flap_nstx.analysis.subtract_photon_peak_2D(correlate2d(frame2,frame2, mode='full'))
+            corr=correlate(frame1,frame2, mode='full')/np.sqrt(autocorr_frame1*autocorr_frame2)
+        else:
+            corr=correlate(frame1,frame2, mode='full')
+        max_index=np.asarray(np.unravel_index(corr.argmax(), corr.shape))
+        if structure_size:
+            i_min=max_index[0]
+            j_min=max_index[1]
+            for i_min in range(0,max_index[0]-1):
+                min_ind_rad_1=max_index[0]-i_min
+                if (corr[max_index[0]-i_min,max_index[1]] < corr[max_index[0]-i_min-1,max_index[1]] and
+                    corr[max_index[0]-i_min-1,max_index[1]] < corr[max_index[0]-i_min-2,max_index[1]]
+                   ):
+                    break
+            for i_min in range(max_index[0]+1,corr.shape[0]-2):
+                min_ind_rad_2=i_min+1
+                if (corr[i_min,max_index[1]] < corr[i_min+1,max_index[1]] and
+                    corr[i_min+1,max_index[1]] < corr[i_min+2,max_index[1]]
+                   ):
+                    break
+                
+            for j_min in range(0,max_index[1]-1):
+                min_ind_vert_1=max_index[1]-j_min
+                if (corr[max_index[0],max_index[1]-j_min] < corr[max_index[0],max_index[1]-j_min-1] and
+                    corr[max_index[0],max_index[1]-j_min-1] < corr[max_index[0],max_index[1]-j_min-2]
+                   ):
+                    break
+            for j_min in range(max_index[1]+1,corr.shape[1]-2):
+                min_ind_vert_2=j_min+1
+                if (corr[max_index[0],j_min] < corr[max_index[0],j_min+1] and
+                    corr[max_index[0],j_min+1] < corr[max_index[0],j_min+2]
+                   ):
+                    break
+                
+            r_peak=corr[min_ind_rad_1:min_ind_rad_2,max_index[1]]
+            z_peak=corr[max_index[0],min_ind_vert_1:min_ind_vert_2]
+
+            r_size[i_frames]=np.asarray(np.where(r_peak-(r_peak[0]+r_peak[-1])/2 > (r_peak.max()-(r_peak[0]+r_peak[-1])/2)/2))[0].shape[0] #Number of pixels above the half value 
+            z_size[i_frames]=np.asarray(np.where(z_peak-(z_peak[0]+z_peak[-1])/2 > (z_peak.max()-(z_peak[0]+z_peak[-1])/2)/2))[0].shape[0]
+            #print(r_size[i_frames],z_size[i_frames])
+            #half_indices_r=np.where(corr[min_ind_rad])
+            
+            if test:
+                plt.cla()
+                #plt.contourf(corr)
+                plt.plot(corr[:,max_index[1]])
+                plt.plot(corr[max_index[0],:])
+                plt.plot(np.arange(min_ind_rad_1,min_ind_rad_2),r_peak)
+                plt.plot(np.arange(min_ind_vert_1,min_ind_vert_2),z_peak)
+                plt.pause(0.001)
+        #Fit a 2D polinomial on top of the peak
+        if parabola_fit:
+                
+            area_max_index=tuple([slice(max_index[0]-fitting_range,max_index[0]+fitting_range+1),
+                                  slice(max_index[1]-fitting_range,max_index[1]+fitting_range+1)])
+            #Find the peak
+            try:
+                coeff=flap_nstx.analysis.polyfit_2D(values=corr[area_max_index],order=2)
+                index=[0,0]
+                index[0]=(2*coeff[2]*coeff[3]-coeff[1]*coeff[4])/(coeff[4]**2-4*coeff[2]*coeff[5])
+                index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]
+            except:
+                index=[fitting_range,fitting_range]
+            if (index[0] < 0 or 
+                index[0] > 2*fitting_range or 
+                index[1] < 0 or 
+                index[1] > 2*fitting_range):
+                
+                index=[fitting_range,fitting_range]
+                        
+            delta_index=[index[0]+max_index[0]-fitting_range-corr.shape[0]//2,
+                         index[1]+max_index[1]-fitting_range-corr.shape[1]//2]
+#            if test:
+#                fit=flap_nstx.analysis.polyfit_2D(values=corr[area_max_index],order=2, return_fit=True)
+#                plt.plot(corr[area_max_index].flatten())
+#                plt.plot(fit.flatten())
+#                print(index)
+#                cgx=0.
+#                cgy=0.
+#                for i in range(fit.shape[0]):
+#                    for j in range(fit.shape[1]):
+#                        cgx=cgx+i*fit[i,j]
+#                        cgy=cgy+j*fit[i,j]
+#                plt.contourf(fit)
+#                plt.scatter(index[0],index[1])
+#                index=np.asarray([cgx,cgy])/np.sum(fit)
+#                plt.scatter(index[0],index[1])
+#                print(index)
+#                plt.pause(0.001)
+#                plt.cla()
+        else:
+            delta_index=[max_index[0]-corr.shape[0]//2,
+                         max_index[1]-corr.shape[1]//2]
+        #Using the spatial calibration to find the actual velocities.
+        coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
+        coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
+        #Calculate the radial and poloidal velocity from the correlation map.
+        r_velocity[i_frames]=(coeff_r[0]*delta_index[0]+coeff_r[1]*delta_index[1])/sample_time
+        z_velocity[i_frames]=(coeff_z[0]*delta_index[0]+coeff_z[1]*delta_index[1])/sample_time
+        r_size[i_frames]=coeff_r[0]*r_size[i_frames]
+        z_size[i_frames]=coeff_z[1]*z_size[i_frames]
+
+    #Plot that as a function of time
+    if plot:
+        plt.figure()
+        plt.plot(time, r_velocity)
+        plt.xlabel('Time [s]')
+        plt.ylabel('v_rad[m/s]')
+        plt.title('Radial velocity of '+str(exp_id))
+        
+        plt.figure()
+        plt.plot(time, z_velocity) 
+        plt.xlabel('Time [s]')
+        plt.ylabel('v_pol[m/s]')
+        plt.title('Poloidal velocity of '+str(exp_id))
+
+        plt.figure()
+        plt.plot(time, r_size) 
+        plt.xlabel('Time [s]')
+        plt.ylabel('Radial size [m]')
+        plt.title('Average radial size of structures of '+str(exp_id))
+        
+        plt.figure()
+        plt.plot(time, z_size) 
+        plt.xlabel('Time [s]')
+        plt.ylabel('Poloidal size [m]')
+        plt.title('Average poloidal size of structures of '+str(exp_id))
+        
+        if test:
+            hist,bin_edge=np.histogram(z_velocity, bins=(np.arange(100)/100.-0.5)*24000.)
+            bin_edge=(bin_edge[:99]+bin_edge[1:])/2
+            plt.figure()
+            plt.plot(bin_edge,hist)
+            plt.title('Poloidal velocity histogram')
+            plt.xlabel('Poloidal velocity [m/s]')
+            plt.ylabel('Number of points')
+    return time, r_velocity, z_velocity
+
+

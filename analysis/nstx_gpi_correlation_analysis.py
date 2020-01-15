@@ -151,7 +151,7 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
                     output_name='GPI_SLICED')
     if calculate_apsd:
         object_name='GPI_APSD'
-        flap.apsd('GPI_SLICED',exp_id=exp_id,
+        d=flap.apsd('GPI_SLICED',exp_id=exp_id,
                   coordinate='Time',
                   options={'Resolution':fres,
                            'Range':frange,

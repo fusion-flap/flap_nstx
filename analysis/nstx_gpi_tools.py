@@ -7,7 +7,7 @@ Created on Mon Nov 11 13:37:37 2019
 """
 #Core imports
 import os
-
+import copy
 #Importing and setting up the FLAP environment
 import flap
 import flap_nstx
@@ -369,14 +369,17 @@ def detrend_multidim(data_object=None,
                      exp_id=None,
                      coordinates=None,
                      order=None,
-                     test=False):
-    try:
-        d=flap.get_data_object_ref(data_object)
-        total_dim=len(d.data.shape)
-        if total_dim > 4:
-            raise TypeError('Dataset over 4 dimensions is not supported.')
-    except:
-        raise ValueError('The flap data object doesn\'t exist')
+                     test=False,
+                     return_trend=False,
+                     output_name=None):
+    if exp_id is not None:
+        d=flap.get_data_object(data_object, exp_id=exp_id)
+    else:
+        d=flap.get_data_object(data_object)
+        
+    total_dim=len(d.data.shape)
+    if total_dim > 4:
+        raise TypeError('Dataset over 4 dimensions is not supported.')
     ndim=len(coordinates)    
     if ndim > 3:
         raise ValueError('Detrend is not supported over 3D.')
@@ -402,8 +405,6 @@ def detrend_multidim(data_object=None,
                 plt.contourf(d.data,levels=51)
                 plt.figure()
                 plt.contourf(d.data-trend,levels=51)
-            else:
-                d.data=d.data-trend
         else:
             alldim=np.arange(ndim)
             non_detrend_dim=np.where(np.logical_and(alldim != dim1,alldim != dim2))[0][0]
@@ -416,6 +417,7 @@ def detrend_multidim(data_object=None,
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
+                
     if ndim == 3:
         coord_obj_1=d.get_coordinate_object(coordinates[0])
         coord_obj_2=d.get_coordinate_object(coordinates[1])
@@ -443,7 +445,16 @@ def detrend_multidim(data_object=None,
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]],d.data.shape[dim[2]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
-
+    if output_name is not None:
+        try:
+            flap.add_data_object(d,output_name)
+        except Exception as e:
+            raise e
+    if not return_trend:
+        return d
+    else:
+        return trend
+    
 def filename(exp_id=None,
              time_range=None,
              purpose=None,
@@ -481,4 +492,82 @@ def filename(exp_id=None,
             raise TypeError('Extension should be a string.')
         
     return filename
+
+def polyfit_2D(x=None,
+               y=None,
+               values=None,
+               order=None,
+               irregular=False,
+               return_fit=False):
     
+    if not irregular:
+        if len(values.shape) != 2:
+            raise ValueError('Values are not 2D')
+        if x is not None and y is not None:
+            if x.shape != values.shape or y.shape != values.shape:
+                raise ValueError('There should be as many points as values and their shape should match.')
+        if order is None:
+            raise ValueError('The order is not set.')
+        if (x is None and y is not None) or (x is not None and y is None):
+            raise ValueError('Either both or neither x and y need to be set.')
+        if x is None and y is None:
+            polynom=np.asarray([[i**k * j**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+        else:
+            polynom=np.asarray([[x[i,j]**k * y[i,j]**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+        values=np.reshape(values, values.shape[0]*values.shape[1])
+        if not return_fit:
+            return np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values) #This performs the linear regression
+        else:
+            return np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values))
+    else:
+        if x.shape != y.shape or x.shape != values.shape:
+            raise ValueError('The points should be an [n,2] vector.')
+        if len(x.shape) != 1 or len(y.shape) != 1 or len(values.shape) != 1:
+            raise ValueError('x,y,values should be a 1D vector when irregular is set.')
+        if order is None:
+            raise ValueError('The order is not set.')
+        polynom=np.asarray([[x[i]**k * y[i]**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0])]) #The actual polynomial calculation
+        if not return_fit:
+            return np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values) #This performs the linear regression
+        else:
+            return np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values))
+        
+def subtract_photon_peak_2D(autocorr=None,     #INPUT autocorrelation metrix
+                            order=2,           #Order of the fitting
+                            neglect_range=1,   #Range to be substituted by the fit 1=middle value, 2=+-1 area around middle etc.
+                            fitting_range=2    #Range to be fit with the polynom
+                            ):
+    if autocorr is None:
+        raise ValueError('No input is given.')
+    index=[0] * 2
+    middle_index=[0] * 2
+    for i in range(2):
+        index[i]=slice(autocorr.shape[i]//2-fitting_range,autocorr.shape[i]//2+fitting_range+1)
+        if neglect_range == 1:
+            middle_index[i]=autocorr.shape[i]//2
+        else:
+            middle_index[i]=slice(autocorr.shape[i]//2-(neglect_range-1),autocorr.shape[i]//2+(neglect_range-1)+1)
+    x=np.zeros(autocorr.shape)
+    y=np.zeros(autocorr.shape)
+    for j in range(x.shape[1]):
+        x[:,j]=np.arange(x.shape[0])
+    for i in range(y.shape[0]):
+        y[i,:]=np.arange(y.shape[1])
+    _autocorr=copy.deepcopy(autocorr)
+    _autocorr[tuple(middle_index)]=np.nan
+    to_be_fit_index=np.logical_not(np.isnan(_autocorr[tuple(index)]))
+
+    x_to_be_fit=(x[tuple(index)])[to_be_fit_index]
+    y_to_be_fit=(y[tuple(index)])[to_be_fit_index]
+    autocorr_to_be_fit=(_autocorr[tuple(index)])[to_be_fit_index]
+
+    coeff=flap_nstx.analysis.polyfit_2D(x=x_to_be_fit,
+                                        y=y_to_be_fit,
+                                        values=autocorr_to_be_fit, 
+                                        order=order,
+                                        irregular=True)
+    points=np.asarray([[x[k,l]**i * y[k,l]**j for k in range(x.shape[0]) for l in range(x.shape[1]) ] for i in range(order+1) for j in range(order-i+1)], dtype='float64')
+    fit = np.dot(coeff,points)
+    fit=np.reshape(fit, autocorr.shape)
+    _autocorr[tuple(middle_index)]=fit[tuple(middle_index)]
+    return _autocorr
