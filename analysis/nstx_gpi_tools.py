@@ -397,6 +397,7 @@ def detrend_multidim(data_object=None,
             coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
             trend=np.dot(points,coeff)
             trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]]])
+            d.data=d.data-trend
             if test:
                 import matplotlib.pyplot as plt
                 plt.figure()
@@ -514,11 +515,12 @@ def polyfit_2D(x=None,
             polynom=np.asarray([[i**k * j**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
         else:
             polynom=np.asarray([[x[i,j]**k * y[i,j]**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+        original_shape=values.shape
         values=np.reshape(values, values.shape[0]*values.shape[1])
         if not return_fit:
             return np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values) #This performs the linear regression
         else:
-            return np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values))
+            return np.reshape(np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values)),original_shape)
     else:
         if x.shape != y.shape or x.shape != values.shape:
             raise ValueError('The points should be an [n,2] vector.')

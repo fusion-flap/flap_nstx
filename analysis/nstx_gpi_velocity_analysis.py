@@ -849,9 +849,11 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
             #Profit.
 def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          #Shot number
                                           time_range=None,                      #The time range for the calculation
+                                          data_object=None,
                                           x_range=[0,63],                       #X range for the calculation
                                           y_range=[0,79],                       #Y range for the calculation
                                           #Inputs for processing
+                                          filtering=False,                      #Use with caution, it creates artifacts in the signal.
                                           normalize=False,                      #Normalize the signal
                                           subtraction_order=3,                  #Order of the 2D polynomial for background subtraction
                                           parabola_fit=True,                    #Fit a parabola on top of the cross-correlation function (CCF) peak
@@ -862,7 +864,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                                           structure_size=False,
                                           #Test options:
                                           plot=False,                           #Plot the results
-                                          pdf=True,                             #Print the results into a PDF
+                                          pdf=False,                            #Print the results into a PDF
                                           #Output options:
                                           cache_data=True,                      #Cache the data or try to open is from cache
                                           nocalc=False,                         #Restore the results from the pickle file
@@ -882,37 +884,47 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
     
     #Input error handling
     #Read data
-    print("\n------- Reading NSTX GPI data --------")
-    if cache_data:
-        try:
-            d=flap.get_data_object_ref(exp_id=exp_id,object_name='GPI')
-        except:
-            print('Data is not cached, it needs to be read.')
+    if data_object is None:
+        print("\n------- Reading NSTX GPI data --------")
+        if cache_data:
+            try:
+                d=flap.get_data_object(exp_id=exp_id,object_name='GPI')
+            except:
+                print('Data is not cached, it needs to be read.')
+                d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+        else:
             d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+      
+        #Slice the data
+        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+                 'Image x':flap.Intervals(x_range[0],x_range[1]),
+                 'Image y':flap.Intervals(y_range[0],y_range[1])}
+        d=flap.slice_data('GPI', exp_id=exp_id, 
+                        slicing=slicing,
+                        output_name='GPI_SLICED_FULL')
     else:
-        d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
-  
-    #Slice the data
-    slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-             'Image x':flap.Intervals(x_range[0],x_range[1]),
-             'Image y':flap.Intervals(y_range[0],y_range[1])}
-    d=flap.slice_data('GPI', exp_id=exp_id, 
-                    slicing=slicing,
-                    output_name='GPI_SLICED_FULL')
+        d=flap.get_data_object(data_object)
+        flap.add_data_object(d, 'GPI_SLICED_FULL')
+        object_name='GPI_SLICED_FULL'
+        time_range=[d.coordinate('Time')[0][0,0,0],d.coordinate('Time')[0][-1,0,0]]
+        exp_id=d.exp_id
     #Normalize data
     if normalize:
         d_norm=flap.slice_data('GPI_SLICED_FULL', summing={'Time':'Mean'})
         d.data=d.data/d_norm.data
     #Filter data
     print("*** Filtering the data ***")
-    d=flap.filter_data('GPI_SLICED_FULL',exp_id=exp_id,
-                     coordinate='Time',
-                     options={'Type':'Highpass',
-                              'f_low':100.,
-                              'Design':'Chebyshev II'},
-                     output_name='GPI_FILTERED')
+    if filtering:
+        d=flap.filter_data('GPI_SLICED_FULL',
+                           coordinate='Time',
+                           options={'Type':'Highpass',
+                                    'f_low':100.,
+                                    'Design':'Chebyshev II'},
+                           output_name='GPI_FILTERED')
+        object_name='GPI_FILTERED'
     #Subtract trend from data
-    d=flap_nstx.analysis.detrend_multidim('GPI_FILTERED', order=subtraction_order, coordinates=['Image x', 'Image y'], output_name='GPI_FILTERED_DETREND')
+    if subtraction_order is not None:
+        d=flap_nstx.analysis.detrend_multidim(object_name, order=subtraction_order, coordinates=['Image x', 'Image y'], output_name='GPI_FILTERED_DETREND')
     #Calculate correlation between subsequent frames in the data
     time_dim=d.get_coordinate_object('Time').dimension_list[0]
     n_frames=d.data.shape[time_dim]
@@ -930,9 +942,9 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
         if coherence:
             autocorr_frame1=flap_nstx.analysis.subtract_photon_peak_2D(correlate2d(frame1,frame1, mode='full'))
             autocorr_frame2=flap_nstx.analysis.subtract_photon_peak_2D(correlate2d(frame2,frame2, mode='full'))
-            corr=correlate(frame1,frame2, mode='full')/np.sqrt(autocorr_frame1*autocorr_frame2)
+            corr=correlate(frame2,frame1, mode='full')/np.sqrt(autocorr_frame1*autocorr_frame2)
         else:
-            corr=correlate(frame1,frame2, mode='full')
+            corr=correlate(frame2,frame1, mode='full')
         max_index=np.asarray(np.unravel_index(corr.argmax(), corr.shape))
         if structure_size:
             i_min=max_index[0]
@@ -1001,24 +1013,9 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                         
             delta_index=[index[0]+max_index[0]-fitting_range-corr.shape[0]//2,
                          index[1]+max_index[1]-fitting_range-corr.shape[1]//2]
-#            if test:
-#                fit=flap_nstx.analysis.polyfit_2D(values=corr[area_max_index],order=2, return_fit=True)
-#                plt.plot(corr[area_max_index].flatten())
-#                plt.plot(fit.flatten())
-#                print(index)
-#                cgx=0.
-#                cgy=0.
-#                for i in range(fit.shape[0]):
-#                    for j in range(fit.shape[1]):
-#                        cgx=cgx+i*fit[i,j]
-#                        cgy=cgy+j*fit[i,j]
-#                plt.contourf(fit)
-#                plt.scatter(index[0],index[1])
-#                index=np.asarray([cgx,cgy])/np.sum(fit)
-#                plt.scatter(index[0],index[1])
-#                print(index)
-#                plt.pause(0.001)
-#                plt.cla()
+            if test:
+                plt.contourf(corr.T)
+                plt.pause(0.1)
         else:
             delta_index=[max_index[0]-corr.shape[0]//2,
                          max_index[1]-corr.shape[1]//2]
@@ -1033,30 +1030,67 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
 
     #Plot that as a function of time
     if plot:
+        if parabola_fit:
+            comment='parabola_order_'+str(subtraction_order)
+        else:
+            comment='max_order_'+str(subtraction_order)
+            
         plt.figure()
         plt.plot(time, r_velocity)
         plt.xlabel('Time [s]')
         plt.ylabel('v_rad[m/s]')
         plt.title('Radial velocity of '+str(exp_id))
+        if pdf:
+            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+                                             time_range=time_range,
+                                             purpose='radial velocity',
+                                             comment=comment,
+                                             extension='pdf')
+
+            plt.savefig(filename)
+            plt.close()
         
         plt.figure()
         plt.plot(time, z_velocity) 
         plt.xlabel('Time [s]')
         plt.ylabel('v_pol[m/s]')
         plt.title('Poloidal velocity of '+str(exp_id))
+        if pdf:
+            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+                                                 time_range=time_range,
+                                                 purpose='poloidal velocity',
+                                                 comment=comment,
+                                                 extension='pdf')
+            plt.savefig(filename)
+            plt.close()
 
         plt.figure()
         plt.plot(time, r_size) 
         plt.xlabel('Time [s]')
         plt.ylabel('Radial size [m]')
         plt.title('Average radial size of structures of '+str(exp_id))
+        if pdf:
+            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+                                                 time_range=time_range,
+                                                 purpose='radial size',
+                                                 comment=comment,
+                                                 extension='pdf')
+            plt.savefig(filename)
+            plt.close()
         
         plt.figure()
         plt.plot(time, z_size) 
         plt.xlabel('Time [s]')
         plt.ylabel('Poloidal size [m]')
         plt.title('Average poloidal size of structures of '+str(exp_id))
-        
+        if pdf:
+            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+                                                 time_range=time_range,
+                                                 purpose='poloidal size',
+                                                 comment=comment,
+                                                 extension='pdf')
+            plt.savefig(filename)
+            plt.close()
         if test:
             hist,bin_edge=np.histogram(z_velocity, bins=(np.arange(100)/100.-0.5)*24000.)
             bin_edge=(bin_edge[:99]+bin_edge[1:])/2

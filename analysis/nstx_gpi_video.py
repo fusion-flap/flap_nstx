@@ -10,16 +10,11 @@ Created on Mon Nov 11 11:38:06 2019
 #Core imports
 import os
 #Flap imports
-try:
-    flap
-    flap_nstx
-    flap_mdsplus
-except:
-    import flap
-    import flap_nstx
-    flap_nstx.register()
-    import flap_mdsplus
-    flap_mdsplus.register('NSTX_MDSPlus')
+import flap
+import flap_nstx
+flap_nstx.register()
+import flap_mdsplus
+flap_mdsplus.register('NSTX_MDSPlus')
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
