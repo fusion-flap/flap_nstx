@@ -458,10 +458,12 @@ def detrend_multidim(data_object=None,
     
 def filename(exp_id=None,
              time_range=None,
+             working_directory=None,
              purpose=None,
              frange=None,
              comment=None,
              extension=None):
+    
     if exp_id is None:
         raise ValueError('The exp_id needs to be set for the filename.')
     filename='NSTX_GPI_'+str(exp_id)
@@ -471,6 +473,10 @@ def filename(exp_id=None,
         filename+='_'+str(time_range[0])+'_'+str(time_range[1])
     else:
         raise ValueError('Time range should be a two element list.')
+    if working_directory is not None:
+        if working_directory[-1] != '/':
+            working_directory+='/'
+        filename=working_directory+filename
     if purpose is not None:
         if type(purpose) is str:
             filename+='_'+purpose.replace(' ','_')

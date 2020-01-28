@@ -130,30 +130,12 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     
     data_unit = flap.Unit(name='Signal',unit='Digit')
     
-    #time data cannot be directly extracted from a PIMS file as it is stored as ms timestamps 
-    #and it is converted to datetime which is somehow not precise.
-    #The following two codes are giving equivalent results within the framerate accuracy of the measurement.
-    
-    #trigger_time = datetime + second fraction of the first frame - datetime - second fraction of the trigger time
-    #trigger_time=(images.frame_time_stamps[0][0].timestamp()+images.frame_time_stamps[0][1]-
-    #              images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction'])
-
     #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
     #The frame_rate corresponds with the one from IDL.
     trigger_time=images.header_dict['first_image_no']/images.frame_rate
     
     
     coord = [None]*6
-    
-    
-    
-        #def get_time_to_trigger(self, i):
-        #"""Get actual time (s) of frame i, relative to trigger."""
-        #ti = 
-        #ti = images.frame_time_stamps[i][0].timestamp() + images.frame_time_stamps[i][1]
-        #tt= 
-        #tt = images.trigger_time['datetime'].timestamp() + images.trigger_time['second_fraction']
-        #return ti - tt
     
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
                                                unit='s',
@@ -187,7 +169,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                dimension_list=[2]
                                                )))
     
-        #Get the spatial calibration for the GPI data
+    #Get the spatial calibration for the GPI data
     #This spatial calibration is based on the rz_map.dat which used a linear
     #approximation for the transformation between pixel and spatial coordinates
     #This needs to be updated as soon as more information is available on the
@@ -370,7 +352,6 @@ def add_coordinate(data_object,
                 if n_paths > 0:
                     for index_paths in range(n_paths):
                         path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices # Get the actual coordinates of the curve.   
-                        #np.argmin(np.abs(path[:,1]))
                         #The following code calculates the angles. The full arclength is calculated along with the partial arclengths.
                         # The angle is then difined as the fraction of the arclength fraction and the entire arclength.
                         arclength=0.

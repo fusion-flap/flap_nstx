@@ -13,7 +13,6 @@ import flap
 import flap_nstx
 flap_nstx.register()
 import numpy as np
-import matplotlib.pyplot as plt
 import scipy
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -48,13 +47,17 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                      ):
     if rotation_frequency is None:
         rotation_frequency=0
-    background=flap.get_data('NSTX_GPI', exp_id=139901, name='', object_name='GPI_RAW').slice_data(slicing={'Time':flap.Intervals(background_time_range[0],background_time_range[1])},summing={'Time':'Mean'})
-    if not add_background:
-        background.data[:]=1.
-    amplitude=background.data.max()*amplitude
+    
     n_time=int(time/sampling_time)
     data_arr=np.zeros([n_time,64,80])
-
+    
+    
+    background=np.zeros([64,80])
+    
+    if add_background:
+        background=flap.get_data('NSTX_GPI', exp_id=139901, name='', object_name='GPI_RAW').slice_data(slicing={'Time':flap.Intervals(background_time_range[0],background_time_range[1])},summing={'Time':'Mean'})
+        amplitude=amplitude*background.data.max()
+    
     #Spatial positions
     coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
     coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
@@ -85,8 +88,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                     x=r_coordinates[k_radial,j_vertical]+radial_velocity*cur_time
                     y=z_coordinates[k_radial,j_vertical]+poloidal_velocity*cur_time
                     power=2.
-                    data_arr[i_frames,k_radial,j_vertical]=amplitude*np.exp(-0.5*(a * (x-x0)**power + 2*b*(x-x0)**(power/2) * (y-y0)**(power/2) + c*(y-y0)**power))+background.data[k_radial,j_vertical]
-                    
+                    data_arr[i_frames,k_radial,j_vertical]=amplitude*np.exp(-0.5*(a * (x-x0)**power + 2*b*(x-x0)**(power/2) * (y-y0)**(power/2) + c*(y-y0)**power))+background.data[k_radial,j_vertical]                    
     if sinusoidal:
         x0=start_position[0]
         y0=start_position[1]
