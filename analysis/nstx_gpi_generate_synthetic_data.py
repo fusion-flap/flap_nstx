@@ -14,6 +14,7 @@ import flap_nstx
 flap_nstx.register()
 import numpy as np
 import scipy
+import matplotlib.pyplot as plt
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -23,6 +24,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                      time=None,                                 #Time to be simulated in seconds
                                      sampling_time=2.5e-6,                      #The sampling time of the diagnostic
                                      #General parameters
+                                     n_structures=3,
                                      amplitude=0.5,                             #Amplitude of the structure relative to the background.
                                      add_background=True,
                                      background_shot=139901,                    #The original of the background of the simulated signal.
@@ -51,9 +53,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
     n_time=int(time/sampling_time)
     data_arr=np.zeros([n_time,64,80])
     
-    
     background=np.zeros([64,80])
-    
     if add_background:
         background=flap.get_data('NSTX_GPI', exp_id=139901, name='', object_name='GPI_RAW').slice_data(slicing={'Time':flap.Intervals(background_time_range[0],background_time_range[1])},summing={'Time':'Mean'})
         amplitude=amplitude*background.data.max()
@@ -70,25 +70,37 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
             r_coordinates[i_x,i_y]=coeff_r[0]*i_x+coeff_r[1]*i_y+coeff_r[2]
             z_coordinates[i_x,i_y]=coeff_z[0]*i_x+coeff_z[1]*i_y+coeff_z[2]
     if gaussian:            
-        x0=start_position[0]
-        y0=start_position[1]
+        r0=start_position
         
         for i_frames in range(n_time):
-            
-            cur_time=i_frames * sampling_time
-            rot_arg=2*np.pi*rotation_frequency*cur_time
-            a=(np.cos(rot_arg)/(radial_size+radial_size_velocity*cur_time))**2+\
-              (np.sin(rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time))**2
-            b=-0.5*np.sin(2*rot_arg)/(radial_size+radial_size_velocity*cur_time)**2+\
-               0.5*np.sin(2*rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time)**2
-            c=(np.sin(rot_arg)/(radial_size+radial_size_velocity*cur_time))**2+\
-              (np.cos(rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time))**2
-            for j_vertical in range(80):
-                for k_radial in range(64):
-                    x=r_coordinates[k_radial,j_vertical]+radial_velocity*cur_time
-                    y=z_coordinates[k_radial,j_vertical]+poloidal_velocity*cur_time
-                    power=2.
-                    data_arr[i_frames,k_radial,j_vertical]=amplitude*np.exp(-0.5*(a * (x-x0)**power + 2*b*(x-x0)**(power/2) * (y-y0)**(power/2) + c*(y-y0)**power))+background.data[k_radial,j_vertical]                    
+            for i_structures in range(n_structures):
+                cur_time=i_frames * sampling_time
+                rot_arg=2*np.pi*rotation_frequency*cur_time
+                a=(np.cos(rot_arg)/(radial_size+radial_size_velocity*cur_time))**2+\
+                  (np.sin(rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time))**2
+                b=-0.5*np.sin(2*rot_arg)/(radial_size+radial_size_velocity*cur_time)**2+\
+                   0.5*np.sin(2*rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time)**2
+                c=(np.sin(rot_arg)/(radial_size+radial_size_velocity*cur_time))**2+\
+                  (np.cos(rot_arg)/(poloidal_size+poloidal_size_velocity*cur_time))**2
+                x0=r0[i_structures,0]+radial_velocity[i_structures]*cur_time
+                y0=r0[i_structures,1]+poloidal_velocity[i_structures]*cur_time
+                frame=np.zeros([64,80])
+                for j_vertical in range(80):
+                    for k_radial in range(64):
+                        x=r_coordinates[k_radial,j_vertical]
+                        y=z_coordinates[k_radial,j_vertical]                        
+                        if (x > x0+radial_size*2 or
+                            x < x0-radial_size*2 or
+                            y > y0+radial_size*2 or
+                            y < y0-radial_size*2):
+                            frame[k_radial,j_vertical]=0.
+                        else:
+                            frame[k_radial,j_vertical]=(amplitude[i_structures]*np.exp(-0.5*(a*(x-x0)**2 + 
+                                                                                                          2*b*(x-x0)*(y-y0) + 
+                                                                                                          c*(y-y0)**2))
+                                                               +background.data[k_radial,j_vertical])
+                data_arr[i_frames,:,:]+=frame
+                
     if sinusoidal:
         x0=start_position[0]
         y0=start_position[1]

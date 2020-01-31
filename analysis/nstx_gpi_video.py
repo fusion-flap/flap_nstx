@@ -229,29 +229,32 @@ def show_nstx_gpi_video(exp_id=None,
     
     
 def show_nstx_gpi_video_frames(exp_id=None, 
-                           time_range=None,
-                           n_frame=20,
-                           logz=False,
-                           z_range=[0,512],
-                           plot_filtered=False, 
-                           normalize=False,
-                           cache_data=False, 
-                           plot_flux=False, 
-                           plot_separatrix=False, 
-                           flux_coordinates=False,
-                           device_coordinates=False,
-                           new_plot=True,
-                           save_pdf=False,
-                           colormap='gist_ncar',
-                           save_for_paraview=False,
-                           ):
+                               time_range=None,
+                               start_time=None,
+                               n_frame=20,
+                               logz=False,
+                               z_range=[0,512],
+                               plot_filtered=False, 
+                               normalize=False,
+                               cache_data=False, 
+                               plot_flux=False, 
+                               plot_separatrix=False, 
+                               flux_coordinates=False,
+                               device_coordinates=False,
+                               new_plot=True,
+                               save_pdf=False,
+                               colormap='gist_ncar',
+                               save_for_paraview=False,
+                               ):
     
-    if time_range is None:
+    if time_range is None and start_time is None:
         print('time_range is None, the entire shot is plotted.')
-    else:    
+    if time_range is not None:    
         if (type(time_range) is not list and len(time_range) != 2):
             raise TypeError('time_range needs to be a list with two elements.')
-        
+    if start_time is not None:
+        if type(start_time) is not int and type(start_time) is not float:
+            raise TypeError('start_time needs to be a number.')
     if not cache_data: #This needs to be enhanced to actually cache the data no matter what
         flap.delete_data_object('*')
     if exp_id is not None:
@@ -299,6 +302,8 @@ def show_nstx_gpi_video_frames(exp_id=None,
                             exp_id=exp_id,
                             object_name='PSI RZ OBJ'
                             )
+        x_axis='Device R'
+        y_axis='Device z'
     else:
         oplot_options=None
     if flux_coordinates:
@@ -309,41 +314,50 @@ def show_nstx_gpi_video_frames(exp_id=None,
     elif device_coordinates:
         x_axis='Device R'
         y_axis='Device z'
-    else:
+    if (not device_coordinates and 
+        not plot_separatrix and 
+        not flux_coordinates):
         x_axis='Image x'
         y_axis='Image y'        
-        
+    if start_time is not None:
+        start_sample_num=flap.slice_data(object_name, 
+                                         slicing={'Time':start_time}).coordinate('Sample')[0][0,0]
     if n_frame == 30:
         ny=6
         nx=5
         gs=GridSpec(nx,ny)
         for index_grid_x in range(nx):
             for index_grid_y in range(ny):
-                print(time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y))
                 plt.subplot(gs[index_grid_x,index_grid_y])
-                time=time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y)
+                if start_time is not None:
+                    slicing={'Sample':start_sample_num+index_grid_x*ny+index_grid_y}
+                else:
+                    time=time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y)
+                    slicing={'Time':time}
+                d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
+                slicing={'Time':d.coordinate('Time')[0][0,0]}
                 if plot_flux:
-                    flap.slice_data('PSI RZ OBJ',slicing={'Time':time},output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
+                    flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
                     oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
                                                       'Plot':True,
                                                       'Colormap':None,
                                                       'nlevel':51}}
                     
                 if plot_separatrix:
-                    flap.slice_data('SEP X OBJ',slicing={'Time':time},output_name='SEP X SLICE',options={'Interpolation':'Linear'})
-                    flap.slice_data('SEP Y OBJ',slicing={'Time':time},output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
+                    flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
+                    flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
                     oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
                                                          'Data object Y':'SEP Y SLICE',
                                                          'Plot':True,
                                                          'Color':'red'}}
                 visibility=[True,True]
-                if index_grid_y != 0:
-                    visibility[1]=False
                 if index_grid_x != nx-1:
                     visibility[0]=False
-                flap.plot(object_name,plot_type='contour',
+                if index_grid_y != 0:
+                    visibility[1]=False
+                flap.plot('GPI_SLICED',
+                          plot_type='contour',
                           exp_id=exp_id,
-                          slicing={'Time':time},
                           axes=[x_axis,y_axis,'Time'],
                           options={'Z range':z_range,
                                    'Interpolation': 'Closest value',
@@ -354,13 +368,16 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                    'Axes visibility':visibility,
                                    'Colormap':colormap,
                                    'Overplot options':oplot_options,
-                                   })
-                
-                
-                plt.title(str(exp_id)+' @ '+f"{time*1000:.4f}"+'ms')
+                                   },
+                           plot_options={'levels':51},
+                           )
+                actual_time=d.coordinate('Time')[0][0,0]
+                plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')
     if save_pdf:
-        plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
-    
+        if time_range is not None:
+            plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
+        else:
+            plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
 def show_nstx_gpi_timetrace(exp_id=None,
                             cache_data=True,
                             plot_filtered=False,
