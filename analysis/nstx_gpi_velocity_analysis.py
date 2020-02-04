@@ -24,9 +24,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as np
-from scipy.optimize import curve_fit
-from scipy.signal import correlate2d
-from scipy.signal import correlate
+import scipy
 import pickle
 #Plot settings for publications
 publication=False
@@ -402,10 +400,10 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
                 velocity=0.
             velocity_matrix[j_range,i_time]=velocity
             try:
-                coeff, var_matrix = curve_fit(gauss, 
-                                              displacement_vector, 
-                                              ccf_max_correlation, 
-                                              p0=[np.max(ccf_max_correlation), np.argmin(np.abs(ccf_max_correlation) - np.max(ccf_max_correlation)), 0.2]) 
+                coeff, var_matrix = scipy.optimize.curve_fit(gauss, 
+                                                             displacement_vector, 
+                                                             ccf_max_correlation, 
+                                                             p0=[np.max(ccf_max_correlation), np.argmin(np.abs(ccf_max_correlation) - np.max(ccf_max_correlation)), 0.2]) 
                 correlation_length_matrix[j_range,i_time]=2.3548*coeff[2]
             except:
                 correlation_length_matrix[j_range,i_time]=0.
@@ -1051,10 +1049,10 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                 frame1=np.asarray(d.data[i_frames,:,:],dtype='float64')
                 frame2=np.asarray(d.data[i_frames+1,:,:],dtype='float64')
                 if not differential:
-                    corr=correlate2d(frame2,frame1, mode='full')
+                    corr=scipy.signal.correlate2d(frame2,frame1, mode='full')
                 else:
                     frame3=np.asarray(d.data[i_frames+2,:,:],dtype='float64')
-                    corr=correlate(frame3-frame2,frame2-frame1, mode='full')
+                    corr=scipy.signal.correlate(frame3-frame2,frame2-frame1, mode='full')
             corr_max[i_frames]=corr.max()
             max_index=np.asarray(np.unravel_index(corr.argmax(), corr.shape))
                 
@@ -1089,80 +1087,8 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                                 index[1]+max_index[1]-fitting_range)
                     
                 if structure_size:  #Deprecated
-                    #The following part calculates the radial and poloidal size of the structures by calculating the size of the ellipse at the half maximum
-                    #The calculation is done in the poloidal and radial direction. Basically the intersection of the ellipse and the radial and vertical
-                    #unity vectors are calculated.
-                    #Structure size is found by calculating the FWHM of the CCF radially and poloidally
-                    #The local minima position of the CCf functions are found in x and y direction
-                    #Then the FWHM is calculated in both directions
-        
-                    #Finding the boundary x and y indices of the cross-correlation peaks
-                    i_min=max_index[0]
-                    j_min=max_index[1]
-                    for i_min in range(0,max_index[0]-1):
-                        min_ind_rad_1=max_index[0]-i_min
-                        if (corr[max_index[0]-i_min,max_index[1]] < corr[max_index[0]-i_min-1,max_index[1]] and
-                            corr[max_index[0]-i_min-1,max_index[1]] < corr[max_index[0]-i_min-2,max_index[1]]):
-                            break
-                    for i_min in range(max_index[0]+1,corr.shape[0]-2):
-                        min_ind_rad_2=i_min+1
-                        if (corr[i_min,max_index[1]] < corr[i_min+1,max_index[1]] and
-                            corr[i_min+1,max_index[1]] < corr[i_min+2,max_index[1]]):
-                            break
-                    for j_min in range(0,max_index[1]-1):
-                        min_ind_vert_1=max_index[1]-j_min
-                        if (corr[max_index[0],max_index[1]-j_min] < corr[max_index[0],max_index[1]-j_min-1] and
-                            corr[max_index[0],max_index[1]-j_min-1] < corr[max_index[0],max_index[1]-j_min-2]):
-                            break
-                    for j_min in range(max_index[1]+1,corr.shape[1]-2):
-                        min_ind_vert_2=j_min+1
-                        if (corr[max_index[0],j_min] < corr[max_index[0],j_min+1] and
-                            corr[max_index[0],j_min+1] < corr[max_index[0],j_min+2]):
-                            break
-                        
-                    #Setting the peak signals
-                    r_peak=corr[min_ind_rad_1:min_ind_rad_2,max_index[1]]
-                    z_peak=corr[max_index[0],min_ind_vert_1:min_ind_vert_2]
-                    half_height=((r_peak.max()-(r_peak[0]+r_peak[-1])/2)/2+             #Half height measured from the top
-                                 (z_peak.max()-(z_peak[0]+z_peak[-1])/2)/2)/2.          
-                    #DEBUG    
-                    if structure_test:
-                        plt.cla()
-                        plt.plot(corr[:,max_index[1]])
-                        plt.plot(corr[max_index[0],:])
-                        plt.plot(np.arange(min_ind_rad_1,min_ind_rad_2),r_peak)
-                        plt.plot(np.arange(min_ind_vert_1,min_ind_vert_2),z_peak)
-                        plt.pause(0.001)
+                    raise NotImplementedError('Code it, sucker!')
                     
-                    max_corr=(coeff[0] + 
-                              coeff[1]*index[1] + 
-                              coeff[2]*index[1]**2 + 
-                              coeff[3]*index[0] + 
-                              coeff[4]*index[0]*index[1] + 
-                              coeff[5]*index[0]**2)
-                    half_height=max_corr-half_height
-                    x0=index[0]
-                    y0=index[1]
-                    slope_r=coeff_r[0]/coeff_r[1]
-                    slope_z=coeff_z[0]/coeff_z[1]
-                    for slope in [slope_r,slope_z]:
-                        ar=coeff[2] + coeff[4]*slope + coeff[5]*slope**2
-                        br=coeff[1] + coeff[3]*slope - coeff[4]*slope*y0 - coeff[5]*slope**2*2*y0 + 2*coeff[5]*slope*x0
-                        cr=coeff[0] - half_height + coeff[3]*x0 - coeff[3]*slope*y0 + coeff[5]*slope**2*y0**2 - 2*coeff[5]*slope*x0*y0 + coeff[5]*x0**2
-                        
-                        y1=(-br+np.sqrt(br**2-4*ar*cr))/(2*ar)
-                        y2=(-br-np.sqrt(br**2-4*ar*cr))/(2*ar)
-                        x1=slope*(y1-y0)+x0
-                        x2=slope*(y2-y0)+x0
-                        if slope == slope_r:
-                            r_size[i_frames]=np.abs(coeff_r[0]*(x2-x1)+coeff_r[1]*(y2-y1))/2
-                        else:
-                            z_size[i_frames]=np.abs(coeff_z[0]*(x2-x1)+coeff_z[1]*(y2-y1))/2
-                        if test:
-                            plt.scatter([x1+max_index[0]-fitting_range,
-                                         x2+max_index[0]-fitting_range],
-                                        [y1+max_index[1]-fitting_range,
-                                         y2+max_index[1]-fitting_range])
                     #Checking the threshold of the correlation        
                 if corr.max() < correlation_threshold and flap_ccf:
                     print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
@@ -1350,3 +1276,208 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
             
     if return_results:
         return time, r_velocity, z_velocity, r_size, z_size
+    
+def calculate_nstx_gpi_structure_size(data_object=None,                         #Name of the FLAP.data_object
+                                      exp_id=None,                              #Shot number (if data_object is not used)
+                                      time=None,                                #Time when the structures need to be evaluated (when exp_id is used)
+                                      sample=None,                              #Sample number where the structures need to be evaluated (when exp_id is used)
+                                      spatial=False,                            #Calculate the results in real spatial coordinates
+                                      pixel=False,                              #Calculate the results in pixel coordinates
+                                      mfilter_range=5,                          #Range of the median filter
+                                      nlevel=80//5,                             #The number of contours to be used for the calculation (default:ysize/mfilter_range=80//5)
+                                      filter_struct=True,                       #Filter out the structures with less than filter_level number of contours
+                                      filter_level=None,                        #The number of contours threshold for structures filtering (default:nlevel//4)
+                                      test_result=False,                        #Test the result only (plot the contour and the found structures)
+                                      test=False,                               #Test the contours and the structures before any kind of processing
+                                      ):
+    
+    """
+    The method calculates the radial and poloidal sizes of the structures
+    present in one from of the GPI image. It gathers the isosurface contour
+    coordinates and determines the structures based on certain criteria. In
+    principle no user input is necessary, the code provides a robust solution.
+    The sizes are determined by fitting an ellipse onto the contour at
+    half-height. The code returns the following list:
+        a[structure_index]={'Paths':  [list of the paths, type: matplotlib.path.Path],
+                            'Levels': [levels of the paths, type: list],
+                            'Center': [center of the ellipse in px,py or R,z coordinates, type: numpy.ndarray of two elements],
+                            'Size':   [size of the ellipse in x and y direction or R,z direction, type: ]numpy.ndarray of two elements,
+                            'Tilt':   [angle of the ellipse compared to horizontal in radians, type: numpy.float64],
+                            ('Ellipse': [the entire ellipse object, returned if test_result is True, type: flap_nstx.analysis.nstx_gpi_tools.FitEllipse])
+                            }
+    """
+    
+    
+    if type(data_object) is str:
+        data_object=flap.get_data_object_ref(data_object)
+    if data_object is None:
+        if exp_id is None or (time is None and sample is None):
+            raise IOError('exp_id and time needs to be set if data_object is not set.')
+        try:
+            data_object=flap.get_data_object_ref('GPI', exp_id=exp_id)
+        except:
+            print('---- Reading GPI data ----')
+            data_object=flap.get_data('NSTX_GPI', exp_id=exp_id, name='', object_name='GPI')
+        if time is not None:
+            data_object=data_object.slice_data(slicing={'Time':time})
+        if sample is not None:
+            data_object=data_object.slice_data(slicing={'Sample':sample})
+    if len(data_object.data.shape) != 2:
+        raise TypeError('The frame dataobject needs to be a 2D object without a time coordinate.')
+    if pixel:
+        x_coord_name='Image x'
+        y_coord_name='Image y'
+    if spatial:
+        x_coord_name='Device R'
+        y_coord_name='Device z'
+        
+    x_coord=data_object.coordinate(x_coord_name)[0]
+    y_coord=data_object.coordinate(y_coord_name)[0]
+    
+    data = scipy.ndimage.median_filter(data_object.data, mfilter_range)
+    
+    levels=np.arange(nlevel)/(nlevel-1)*(data.max()-data.min())+data.min()
+    if test:
+        plt.cla()
+    structure_contours=plt.contourf(x_coord, y_coord, data, levels=levels)
+    structures=[]
+    one_structure={'Paths':[None], 
+                   'Levels':[None]}
+    if test:
+        print('Plotting levels')
+    else:
+        plt.close()
+    #The following lines are the heart of the code. It separates the structures
+    #from each other and stores the in the structure list.
+    
+    """
+    Steps of the algorithm:
+        
+        1st step: Take the paths at the highest level and store them. These
+                  create the initial structures
+        2nd step: Take the paths at the second highest level
+            2.1 step: if either of the previous paths contain either of
+                      the paths at this level, the corresponding
+                      path is appended to the contained structure from the 
+                      previous step.
+            2.2 step: if none of the previous structures contain the contour
+                      at this level, a new structure is created.
+        3rd step: Repeat the second step until it runs out of levels.
+        4th step: Delete those structures from the list which doesn't have
+                  enough paths to be called a structure.
+                  
+    (Note: a path is a matplotlib path, a structure is a processed path)
+    """
+    for i_lev in range(len(structure_contours.collections)-1,-1,-1):
+        cur_lev_paths=structure_contours.collections[i_lev].get_paths()
+        n_paths_cur_lev=len(cur_lev_paths)
+        
+        if len(cur_lev_paths) > 0:
+            if len(structures) == 0:
+                for i_str in range(n_paths_cur_lev):
+                    structures.append(copy.deepcopy(one_structure))
+                    structures[i_str]['Paths'][0]=cur_lev_paths[i_str]
+                    structures[i_str]['Levels'][0]=levels[i_lev]
+            else:
+                for i_cur in range(n_paths_cur_lev):
+                    new_path=True
+                    cur_path=cur_lev_paths[i_cur]
+                    for j_prev in range(len(structures)):
+                        if cur_path.contains_path(structures[j_prev]['Paths'][-1]):
+                            structures[j_prev]['Paths'].append(cur_path)
+                            structures[j_prev]['Levels'].append(levels[i_lev])
+                            new_path=False
+                    if new_path:
+                        structures.append(copy.deepcopy(one_structure))
+                        structures[-1]['Paths'][0]=cur_path
+                        structures[-1]['Levels'][0]=levels[i_lev]
+                    if test:
+                        x=cur_lev_paths[i_cur].to_polygons()[0][:,0]
+                        y=cur_lev_paths[i_cur].to_polygons()[0][:,1]
+                        plt.plot(x,y)
+                        plt.axis('equal')
+                        plt.pause(0.001)
+    
+    #Cut the structures based on the filter level
+    if filter_level is None:
+        filter_level=nlevel//5
+    if filter_struct:
+        cut_structures=[]
+        for i_str in range(len(structures)):
+            if len(structures[i_str]['Levels']) > filter_level:
+                cut_structures.append(structures[i_str])
+    structures=cut_structures
+    
+    if test:
+        print('Plotting structures')
+        plt.cla()
+        plt.axis('equal')
+        for struct in structures:
+            plt.contourf(x_coord, y_coord, data, levels=levels)
+            for path in struct['Paths']:
+                x=path.to_polygons()[0][:,0]
+                y=path.to_polygons()[0][:,1]
+                plt.plot(x,y)
+            plt.pause(1)
+            plt.cla()
+            plt.axis('equal')
+        plt.contourf(x_coord, y_coord, data, levels=levels)                
+                
+    #Finding the contour at the half level for each structure and
+    #calculating its properties
+    if len(structures) > 1:
+        #Finding the paths at FWHM
+        paths_at_half=[]
+        for i_str in range(len(structures)):
+            half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
+            ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
+            paths_at_half.append(structures[i_str]['Paths'][ind_at_half])
+        #Process the structures which are embedded (cut the inner one)
+        structures_to_be_removed=[]
+        for ind_path1 in range(len(paths_at_half)):
+            for ind_path2 in range(len(paths_at_half)):
+                if ind_path1 != ind_path2:
+                    if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
+                        structures_to_be_removed.append(ind_path1)
+        structures_to_be_removed=np.unique(structures_to_be_removed)
+        cut_structures=[]
+        for i_str in range(len(structures)):
+            if i_str not in structures_to_be_removed:
+                cut_structures.append(structures[i_str])
+        structures=cut_structures
+    
+    #Calculate the ellipse and its properties for the half level contours    
+    for i_str in range(len(structures)):
+        half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
+        ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
+
+        half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
+        try:
+            ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
+            structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
+            structures[i_str]['Center']=ellipse.center
+            structures[i_str]['Size']=ellipse.size
+            structures[i_str]['Tilt']=ellipse.angle_of_rotation+np.pi/2
+            if test_result:
+                structures[i_str]['Ellipse']=ellipse
+                plt.contourf(x_coord, y_coord, data, levels=levels)
+                #Parametric reproduction of the Ellipse
+                R=np.arange(0,2*np.pi,0.01)
+                phi=ellipse.angle_of_rotation
+                a,b=ellipse.axes_length
+                xx = structures[i_str]['Center'][0] + \
+                     a*np.cos(R)*np.cos(phi) - \
+                     b*np.sin(R)*np.sin(phi)
+                yy = structures[i_str]['Center'][1] + \
+                     a*np.cos(R)*np.sin(phi) + \
+                     b*np.sin(R)*np.cos(phi)
+                plt.plot(xx,yy)
+                plt.plot(half_coords[:,0],half_coords[:,1])
+                plt.pause(0.1)
+        except:
+            print('Ellipse fitting failed.')
+            structures[i_str]['Half path']=None
+            structures[i_str]['Center']=None
+            structures[i_str]['Size']=None
+            structures[i_str]['Tilt']=None
+    return structures
