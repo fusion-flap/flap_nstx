@@ -14,7 +14,6 @@ import flap_nstx
 flap_nstx.register()
 import numpy as np
 import scipy
-import matplotlib.pyplot as plt
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -55,7 +54,13 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
     
     background=np.zeros([64,80])
     if add_background:
-        background=flap.get_data('NSTX_GPI', exp_id=139901, name='', object_name='GPI_RAW').slice_data(slicing={'Time':flap.Intervals(background_time_range[0],background_time_range[1])},summing={'Time':'Mean'})
+        background=flap.get_data('NSTX_GPI', 
+                                 exp_id=139901, 
+                                 name='', 
+                                 object_name='GPI_RAW')
+        background=background.slice_data(slicing={'Time':flap.Intervals(background_time_range[0],
+                                                                        background_time_range[1])},
+                                         summing={'Time':'Mean'})
         amplitude=amplitude*background.data.max()
     
     #Spatial positions
@@ -96,8 +101,8 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                             frame[k_radial,j_vertical]=0.
                         else:
                             frame[k_radial,j_vertical]=(amplitude[i_structures]*np.exp(-0.5*(a*(x-x0)**2 + 
-                                                                                                          2*b*(x-x0)*(y-y0) + 
-                                                                                                          c*(y-y0)**2))
+                                                                                             2*b*(x-x0)*(y-y0) + 
+                                                                                             c*(y-y0)**2))
                                                                +background.data[k_radial,j_vertical])
                 data_arr[i_frames,:,:]+=frame
                 
@@ -187,6 +192,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                         data_title='Simulated signal',
                         info={'Options':_options},
                         data_source="NSTX_GPI")
+    
     if output_name is not None:
         flap.add_data_object(d,output_name)
     

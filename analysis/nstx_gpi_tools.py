@@ -16,14 +16,14 @@ flap_nstx.register()
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
 flap.config.read(file_name=fn)
-
+#Scientific library imports  
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.linalg import eig, inv
 
 #from scipy.signal import find_peaks    #This is not working as reliably as the CWT
 from scipy.signal import find_peaks_cwt
-#Scientific library imports    
+import scipy
 
 def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
                                   f_high=1e2,               # Low pass filter frequency in Hz
@@ -121,23 +121,14 @@ def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
     else:
         #Calculate the average image for the entire shot
         d=flap.slice_data(object_name,exp_id=exp_id,
-                        summing={'Time':'Mean'},
-                        output_name=output_name)
+                          summing={'Time':'Mean'},
+                          output_name=output_name)
     object_name=output_name
     
     d.info['Normalizer options']=normalizer_options
     
     if test:
         plt.figure()
-#        if False:
-#        if add_flux_r:
-#            flap.plot(object_name, 
-#                      axes=['Flux r', 'Device z'], 
-#                      exp_id=exp_id, 
-#                      plot_type='contour',
-#                      plot_options={'levels':21}
-#                      )
-#        else:
         flap.plot(object_name, 
                   axes=['Device R', 'Device z'], 
                   exp_id=exp_id, 
@@ -373,6 +364,7 @@ def detrend_multidim(data_object=None,
                      test=False,
                      return_trend=False,
                      output_name=None):
+    
     if exp_id is not None:
         d=flap.get_data_object(data_object, exp_id=exp_id)
     else:
@@ -447,6 +439,7 @@ def detrend_multidim(data_object=None,
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]],d.data.shape[dim[2]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
+                
     if output_name is not None:
         try:
             flap.add_data_object(d,output_name)
@@ -689,3 +682,306 @@ class FitEllipse:
         ysize=np.sqrt(by**2-4*ay*cy)/np.abs(ay)
         
         return np.array([xsize,ysize])
+        
+def make_plot_cursor_format(current, other):
+    """    
+    The method is for displaying double cursors for the overplotted correlations
+    in the velocity calculation.
+    """
+    # current and other are axes
+    def format_coord(x, y):
+        # x, y are data coordinates
+        # convert to display coords
+        display_coord = current.transData.transform((x,y))
+        inv = other.transData.inverted()
+        # convert back to data coords with respect to ax
+        ax_coord = inv.transform(display_coord)
+        coords = [ax_coord, (x, y)]
+        return ('Left: {:<40}    Right: {:<}'
+                .format(*['({:.6f}, {:.6f})'.format(x, y) for x,y in coords]))
+    return format_coord
+
+def polygon_area(x=None,                                                         #x coordinates of the polygon
+                y=None,                                                         #y coordinates of the polygon
+                ):
+    """
+    Returns the area of the polygon based on the so called shoelace formula.
+    Sources: 
+        https://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates
+        https://en.wikipedia.org/wiki/Shoelace_formula
+    """
+    
+    if x is not None and y is not None:
+        if len(x) != len(y):
+            raise ValueError('x and y must have the same length to be a polygon.')
+        return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
+    else:
+        raise IOError('The input x and y has to be defined')
+
+
+"""
+- DIFFERENT STRUCTURE POSITION
+- SOME OTHER MEASURES THAN THE ELLIPSE
+- COULD HAVE OTHER MEASURES THAN THE DEFINED HALF LEVEL
+- PLOTTING THE SIZE AND OTHER PARAMETERS OF THE GAS CLOUD ONTO THE RESULTS AS SOME CONFIDENCE LEVEL
+"""        
+    
+def nstx_gpi_one_frame_structure_finder(data_object=None,                       #Name of the FLAP.data_object
+                                        exp_id='*',                             #Shot number (if data_object is not used)
+                                        time=None,                              #Time when the structures need to be evaluated (when exp_id is used)
+                                        sample=None,                            #Sample number where the structures need to be evaluated (when exp_id is used)
+                                        spatial=False,                          #Calculate the results in real spatial coordinates
+                                        pixel=False,                            #Calculate the results in pixel coordinates
+                                        mfilter_range=5,                        #Range of the median filter
+                                        nlevel=80//5,                           #The number of contours to be used for the calculation (default:ysize/mfilter_range=80//5)
+                                        levels=None,                            #Contour levels from an input and not from automatic calculation
+                                        threshold_level=None,                   #Threshold level over which it is considered to be a structure
+                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
+                                                                                    #Negative values are substituted with 0.
+                                        filter_struct=True,                     #Filter out the structures with less than filter_level number of contours
+                                        filter_level=None,                      #The number of contours threshold for structures filtering (default:nlevel//4)
+                                        test_result=False,                      #Test the result only (plot the contour and the found structures)
+                                        test=False,                             #Test the contours and the structures before any kind of processing
+                                        ):
+    
+    """
+    The method calculates the radial and poloidal sizes of the structures
+    present in one from of the GPI image. It gathers the isosurface contour
+    coordinates and determines the structures based on certain criteria. In
+    principle no user input is necessary, the code provides a robust solution.
+    The sizes are determined by fitting an ellipse onto the contour at
+    half-height. The code returns the following list:
+        a[structure_index]={'Paths':     [list of the paths, type: matplotlib.path.Path],
+                            'Half path': [path at the half level of the structure]
+                            'Levels':    [levels of the paths, type: list],
+                            'Center':    [center of the ellipse in px,py or R,z coordinates, type: numpy.ndarray of two elements],
+                            'Size':      [size of the ellipse in x and y direction or R,z direction, type: ]numpy.ndarray of two elements,
+                            'Angle':      [angle of the ellipse compared to horizontal in radians, type: numpy.float64],
+                            'Area':      [area of the polygon at the half level],
+                            ('Ellipse':  [the entire ellipse object, returned if test_result is True, type: flap_nstx.analysis.nstx_gpi_tools.FitEllipse])
+                            }
+    """
+    
+    if type(data_object) is str:
+        data_object=flap.get_data_object_ref(data_object, exp_id=exp_id)
+        if len(data_object.data.shape) != 2:
+            raise IOError('The inpud data_object is not 2D. The method only processes 2D data.')
+            
+    if data_object is None:
+        if (exp_id is None) or ((time is None) and (sample is None)):
+            raise IOError('exp_id and time needs to be set if data_object is not set.')
+        try:
+            data_object=flap.get_data_object_ref('GPI', exp_id=exp_id)
+        except:
+            print('---- Reading GPI data ----')
+            data_object=flap.get_data('NSTX_GPI', exp_id=exp_id, name='', object_name='GPI')
+            
+        if (time is not None) and (sample is not None):
+            raise IOError('Either time or sample can be set, not both.')
+            
+        if time is not None:
+            data_object=data_object.slice_data(slicing={'Time':time})
+        if sample is not None:
+            data_object=data_object.slice_data(slicing={'Sample':sample})
+            
+    try:
+        data_object.data
+    except:
+        raise IOError('The input data object should be a flap.DataObject')
+        
+    if len(data_object.data.shape) != 2:
+        raise TypeError('The frame dataobject needs to be a 2D object without a time coordinate.')
+        
+    if pixel:
+        x_coord_name='Image x'
+        y_coord_name='Image y'
+    if spatial:
+        x_coord_name='Device R'
+        y_coord_name='Device z'
+        
+    x_coord=data_object.coordinate(x_coord_name)[0]
+    y_coord=data_object.coordinate(y_coord_name)[0]
+    data = scipy.ndimage.median_filter(data_object.data, mfilter_range)
+        
+    if test:
+        plt.cla()
+        
+    if threshold_level is not None:
+        if data.max() < threshold_level:
+            print('The maximum of the signal doesn\'t reach the threshold level.')
+            return None
+        data-=threshold_level
+        data[np.where(data < 0)]=0.
+        
+    if levels is None:
+        levels=np.arange(nlevel)/(nlevel-1)*(data.max()-data.min())+data.min()
+    else:
+        nlevel=len(levels)
+        
+    try:
+        structure_contours=plt.contourf(x_coord, y_coord, data, levels=levels)
+    except:
+        plt.cla()
+        plt.close()
+        print('Failed to create the contours for the structures.')
+        return None
+    
+    if not test:
+        plt.cla()
+    structures=[]
+    one_structure={'Paths':[None], 
+                   'Levels':[None]}
+    if test:
+        print('Plotting levels')
+    else:
+        plt.close()
+    #The following lines are the core of the code. It separates the structures
+    #from each other and stores the in the structure list.
+    
+    """
+    Steps of the algorithm:
+        
+        1st step: Take the paths at the highest level and store them. These
+                  create the initial structures
+        2nd step: Take the paths at the second highest level
+            2.1 step: if either of the previous paths contain either of
+                      the paths at this level, the corresponding
+                      path is appended to the contained structure from the 
+                      previous step.
+            2.2 step: if none of the previous structures contain the contour
+                      at this level, a new structure is created.
+        3rd step: Repeat the second step until it runs out of levels.
+        4th step: Delete those structures from the list which doesn't have
+                  enough paths to be called a structure.
+                  
+    (Note: a path is a matplotlib path, a structure is a processed path)
+    """
+    for i_lev in range(len(structure_contours.collections)-1,-1,-1):
+        cur_lev_paths=structure_contours.collections[i_lev].get_paths()
+        n_paths_cur_lev=len(cur_lev_paths)
+        
+        if len(cur_lev_paths) > 0:
+            if len(structures) == 0:
+                for i_str in range(n_paths_cur_lev):
+                    structures.append(copy.deepcopy(one_structure))
+                    structures[i_str]['Paths'][0]=cur_lev_paths[i_str]
+                    structures[i_str]['Levels'][0]=levels[i_lev]
+            else:
+                for i_cur in range(n_paths_cur_lev):
+                    new_path=True
+                    cur_path=cur_lev_paths[i_cur]
+                    for j_prev in range(len(structures)):
+                        if cur_path.contains_path(structures[j_prev]['Paths'][-1]):
+                            structures[j_prev]['Paths'].append(cur_path)
+                            structures[j_prev]['Levels'].append(levels[i_lev])
+                            new_path=False
+                    if new_path:
+                        structures.append(copy.deepcopy(one_structure))
+                        structures[-1]['Paths'][0]=cur_path
+                        structures[-1]['Levels'][0]=levels[i_lev]
+                    if test:
+                        x=cur_lev_paths[i_cur].to_polygons()[0][:,0]
+                        y=cur_lev_paths[i_cur].to_polygons()[0][:,1]
+                        plt.plot(x,y)
+                        plt.axis('equal')
+                        plt.pause(0.001)
+    
+    #Cut the structures based on the filter level
+    if filter_level is None:
+        filter_level=nlevel//5
+    if filter_struct:
+        cut_structures=[]
+        for i_str in range(len(structures)):
+            if len(structures[i_str]['Levels']) > filter_level:
+                cut_structures.append(structures[i_str])
+    structures=cut_structures
+    
+    if test:
+        print('Plotting structures')
+        plt.cla()
+        plt.axis('equal')
+        for struct in structures:
+            plt.contourf(x_coord, y_coord, data, levels=levels)
+            for path in struct['Paths']:
+                x=path.to_polygons()[0][:,0]
+                y=path.to_polygons()[0][:,1]
+                plt.plot(x,y)
+            plt.pause(1)
+            plt.cla()
+            plt.axis('equal')
+        plt.contourf(x_coord, y_coord, data, levels=levels)
+        plt.colorbar()           
+                
+    #Finding the contour at the half level for each structure and
+    #calculating its properties
+    if len(structures) > 1:
+        #Finding the paths at FWHM
+        paths_at_half=[]
+        for i_str in range(len(structures)):
+            half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
+            ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
+            paths_at_half.append(structures[i_str]['Paths'][ind_at_half])
+        #Process the structures which are embedded (cut the inner one)
+        structures_to_be_removed=[]
+        for ind_path1 in range(len(paths_at_half)):
+            for ind_path2 in range(len(paths_at_half)):
+                if ind_path1 != ind_path2:
+                    if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
+                        structures_to_be_removed.append(ind_path1)
+        structures_to_be_removed=np.unique(structures_to_be_removed)
+        cut_structures=[]
+        for i_str in range(len(structures)):
+            if i_str not in structures_to_be_removed:
+                cut_structures.append(structures[i_str])
+        structures=cut_structures
+        
+    #Calculate the ellipse and its properties for the half level contours    
+    for i_str in range(len(structures)):
+        half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
+        ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
+
+        half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
+        try:
+            ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
+            structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
+            structures[i_str]['Center']=ellipse.center
+            structures[i_str]['Size']=ellipse.size
+            structures[i_str]['Angle']=ellipse.angle_of_rotation
+            structures[i_str]['Area']=flap_nstx.analysis.polygon_area(half_coords[:,0],
+                                                                     half_coords[:,1])
+            if test_result:
+                structures[i_str]['Ellipse']=ellipse
+        except:
+            print('Ellipse fitting failed.')
+            structures[i_str]['Half path']=None
+            structures[i_str]['Center']=None
+            structures[i_str]['Size']=None
+            structures[i_str]['Angle']=None
+            structures[i_str]['Area']=None
+            if test_result:
+                structures[i_str]['Ellipse']=None
+                
+    if test_result:
+        plt.subplot()
+        plt.contourf(x_coord, y_coord, data, levels=levels)
+        plt.colorbar()  
+        if len(structures) > 0:
+            #Parametric reproduction of the Ellipse
+            R=np.arange(0,2*np.pi,0.01)
+            for structure in structures:
+                if structure['Half path'] is not None:
+                    phi=structure['Angle']
+                    a,b=structure['Ellipse'].axes_length
+                    x=structure['Half path'].to_polygons()[0][:,0]
+                    y=structure['Half path'].to_polygons()[0][:,1]
+                    xx = structure['Center'][0] + \
+                         a*np.cos(R)*np.cos(phi) - \
+                         b*np.sin(R)*np.sin(phi)
+                    yy = structure['Center'][1] + \
+                         a*np.cos(R)*np.sin(phi) + \
+                         b*np.sin(R)*np.cos(phi)
+                    plt.plot(x,y)    
+                    plt.plot(xx,yy)
+        plt.show()
+        plt.pause(0.1)
+    return structures

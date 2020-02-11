@@ -9,16 +9,7 @@ Created on Mon Nov 11 11:38:06 2019
 # -*- coding: utf-8 -*-
 #Core imports
 import os
-#Flap imports
-import flap
-import flap_nstx
-flap_nstx.register()
-import flap_mdsplus
-flap_mdsplus.register('NSTX_MDSPlus')
-    
-thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
-flap.config.read(file_name=fn) 
+import copy
 
 #Scientific package imports
 import matplotlib.pyplot as plt
@@ -26,52 +17,42 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 
-def show_nstx_gpi_video(exp_id=None, 
-                        time_range=None,
-                        #z_range=[0,512],
-                        z_range=None,
-                        logz=False,
-                        plot_filtered=False,
-                        normalize=None,            #options: 'Time dependent' or 'Time averaged'
-                        normalizer_time_range=None,
-                        cache_data=False, 
-                        plot_flux=False,
-                        plot_separatrix=False,
-                        plot_limiter=False,
-                        flux_coordinates=False,
-                        device_coordinates=False,
-                        new_plot=True,
-                        save_video=False,
-                        video_saving_only=False,
-                        prevent_saturation=False,
-                        colormap='gist_ncar',
+#Flap imports
+import flap
+import flap_nstx
+flap_nstx.register()
+import flap_mdsplus
+
+#Setting up FLAP
+flap_mdsplus.register('NSTX_MDSPlus')    
+thisdir = os.path.dirname(os.path.realpath(__file__))
+fn = os.path.join(thisdir,"flap_nstx.cfg")
+flap.config.read(file_name=fn) 
+
+
+def show_nstx_gpi_video(exp_id=None,                                            #Shot number
+                        time_range=None,                                        #Time range to show the video in, if not set, the enire shot is shown
+                        z_range=None,                                           #Range for the contour/color levels, if not set, min-max is divided
+                        logz=False,                                             #Plot the image in a logarithmic coloring
+                        plot_filtered=False,                                    #Plot a high pass (100Hz) filtered video
+                        normalize=None,                                         #Normalize the video by dividing it with a processed GPI signal 
+                                                                                #    options: 'Time dependent' (LPF filtered) (recommended)
+                                                                                #             'Time averaged' (LPF filtered and averaged for the time range) 
+                                                                                #             'Simple' (Averaged)
+                        normalizer_time_range=None,                             #Time range for the time dependent normalization
+                        subtract_background=False,                              #Subtract the background from the image (mean of the time series)
+                        plot_flux=False,                                        #Plot the flux surfaces onto the video
+                        plot_separatrix=False,                                  #Plot the separatrix onto the video
+                        plot_limiter=False,                                     #Plot the limiter of NSTX from EFIT
+                        flux_coordinates=False,                                 #Plot the signal as a function of magnetic coordinates
+                        device_coordinates=False,                               #Plot the signal as a function of the device coordinates
+                        new_plot=True,                                          #Plot the video into a new figure window
+                        save_video=False,                                       #Save the video into an mp4 format
+                        video_saving_only=False,                                #Saving only the video, not plotting it
+                        prevent_saturation=False,                               #Prevent saturation of the image by restarting the colormap
+                        colormap='gist_ncar',                                   #Colormap for the plotting
+                        cache_data=False,                                       #Try to load the data from the FLAP storage
                         ):                
-    
-    if ((exp_id is None) and (time_range is None)):
-        print('The correct way to call the code is the following:\n')
-        print('show_nstx_gpi_video(exp_id=141918, time_range=[250.,260.], plot_filtered=True, cache_data=False, plot_efit=True, flux_coordinates=False)\n')
-        print('INPUTs: \t\t Description: \t\t\t\t\t Type: \t\t\t Default values: \n')
-        print('exp_id: \t\t The shot number. \t\t\t\t int \t\t\t Default: None')
-        print('time_range: \t\t The time range. \t\t\t\t [float,float] \t\t Default: None')
-        print('plot_filtered: \t\t High pass filter the data from 1e2. \t\t boolean \t\t Default: False')
-        print('cache_data: \t\t Cache the FLAP data objects. \t\t\t boolean \t\t Default: False')
-        print('plot_efit: \t\t Plot the efit profiles onto the video. \t boolean \t\t Default: False')
-        print('flux_coordinates: \t Plot the data in flux coordinates. \t\t boolean \t\t Default: False')
-        print('new_plot: \t\t Preserve the previous plot. \t\t boolean \t\t Default: True')
-        return
-    
-    if logz and z_range[0] == 0:
-        print('Z range should not start with 0 when logarithmic Z axis is set. Forcing it to be 1 for now.')
-        z_range[0]=1
-    
-    if time_range is None:
-        print('time_range is None, the entire shot is plotted.')
-        slicing_range=None
-    else:    
-        if (type(time_range) is not list and len(time_range) != 2):
-            raise TypeError('time_range needs to be a list with two elements.')
-        #time_range=[time_range[0]/1000., time_range[1]/1000.] 
-        slicing_range={'Time':flap.Intervals(time_range[0],time_range[1])}
         
     if exp_id is not None:
         print("\n------- Reading NSTX GPI data --------")
@@ -87,13 +68,68 @@ def show_nstx_gpi_video(exp_id=None,
     else:
         raise ValueError('The experiment ID needs to be set.')
         
+    if time_range is None:
+        print('time_range is None, the entire shot is plotted.')
+        slicing=None
+    else:    
+        if (type(time_range) is not list and len(time_range) != 2):
+            raise TypeError('time_range needs to be a list with two elements.')
+        #time_range=[time_range[0]/1000., time_range[1]/1000.] 
+        slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
+        d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
+        object_name='GPI_SLICED'
+        
     if plot_filtered:
         print("**** Filtering GPI ****")
+        
+        d=flap.filter_data(object_name,output_name='GPI_FILTERED',coordinate='Time',
+                           options={'Type':'Highpass',
+                                    'f_low':1e2,
+                                    'Design':'Chebyshev II'})
         object_name='GPI_FILTERED'
-        d=flap.filter_data('GPI',output_name='GPI_FILTERED',coordinate='Time',
-                           options={'Type':'Highpass','f_low':1e2,
-                                    'Design':'Chebyshev II'}) #Data is in milliseconds
-       
+        
+    if normalize is not None:
+        print("**** Normalizing GPI ****")
+        d=flap.get_data_object_ref(object_name)
+        if normalize in ['Time averaged','Time dependent', 'Simple']:
+            if normalize == 'Time averaged':
+                coefficient=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,
+                                                          time_range=normalizer_time_range,
+                                                          f_high=1e2,
+                                                          design='Chebyshev II',
+                                                          filter_data=True,
+                                                          cache_data=True,
+                                                          )
+            if normalize == 'Time dependent':
+                coefficient=flap.filter_data('GPI',
+                                             exp_id=exp_id,
+                                             output_name='GPI_LPF',
+                                             coordinate='Time',
+                                             options={'Type':'Lowpass',
+                                                      'f_high':1e2,
+                                                      'Design':'Chebyshev II'})
+                if slicing is not None:
+                    coefficient=coefficient.slice_data(slicing=slicing)
+            if normalize == 'Simple':
+                coefficient=flap.slice_data(object_name,summing={'Time':'Mean'})
+                
+            data_obj=copy.deepcopy(d)
+            data_obj.data = data_obj.data/coefficient.data
+            flap.add_data_object(data_obj, 'GPI_DENORM')
+            object_name='GPI_DENORM'
+        else:
+            raise ValueError('Normalize can either be "Time averaged","Time dependent" or "Simple".')
+            
+    if subtract_background: #DEPRECATED, DOESN'T DO MUCH HELP
+        print('**** Subtracting background ****')
+        d=flap.get_data_object_ref(object_name)
+        background=flap.slice_data(object_name, summing={'Time':'Mean'})
+        
+        data_obj=copy.deepcopy(d)
+        data_obj.data=data_obj.data/background.data
+        
+        flap.add_data_object(data_obj, 'GPI_BGSUB')
+        object_name='GPI_BGSUB'    
     if ((plot_flux or plot_separatrix) and not flux_coordinates):
         print('Gathering MDSPlus EFIT data.')
         oplot_options={}
@@ -150,29 +186,6 @@ def show_nstx_gpi_video(exp_id=None,
     if new_plot:
         plt.figure()
         
-
-    if normalize is not None:
-        print("**** Normalizing GPI ****")
-        if normalize in ['Time averaged','Time dependent']:
-            if normalize == 'Time averaged':
-                coefficient=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,              # Experiment ID
-                                                          time_range=normalizer_time_range,
-                                                          f_high=1e2,               # Low pass filter frequency in Hz
-                                                          design='Chebyshev II',    # IIR filter design (from scipy)
-                                                          filter_data=True,         # IIR LPF the data
-                                                          cache_data=True,
-                                                          )
-            if normalize == 'Time dependent':
-                coefficient=flap.filter_data('GPI',exp_id=exp_id,
-                                             output_name='GPI_LPF',coordinate='Time',
-                                             options={'Type':'Lowpass',
-                                                      'f_high':1e2,
-                                                      'Design':'Chebyshev II'}) #Data is in milliseconds
-        
-            d.data = d.data/coefficient.data #This should be checked to some extent, it works with smaller matrices
-        else:
-            raise ValueError('Normalize can either be "Time averaged" or "Time dependent".')
-            
     if save_video:
         if time_range is not None:
             video_filename='NSTX_GPI_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'.mp4'
@@ -180,13 +193,24 @@ def show_nstx_gpi_video(exp_id=None,
             video_filename='NSTX_GPI_'+str(exp_id)+'_FULL.mp4'
     else:
         video_filename=None
+        
     if video_saving_only:
         save_video=True
         
+    if z_range is None:
+        d=flap.get_data_object_ref(object_name)            
+        z_range=[d.data.min(),d.data.max()]
+        
+    if z_range[1] < 0:
+        raise ValueError('All the values are negative, Logarithmic plotting is not allowed.')
+        
+    if logz and z_range[0] <= 0:
+        print('Z range should not start with 0 when logarithmic Z axis is set. Forcing it to be 1 for now.')
+        z_range[0]=1.    
+    
     if not save_video:
         flap.plot(object_name,plot_type='animation',
                   exp_id=exp_id,
-                  slicing=slicing_range,
                   axes=[x_axis,y_axis,'Time'],
                   options={'Z range':z_range,'Wait':0.0,'Clear':False,
                            'Overplot options':oplot_options,
@@ -209,7 +233,6 @@ def show_nstx_gpi_video(exp_id=None,
             waittime=0.
         flap.plot(object_name,plot_type='anim-image',
                   exp_id=exp_id,
-                  slicing=slicing_range,
                   axes=[x_axis,y_axis,'Time'],
                   options={'Z range':z_range,'Wait':0.0,'Clear':False,
                            'Overplot options':oplot_options,
@@ -378,14 +401,15 @@ def show_nstx_gpi_video_frames(exp_id=None,
             plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
         else:
             plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
+            
 def show_nstx_gpi_timetrace(exp_id=None,
-                            cache_data=True,
                             plot_filtered=False,
                             time_range=None,
                             new_plot=False,
                             overplot=False,
                             scale=1.0,
-                            save_pdf=False
+                            save_pdf=False,
+                            cache_data=True,
                             ):
     plot_options={}
     if time_range is None:
@@ -476,6 +500,7 @@ def show_nstx_gpi_slice_traces(exp_id=None,
                      options={'Type':'Highpass',
                               'f_low':1e2,
                               'Design':'Chebyshev II'})
+                        
     if not x_summing:
         for i in range(len(x_slices)):
             plt.figure()
@@ -500,6 +525,7 @@ def show_nstx_gpi_slice_traces(exp_id=None,
         if save_pdf:
             pdf.savefig()
             plt.close()
+            
     if not x_summing:    
         for j in range(len(y_slices)):
             if not y_summing:
@@ -531,8 +557,10 @@ def show_nstx_gpi_slice_traces(exp_id=None,
         if save_pdf:
             pdf.savefig()
             plt.close()
+            
     if save_pdf:
         pdf.close() 
+        
     if pdf_saving_only:
         import matplotlib
         matplotlib.use(current_backend)           

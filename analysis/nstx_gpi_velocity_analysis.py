@@ -14,6 +14,8 @@ import flap_nstx
 flap_nstx.register()
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
+from flap_nstx.analysis import nstx_gpi_one_frame_structure_finder
+from flap_nstx.analysis import calculate_nstx_gpi_norm_coeff
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -248,8 +250,8 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
     The code calculates a 1D-1D (pol/rad vs. rad/pol vs. time) velocity evolution.
     It slices the data to the given ranges and then calculates the velocity
     distribution in the range with cross-correlation based time delay estimation.
-    If poloidal velocity is needed, it's radial distribution is calculated and
     vica versa. It's time resolution is limited to around 40frames.
+    If poloidal velocity is needed, it's radial distribution is calculated and
     """
     
     if time_range is None:
@@ -848,36 +850,52 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
             
 def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          #Shot number
                                           time_range=None,                      #The time range for the calculation
-                                          data_object=None,
+                                          data_object=None,                     #Input data object if available from outside (e.g. generated sythetic signal)
                                           x_range=[0,63],                       #X range for the calculation
                                           y_range=[0,79],                       #Y range for the calculation
-                                          #Inputs for processing
-                                          filtering=False,                      #Use with caution, it creates artifacts in the signal.
-                                          normalize=False,                      #Normalize the signal
-                                          subtraction_order=1,                  #Order of the 2D polynomial for background subtraction
-                                          background_subtraction=False,         #Subtracting the average of the signal taken as the background
+                                          
+                                          #Inputs for velocity processing
+                                          subtraction_order_for_velocity=1,     #Order of the 2D polynomial for background subtraction
                                           flap_ccf=True,                        #Calculate the cross-correlation functions with flap instead of CCF
-                                          structure_size=False,                 #The current implementation is not working as well as it should: Deprecated!
-                                          #Spatial maximum finding inputs
-                                          differential=False,                   #Calculate the coherence instead of the correlation (not yet working)
                                           correlation_threshold=0.5,            #Threshold for the maximum of the cross-correlation between the two frames (calculated with the actual maximum, not the fit value)
                                           frame_similarity_threshold=0.0,       #Similarity threshold between the two subsequent frames (CCF at zero lag) DEPRECATED when an ELM is present
                                           velocity_threshold=None,              #Velocity threshold for the calculation. Abova values are considered np.nan.
                                           parabola_fit=True,                    #Fit a parabola on top of the cross-correlation function (CCF) peak
-                                          fitting_range=10,                     #Fitting range of the peak of CCF     
-                                          #Test options:
-                                          plot=False,                           #Plot the results
-                                          plot_nan=False,                       #False: gaps in the plot, True: non-equidistant points, but continuous
+                                          fitting_range=5,                      #Fitting range of the peak of CCF 
+                                          
+                                          #Input for size processing
+                                          structure_size=True,                  #The current implementation is not working as well as it should: Deprecated!
+                                          subtraction_order_for_size=None,      #Polynomial subtraction order
+                                          normalize_for_size=False,             #Normalize the signal
+                                          normalize_f_high=1.3e3,                 #High pass frequency for the normalizer data
+                                          advanced_normalizer=False,            #The normalizer function is split into two parts: before ELM and after ELM part. The ELM period is taken as continously  morphing average.
+                                          nlevel=21,                            #Number of contour levels for the structure size and velocity calculation.
+                                          filter_level=5,                       #Number of embedded paths to be identified as an individual structure
+                                          global_levels=False,                  #Set for having structure identification based on a global intensity level.
+                                          levels=None,                          #Levels of the contours for the entire dataset. If None, it equals data.min(),data.max() divided to nlevel intervals.
+                                          advanced_velocity=True,               #Velocity calculation based on the found structures from the contour calculation
+                                          threshold_coeff=2.5,                  #Variance multiplier threshold for size determination
+                                          
+                                          #Plot options:
+                                          plot=True,                            #Plot the results
+                                          plot_nan=True,                        #False: gaps in the plot, True: non-equidistant points, but continuous
                                           plot_points=True,                     #Plot the valid points of the calculation as a scatter plot over the lineplot
                                           overplot_correlation=False,           #Overplot the correlation onto the velocities as a secondary axis
+                                          
+                                          #File input/output options
+                                          filename=None,                        #Filename for restoring data
                                           pdf=False,                            #Print the results into a PDF
-                                          save_results=True,                    #Save the results into a .pickle file
-                                          nocalc=True,                          #Restore the results from the pickle file
+                                          save_results=True,                    #Save the results into a .pickle file to filename+.pickle
+                                          nocalc=True,                          #Restore the results from the .pickle file from filename+.pickle
+                                          
                                           #Output options:
                                           return_results=False,                 #Return the results if set.
                                           cache_data=True,                      #Cache the data or try to open is from cache
+                                          
+                                          #Test options
                                           test=False,                           #Test the results
-                                          structure_test=False,                 #Test the structure size calculation
+                                          test_structures=False,                 #Test the structure size calculation
+                                          test_histogram=False,                 #Plot the poloidal velocity histogram
                                           ):
     
     """
@@ -908,7 +926,8 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
             if len(time_range) != 2:
                 raise ValueError('time_range should be a list of two elements.')
     else:
-        exp_id=data_object
+        exp_id=data_object.exp_id
+        
     if (fitting_range*2+1 > np.abs(x_range[1]-x_range[0]) or 
        fitting_range*2+1 > np.abs(y_range[1]-y_range[0])):
         raise ValueError('The fitting range for the parabola is too large for the given coordinate range.')
@@ -917,21 +936,27 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
     if frame_similarity_threshold is not None and not flap_ccf:
         print('Correlation threshold is not taken into account if not calculated with FLAP.')
     if parabola_fit:
-        comment='pfit_o'+str(subtraction_order)+\
+        comment='pfit_o'+str(subtraction_order_for_velocity)+\
                 '_ct_'+str(correlation_threshold)+\
                 '_fst_'+str(frame_similarity_threshold)
     else:
-        comment='max_o'+str(subtraction_order)+\
+        comment='max_o'+str(subtraction_order_for_velocity)+\
                 '_ct_'+str(correlation_threshold)+\
                 '_fst_'+str(frame_similarity_threshold)
-                
-    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-    filename=flap_nstx.analysis.filename(exp_id=exp_id,
-                                         working_directory=wd,
-                                         time_range=time_range,
-                                         purpose='ccf velocity',
-                                         comment=comment)
+    if normalize_for_size:
+        comment+='_norm'
 
+                
+    if filename is None:
+        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+        filename=flap_nstx.analysis.filename(exp_id=exp_id,
+                                             working_directory=wd,
+                                             time_range=time_range,
+                                             purpose='ccf velocity',
+                                             comment=comment)
+        filename_was_none=True
+    else:
+        filename_was_none=False
     pickle_filename=filename+'.pickle'
     if os.path.exists(pickle_filename) and nocalc:
         try:
@@ -942,97 +967,234 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
     elif nocalc:
         print('The pickle file cannot be loaded. Recalculating the results.')
         nocalc=False
-    
+    if not test and not test_structures:
+        import matplotlib
+        matplotlib.use('agg')
+    else:
+        import matplotlib.pyplot as plt
+        
+    slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+             'Image x':flap.Intervals(x_range[0],x_range[1]),
+             'Image y':flap.Intervals(y_range[0],y_range[1])}
+        
     if not nocalc:
         #Read data
         if data_object is None:
             print("\n------- Reading NSTX GPI data --------")
             if cache_data:
                 try:
-                    d=flap.get_data_object(exp_id=exp_id,object_name='GPI')
+                    d=flap.get_data_object('GPI',exp_id=exp_id)
                 except:
                     print('Data is not cached, it needs to be read.')
-                    d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+                    d=flap.get_data('NSTX_GPI',exp_id=exp_id,
+                                    name='',
+                                    object_name='GPI')
             else:
-                d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+                d=flap.get_data('NSTX_GPI',exp_id=exp_id,
+                                name='',
+                                object_name='GPI')
           
-            slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
-            slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-                     'Image x':flap.Intervals(x_range[0],x_range[1]),
-                     'Image y':flap.Intervals(y_range[0],y_range[1])}
-            d=flap.slice_data('GPI', exp_id=exp_id, 
+            d=flap.slice_data('GPI',exp_id=exp_id, 
                               slicing=slicing,
                               output_name='GPI_SLICED_FULL')
-            object_name='GPI_SLICED_FULL'
         else:
-            d=flap.get_data_object(data_object)
-            flap.add_data_object(d, 'GPI_SLICED_FULL')
-            object_name='GPI_SLICED_FULL'
+            d=flap.get_data_object(data_object,exp_id=exp_id)
             time_range=[d.coordinate('Time')[0][0,0,0],
                         d.coordinate('Time')[0][-1,0,0]]
             exp_id=d.exp_id
-            
-        #Normalize data
-        if normalize:
-            print("*** Normalizing the data ***")
-            d_norm=flap.slice_data('GPI_SLICED_FULL', summing={'Time':'Mean'})
-            d.data=d.data/d_norm.data
-        if background_subtraction:    
-            print("*** Subtracting background ***")
-            d_norm=flap.slice_data('GPI_SLICED_FULL', summing={'Time':'Mean'})
-            d.data=d.data-d_norm.data
-        #Filter data
-        if filtering:
-            print("*** Filtering the data ***")
-            d=flap.filter_data('GPI_SLICED_FULL',
-                               coordinate='Time',
-                               options={'Type':'Highpass',
-                                        'f_low':100.,
-                                        'Design':'Chebyshev II'},
-                               output_name='GPI_FILTERED')
-            object_name='GPI_FILTERED'
-            
+            flap.add_data_object(d, 'GPI_SLICED_FULL')
+        object_name_velocity='GPI_SLICED_FULL'
+        object_name_size='GPI_SLICED_FULL'
+        
+        #Normalize data for size calculation
+        if normalize_for_size:
+            print("**** Normalizing GPI ****")
+            print("**** Filtering the time range +- 1/filter_size*2 ("+str(normalize_f_high)+"Hz) ****")
+
+            normalizer_object_name='GPI_LPF_INTERVAL'
+            try:
+                flap.get_data_object_ref(normalizer_object_name)
+            except:
+                slicing_for_filtering=copy.deepcopy(slicing)
+                slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
+                                                             time_range[1]+1/normalize_f_high*10)
+                flap.slice_data('GPI',
+                                slicing=slicing_for_filtering,
+                                output_name='GPI_SLICED_FOR_FILTERING')
+                
+            if not advanced_normalizer:
+                flap.filter_data('GPI_SLICED_FOR_FILTERING',
+                                 exp_id=exp_id,
+                                 coordinate='Time',
+                                 options={'Type':'Lowpass',
+                                          'f_high':normalize_f_high,
+                                          'Design':'Chebyshev II'},
+                                 output_name=normalizer_object_name)
+                print("**** Filtering DONE! ****")
+                coefficient=flap.slice_data(normalizer_object_name,
+                                            exp_id=exp_id,
+                                            slicing=slicing)
+                    
+                data_obj=flap.get_data_object(object_name_size)
+                data_obj.data = data_obj.data/coefficient.data
+                flap.add_data_object(data_obj, 'GPI_SLICED_DENORM')
+                object_name_size='GPI_SLICED_DENORM'
+            else:
+                #Find the peak of the signal (aka ELM time as of GPI data)
+                data_obj=flap.get_data_object_ref(object_name_size).slice_data(summing={'Image x':'Mean', 'Image y':'Mean'})
+                ind_peak=np.argmax(data_obj.data)
+                peak_time=data_obj.coordinate('Time')[0][ind_peak]
+                data_obj_reverse=flap.get_data_object('GPI_SLICED_FOR_FILTERING')
+                data_obj_reverse.data=np.flip(data_obj_reverse.data, axis=0)
+                flap.add_data_object(data_obj_reverse,'GPI_SLICED_FOR_FILTERING_REV')
+                
+                normalizer_object_name_reverse='GPI_LPF_INTERVAL_REV'
+                flap.filter_data('GPI_SLICED_FOR_FILTERING',
+                                 exp_id=exp_id,
+                                 coordinate='Time',
+                                 options={'Type':'Lowpass',
+                                          'f_high':normalize_f_high,
+                                          'Design':'Chebyshev II'},
+                                 output_name=normalizer_object_name)
+                coefficient1=flap.slice_data(normalizer_object_name,
+                                             exp_id=exp_id,
+                                             slicing=slicing)
+                
+                coefficient2=flap.filter_data('GPI_SLICED_FOR_FILTERING_REV',
+                                             exp_id=exp_id,
+                                             coordinate='Time',
+                                             options={'Type':'Lowpass',
+                                                      'f_high':normalize_f_high,
+                                                      'Design':'Chebyshev II'},
+                                             output_name=normalizer_object_name_reverse)
+                coefficient2.data=np.flip(coefficient2.data, axis=0)
+                coefficient2=flap.slice_data(normalizer_object_name,
+                                             exp_id=exp_id,
+                                             slicing=slicing)
+                
+                coeff1_first_half=coefficient1.data[:ind_peak-4,:,:]
+                coeff2_second_half=coefficient2.data[ind_peak-4:,:,:]
+
+                coefficient=np.append(coeff1_first_half,coeff2_second_half, axis=0)
+                coefficient_dataobject=copy.deepcopy(coefficient1)
+                coefficient_dataobject.data=coefficient
+                flap.add_data_object(coefficient_dataobject, 'GPI_MERGED_COEFF')
+                
+                data_obj=flap.get_data_object(object_name_size)
+                data_obj.data = data_obj.data/coefficient
+                flap.add_data_object(data_obj, 'GPI_SLICED_DENORM')
+                object_name_size='GPI_SLICED_DENORM'
+
         #Subtract trend from data
-        if subtraction_order is not None:
+        if subtraction_order_for_velocity is not None:
             print("*** Subtracting the trend of the data ***")
-            d=flap_nstx.analysis.detrend_multidim(object_name, 
-                                                  order=subtraction_order, 
+            d=flap_nstx.analysis.detrend_multidim(object_name_velocity,
+                                                  exp_id=exp_id,
+                                                  order=subtraction_order_for_velocity, 
                                                   coordinates=['Image x', 'Image y'], 
-                                                  output_name='GPI_FILTERED_DETREND')
-            object_name='GPI_FILTERED_DETREND'
-    
+                                                  output_name='GPI_DETREND_VEL')
+            object_name_velocity='GPI_DETREND_VEL'
+            
+        if subtraction_order_for_size is not None:
+            print("*** Subtracting the trend of the data ***")
+            d=flap_nstx.analysis.detrend_multidim(object_name_size,
+                                                  exp_id=exp_id,
+                                                  order=subtraction_order_for_size, 
+                                                  coordinates=['Image x', 'Image y'], 
+                                                  output_name='GPI_DETREND_SIZE')
+            object_name_size='GPI_DETREND_SIZE'
+            
+        if structure_size or advanced_velocity:
+            thres_obj=flap.slice_data(object_name_size,
+                                      summing={'Image x':'Mean',
+                                               'Image y':'Mean'},
+                                      output_name='GPI_SLICED_TIMETRACE')
+            intensity_thres_level=np.sqrt(np.var(thres_obj.data))*threshold_coeff+np.mean(thres_obj.data)
+        
+        """
+            VARIABLES DEFINITION FOR ALL THE PURPOSES
+        """
         #Calculate correlation between subsequent frames in the data
         #Setting the variables for the calculation
         time_dim=d.get_coordinate_object('Time').dimension_list[0]
         n_frames=d.data.shape[time_dim]
-        if test:
-            plt.figure()
         time=d.coordinate('Time')[0][:,0,0]
         sample_time=time[1]-time[0]
-        time_vec=time[0:-2]+sample_time                                     #Velocity is calculated between the two subsequent frames.
-        r_velocity=np.zeros(len(time)-2)
-        z_velocity=np.zeros(len(time)-2)
-        r_size=np.zeros(len(time)-2)
-        z_size=np.zeros(len(time)-2)
+        sample_0=flap.get_data_object_ref(object_name_velocity).coordinate('Sample')[0][0,0,0]
+        
+        time_vec=time[1:-1]                                                     #Velocity is calculated between the two subsequent frames.
         corr_max=np.zeros(len(time)-2)
         frame_similarity=np.zeros(len(time)-2)
-        sample_0=flap.get_data_object_ref(object_name).coordinate('Sample')[0][0,0,0]
-        #Doint the calculation
-        delta_index=[0,0]
+        delta_index=np.zeros(2)
+        velocity=np.zeros([len(time)-2,2])
+        
+        if global_levels:
+            if levels is None:
+                min_data=d.data.min()
+                max_data=d.data.max()
+                levels=np.arange(nlevel)/(nlevel-1)*(max_data-min_data)+min_data
+        
+        if advanced_velocity:
+            velocity_str_avg=np.zeros([len(time)-2,2])
+            velocity_str_area_avg=np.zeros([len(time)-2,2])
+            velocity_str_max_area=np.zeros([len(time)-2,2])
+        else:
+            velocity_str_avg=None
+            velocity_str_area_avg=None
+            velocity_str_max_area=None
+            
+        if structure_size:
+            size_avg=np.zeros([len(time)-2,2])
+            area_avg=np.zeros(len(time)-2)
+            elongation_avg=np.zeros(len(time)-2)
+            angle_avg=np.zeros(len(time)-2)
+            
+            size_max=np.zeros([len(time)-2,2])
+            area_max=np.zeros(len(time)-2)
+            elongation_max=np.zeros(len(time)-2)
+            angle_max=np.zeros(len(time)-2)
+            
+            str_number=np.zeros(len(time)-2)
+            position_avg=np.zeros([len(time)-2,2])
+        else:
+            size_avg=None
+            area_avg=None
+            elongation_avg=None
+            angle_avg=None
+            
+            size_max=None
+            area_max=None
+            elongation_max=None
+            angle_max=None
+            
+        #Inicializing for frame handling
+        frame2=None
+        frame2_size=None
+        structures2=None
+        if test or test_structures:
+            plt.figure()
         for i_frames in range(0,n_frames-2):
+            """
+            STRUCTURE VELOCITY CALCULATION BASED ON CCF CALCULATION
+            """
             if flap_ccf:
-                frame1=flap.slice_data(object_name, 
-                                       slicing={'Sample':sample_0+i_frames}, 
-                                       output_name='GPI_FRAME_1')
-                frame2=flap.slice_data(object_name, 
-                                       slicing={'Sample':sample_0+i_frames+1}, 
+                slicing_frame1={'Sample':sample_0+i_frames}
+                slicing_frame2={'Sample':sample_0+i_frames+1}
+                if frame2 is None:
+                    frame1=flap.slice_data(object_name_velocity,
+                                           exp_id=exp_id,
+                                           slicing=slicing_frame1, 
+                                           output_name='GPI_FRAME_1')
+                else:
+                    frame1=copy.deepcopy(frame2)
+                    flap.add_data_object(frame1,'GPI_FRAME_1')
+                frame2=flap.slice_data(object_name_velocity, 
+                                       exp_id=exp_id,
+                                       slicing=slicing_frame2,
                                        output_name='GPI_FRAME_2')
-                frame3=flap.slice_data(object_name, 
-                                       slicing={'Sample':sample_0+i_frames+2}, 
-                                       output_name='GPI_FRAME_3')
                 frame1.data=np.asarray(frame1.data, dtype='float64')
                 frame2.data=np.asarray(frame2.data, dtype='float64')
-                    
+                
                 flap.ccf('GPI_FRAME_2', 'GPI_FRAME_1', 
                          coordinate=['Image x', 'Image y'], 
                          options={'Resolution':1, 
@@ -1044,19 +1206,16 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                          output_name='GPI_FRAME_12_CCF')
     
                 corr=flap.get_data_object_ref('GPI_FRAME_12_CCF').data
-                print(corr.max())
-            else:
+                
+                if test:
+                    print('Maximum correlation:'+str(corr.max()))
+            else: #DEPRECATED (only to be used when the FLAP 2D correlation is not working for some reason.)
                 frame1=np.asarray(d.data[i_frames,:,:],dtype='float64')
                 frame2=np.asarray(d.data[i_frames+1,:,:],dtype='float64')
-                if not differential:
-                    corr=scipy.signal.correlate2d(frame2,frame1, mode='full')
-                else:
-                    frame3=np.asarray(d.data[i_frames+2,:,:],dtype='float64')
-                    corr=scipy.signal.correlate(frame3-frame2,frame2-frame1, mode='full')
+                corr=scipy.signal.correlate2d(frame2,frame1, mode='full')
+                
             corr_max[i_frames]=corr.max()
             max_index=np.asarray(np.unravel_index(corr.argmax(), corr.shape))
-                
-            """Doing the parabola fitting on top of the 2D cross-correlation functions maximum"""
             
             #Fit a 2D polinomial on top of the peak
             if parabola_fit:
@@ -1064,7 +1223,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                                             max_index[0]+fitting_range+1),
                                       slice(max_index[1]-fitting_range,
                                             max_index[1]+fitting_range+1)])
-                #Findind the peak analytically
+                #Finding the peak analytically
                 try:
                     coeff=flap_nstx.analysis.polyfit_2D(values=corr[area_max_index],order=2)
                     index=[0,0]
@@ -1085,160 +1244,323 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                     plt.contourf(corr.T, levels=np.arange(0,51)/25-1)
                     plt.scatter(index[0]+max_index[0]-fitting_range,
                                 index[1]+max_index[1]-fitting_range)
-                    
-                if structure_size:  #Deprecated
-                    raise NotImplementedError('Code it, sucker!')
-                    
-                    #Checking the threshold of the correlation        
-                if corr.max() < correlation_threshold and flap_ccf:
-                    print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
-                    r_size[i_frames]=np.nan
-                    z_size[i_frames]=np.nan
-                    delta_index=[np.nan,np.nan]
+                    plt.pause(1.)
+                    plt.cla()
             else: #if not parabola_fit:
                 #Number of pixels greater then the half of the peak size
                 #Not precize values due to the calculation not being in the exact radial and poloidal direction.
-                r_size[i_frames]=np.asarray(np.where(r_peak-(r_peak[0]+r_peak[-1])/2 > (r_peak.max()-(r_peak[0]+r_peak[-1])/2)/2))[0].shape[0]/2*coeff_r[0]
-                z_size[i_frames]=np.asarray(np.where(z_peak-(z_peak[0]+z_peak[-1])/2 > (z_peak.max()-(z_peak[0]+z_peak[-1])/2)/2))[0].shape[0]/2*coeff_z[1]
                 delta_index=[max_index[0]-corr.shape[0]//2,
                              max_index[1]-corr.shape[1]//2]
-            if test:
-                plt.pause(1.)
-                plt.cla()
+            #Checking the threshold of the correlation     
+            if corr.max() < correlation_threshold and flap_ccf:
+                print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
+                delta_index=[np.nan,np.nan]
                 
             #Checking if the two frames are similar enough to take their contribution as valid
             frame_similarity[i_frames]=corr[tuple(np.asarray(corr.shape)[:]//2)]
             if frame_similarity[i_frames] < frame_similarity_threshold and flap_ccf:
                 print('Frame similarity threshold is not reached.')
-                r_size[i_frames]=np.nan
-                z_size[i_frames]=np.nan
                 delta_index=[np.nan,np.nan]
                 
             #Calculating the radial and poloidal velocity from the correlation map.
-            r_velocity[i_frames]=(coeff_r[0]*delta_index[0]+
+            velocity[i_frames,0]=(coeff_r[0]*delta_index[0]+
                                   coeff_r[1]*delta_index[1])/sample_time
-            z_velocity[i_frames]=(coeff_z[0]*delta_index[0]+
-                                  coeff_z[1]*delta_index[1])/sample_time
-            #Saving results into a pickle file
-        pickle_object=[time_vec,r_velocity,z_velocity,r_size,z_size,subtraction_order,
-                      'time_vec,r_velocity,z_velocity,r_size,z_size,subtraction_order']
-        pickle.dump(pickle_object,open(pickle_filename, 'wb'))
+            velocity[i_frames,1]=(coeff_z[0]*delta_index[0]+
+                                  coeff_z[1]*delta_index[1])/sample_time       
+                    
+            """
+            STRUCTURE SIZE CALCULATION AND MANIPULATION BASED ON STRUCTURE FINDING
+            """    
+                            
+            if structure_size or advanced_velocity:
+                if frame2_size is None:
+                    frame1_size=flap.slice_data(object_name_size,
+                                                exp_id=exp_id,
+                                                slicing=slicing_frame1, 
+                                                output_name='GPI_FRAME_1_SIZE')
+                else:
+                    frame1_size=copy.deepcopy(frame2_size)
+                    
+                frame2_size=flap.slice_data(object_name_size, 
+                                            exp_id=exp_id,
+                                            slicing=slicing_frame2,
+                                            output_name='GPI_FRAME_2_SIZE')
+                
+                frame1_size.data=np.asarray(frame1_size.data, dtype='float64')
+                frame2_size.data=np.asarray(frame2_size.data, dtype='float64')
+                
+                if structures2 is None:
+                    structures1=nstx_gpi_one_frame_structure_finder(data_object='GPI_FRAME_1_SIZE',
+                                                                    exp_id=exp_id,
+                                                                    filter_level=filter_level,
+                                                                    threshold_level=intensity_thres_level,
+                                                                    nlevel=nlevel,
+                                                                    levels=levels,
+                                                                    spatial=True,
+                                                                    test_result=test_structures)
+                else:
+                    structures1=copy.deepcopy(structures2)
+                    
+                structures2=nstx_gpi_one_frame_structure_finder(data_object='GPI_FRAME_2_SIZE',
+                                                                exp_id=exp_id,
+                                                                filter_level=filter_level,
+                                                                threshold_level=intensity_thres_level,
+                                                                nlevel=nlevel,
+                                                                levels=levels,
+                                                                spatial=True,
+                                                                test_result=test_structures)
+                
+                if structures1 is not None and len(structures1) != 0:
+                    valid_structure1=True
+                    for structures in structures1:
+                        if structures['Size'] is None:
+                            valid_structure1=False
+                            break
+                else:
+                    valid_structure1=False
+                    
+                if structures2 is not None and len(structures2) != 0:
+                        valid_structure2=True
+                        for structures in structures2:
+                            if structures['Size'] is None:
+                                valid_structure2=False
+                                break
+                else:
+                    valid_structure2=False
+                        
+                """Velocity calculation based on the contours"""    
+                if structure_size:
+                    #Crude average size calculation
+                    if valid_structure2:
+                        #Calculating the average properties of the structures
+                        #present in one frame
+                        n_str2=len(structures2)
+                        areas=np.zeros(len(structures2))
+                        for i_str2 in range(n_str2):
+                            #Average size calculation based on the number of structures
+                            rsize_cur=structures2[i_str2]['Size'][0]
+                            zsize_cur=structures2[i_str2]['Size'][1]
+                            size_avg[i_frames,0]+=rsize_cur
+                            size_avg[i_frames,1]+=zsize_cur
+                            area_avg[i_frames]+=structures2[i_str2]['Area']
+                            areas[i_str2]=structures2[i_str2]['Area']               #Helper variable due to Python misbehaving when using list[:][key]
+                            angle_avg[i_frames]+=structures2[i_str2]['Angle']
+                            elongation_avg[i_frames]+=(rsize_cur-zsize_cur)/(rsize_cur+zsize_cur)
+                            position_avg[i_frames]+=structures2[i_str2]['Center']
+                        #Average calculation based on the number of structures
+                        size_avg[i_frames,:]/=n_str2
+                        area_avg[i_frames]/=n_str2
+                        angle_avg[i_frames]/=n_str2
+                        elongation_avg[i_frames]/=n_str2
+                        str_number[i_frames]=n_str2
+                        position_avg[i_frames]/=n_str2
+                        #Calculating the properties of the structure having the
+                        #maximum area
+                        ind_max=np.argmax(areas)
+                        #Properties:
+                        size_max[i_frames,:]=structures2[ind_max]['Size']
+                        area_max[i_frames]=structures2[ind_max]['Area']
+                        angle_max[i_frames]=structures2[ind_max]['Angle']
+                        elongation_max[i_frames]=(size_max[i_frames,0]-size_max[i_frames,1])/(np.sum(size_max[i_frames,:]))
+                    else:
+                        #Setting np.nan if no structure is available
+                        size_avg[i_frames,:]=[np.nan,np.nan]
+                        area_avg[i_frames]=np.nan
+                        angle_avg[i_frames]=np.nan
+                        elongation_avg[i_frames]=np.nan
+                        position_avg[i_frames]=np.nan
+                        str_number[i_frames]=0.
+                        size_max[i_frames,:]=[np.nan,np.nan]
+                        area_max[i_frames]=np.nan
+                        angle_max[i_frames]=np.nan
+                        elongation_max[i_frames]=np.nan
+                        
+                """Velocity calculation based on the contours"""
+                if advanced_velocity:
+                    if valid_structure1 and valid_structure2:          
+                        #if multiple structures merge into one, then previous position is their average
+                        #if one structure is split up into to, then the previous position is the old's position
+                        #Current velocity is the position change and sampling time's ratio
+                        n_str1=len(structures1)
+                        n_str2=len(structures2)
+                        prev_str_present=np.zeros(len(structures2))
+                        prev_str_pos=np.zeros([n_str2,2])
+                        cur_str_vel=np.zeros([len(structures2),2])
+                        cur_str_area=np.zeros(len(structures2))
+                        for i_str2 in range(n_str2):
+                            for i_str1 in range(n_str1):
+                                if structures2[i_str2]['Half path'].intersects_path(structures1[i_str1]['Half path']):
+                                    prev_str_present[i_str2]+=1.
+                                    prev_str_pos[i_str2,:]+=structures1[i_str1]['Center']
+                            if prev_str_present[i_str2] > 0:
+                                prev_str_pos[i_str2,:]=prev_str_pos[i_str2,:]/prev_str_present[i_str2]
+                                cur_str_vel[i_str2,:]=(structures2[i_str2]['Center']-prev_str_pos[i_str2,:])/sample_time
+                                cur_str_area[i_str2]=structures2[i_str2]['Area']
+                            
+                        #Criterium for validity of the velocity
+                        #If the structures are not overlapping, then the velocity cannot be valid.
+                        ind_valid=np.where(prev_str_present > 0)
+                        if np.sum(prev_str_present) != 0:
+                            #Calculating the average based on the number of valid moving structures
+                            velocity_str_avg[i_frames,0]=np.mean(cur_str_vel[ind_valid,0])
+                            velocity_str_avg[i_frames,1]=np.mean(cur_str_vel[ind_valid,1])
+                            #Calculating the area averaged velocity based on the area of the valid structures
+                            w_area_coeff=cur_str_area/np.sum(cur_str_area)
+                            velocity_str_area_avg[i_frames,0]=np.mean(cur_str_vel[:,0]*w_area_coeff)
+                            velocity_str_area_avg[i_frames,1]=np.mean(cur_str_vel[:,1]*w_area_coeff)
+                            #Calculating the velocity of the structure having the maximum area
+                            ind_max=np.argmax(cur_str_area)
+                            velocity_str_max_area[i_frames,:]= cur_str_vel[ind_max,:]
+                            
+                            if abs(np.mean(cur_str_vel[:,0])) > 10e3:
+                                print(cur_str_vel,structures2[i_str2]['Center'],prev_str_pos[i_str2,:])
+                        else:
+                            velocity_str_avg[i_frames,:]=[np.nan,np.nan]
+                            velocity_str_area_avg[i_frames,:]=[np.nan,np.nan]
+                            velocity_str_max_area[i_frames,:]=[np.nan,np.nan]
+                    else:
+                        velocity_str_avg[i_frames,:]=[np.nan,np.nan]
+                        velocity_str_area_avg[i_frames,:]=[np.nan,np.nan]
+                        velocity_str_max_area[i_frames,:]=[np.nan,np.nan]
+
+        #Saving results into a pickle file
+        frame_properties={'Shot':exp_id,
+                          'Time':time_vec,
+                          'Correlation max':corr_max,
+                          'Frame similarity':frame_similarity,
+                          'Velocity':velocity,
+                          'Velocity str avg':velocity_str_avg,
+                          'Velocity area avg':velocity_str_area_avg,
+                          'Velocity max area':velocity_str_max_area,   
+                          'Size avg':size_avg,
+                          'Position':position_avg,
+                          'Area avg':area_avg,
+                          'Elongation avg':elongation_avg,
+                          'Angle avg':angle_avg,
+                          'Size max':size_max,
+                          'Area max':area_max,
+                          'Elongation max':elongation_max,
+                          'Angle max':angle_max,
+                          'Str number':str_number,
+                         }
+        pickle.dump(frame_properties,open(pickle_filename, 'wb'))
         if test:
             plt.close()
     else:
         print('--- Loading data from the pickle file ---')
-        time_vec,r_velocity,z_velocity,r_size,z_size,subtraction_order,info = pickle.load(open(pickle_filename, 'rb'))
+        frame_properties=pickle.load(open(pickle_filename, 'rb'))
         
+    if not filename_was_none:
+        sample_time=frame_properties['Time'][1]-frame_properties['Time'][0]
+        if time_range[0] < frame_properties['Time'][0]-sample_time or time_range[1] > frame_properties['Time'][-1]+sample_time:
+            raise ValueError('Please run the calculation again with the timerange. The pickle file doesn\'t have the desired range')
+            
     #Plotting the results
     if plot:
-        #The following method is for displaying double cursors for the overplotted correlations
-        def make_format(current, other):
-            # current and other are axes
-            def format_coord(x, y):
-                # x, y are data coordinates
-                # convert to display coords
-                display_coord = current.transData.transform((x,y))
-                inv = other.transData.inverted()
-                # convert back to data coords with respect to ax
-                ax_coord = inv.transform(display_coord)
-                coords = [ax_coord, (x, y)]
-                return ('Left: {:<40}    Right: {:<}'
-                        .format(*['({:.6f}, {:.6f})'.format(x, y) for x,y in coords]))
-            return format_coord
+        import matplotlib
+        matplotlib.use('QT5Agg')
+        import matplotlib.pyplot as plt
         
-        if plot_nan:
-            plot_index=np.logical_not(np.isnan(r_velocity))
-        else:
-            plot_index=Ellipsis
+        plot_index=np.logical_and(np.logical_not(np.isnan(frame_properties['Velocity'][:,0])),
+                                  np.logical_and(frame_properties['Time'] >= time_range[0],
+                                                 frame_properties['Time'] <= time_range[1]))
+
+        plot_index_structure=np.logical_and(np.logical_not(np.isnan(frame_properties['Elongation avg'])),
+                                            np.logical_and(frame_properties['Time'] >= time_range[0],
+                                                           frame_properties['Time'] <= time_range[1]))
             
         #Plotting the radial velocity
         if pdf:
             pdf_filename=filename+'.pdf'
             pdf_pages=PdfPages(pdf_filename)
-        fig, ax1 = plt.subplots()
-        ax1.plot(time_vec[plot_index], r_velocity[plot_index])
-        if plot_points:
-            ax1.scatter(time_vec[plot_index], 
-                        r_velocity[plot_index], 
-                        s=5, 
-                        marker='o', 
-                        color='red')
-        ax1.set_xlabel('Time [s]')
-        ax1.set_ylabel('v_rad[m/s]')
-        ax1.set_title('Radial velocity of '+str(exp_id))
+        fig, ax = plt.subplots()
         
-        if overplot_correlation:
-            ax2=ax1.twinx()
-            ax2.set_ylabel('Frame similarity (green)\nand correlation (purple)', color='black')  # we already handled the x-label with ax1
-            ax2.plot(time_vec, frame_similarity, color='green', linewidth=0.5)
-            ax2.plot(time_vec, corr_max, color='purple', linewidth=0.5)
-            ax2.scatter(time_vec, 
-                        frame_similarity, 
+        ax.plot(frame_properties['Time'][plot_index], 
+                 frame_properties['Velocity'][plot_index,0])
+        if plot_points:
+            ax.scatter(frame_properties['Time'][plot_index], 
+                        frame_properties['Velocity'][plot_index,0], 
                         s=5, 
-                        marker='x', 
-                        color='red')
-            ax2.scatter(time_vec[plot_index], 
-                        frame_similarity[plot_index], 
-                        s=6, 
-                        marker='x', 
-                        color='black')
-            ax2.scatter(time_vec[plot_index], 
-                        corr_max[plot_index], 
-                        s=5, 
-                        marker='x', 
-                        color='black')
-            ax2.format_coord = make_format(ax2, ax1)
-            ax2.set_ylim([0,1])
+                        marker='o')
+        if advanced_velocity:
+            ax.plot(frame_properties['Time'][plot_index], 
+                     frame_properties['Velocity str avg'][plot_index,0], 
+                     linewidth=0.5,
+                     color='red')
+#            ax1.plot(frame_properties['Time'][plot_index], 
+#                     frame_properties['Velocity max area'][plot_index,0], color='green')            
+
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('v_rad[m/s]')
+        ax.set_title('Radial velocity of '+str(exp_id))
         fig.tight_layout()
         if pdf:
             pdf_pages.savefig()
-        fig, ax1 = plt.subplots()
         
         #Plotting the poloidal velocity
-        fig.tight_layout()
-        ax1.plot(time_vec[plot_index], z_velocity[plot_index]) 
+        fig, ax = plt.subplots()
+        ax.plot(frame_properties['Time'][plot_index], 
+                 frame_properties['Velocity'][plot_index,1]) 
         if plot_points:
-            ax1.scatter(time_vec[plot_index], 
-                        z_velocity[plot_index], 
+            ax.scatter(frame_properties['Time'][plot_index], 
+                        frame_properties['Velocity'][plot_index,1], 
                         s=5, 
-                        marker='o', 
-                        color='red')
-        ax1.set_xlabel('Time [s]')
-        ax1.set_ylabel('v_pol[m/s]')
-        ax1.set_title('Poloidal velocity of '+str(exp_id))
-        if overplot_correlation:
-            ax2=ax1.twinx()
-            ax2.set_ylabel('Frame similarity (green)\nand correlation (purple)', color='black')  # we already handled the x-label with ax1
-            ax2.plot(time_vec, frame_similarity, color='green', linewidth=0.5)
-            ax2.plot(time_vec, corr_max, color='purple', linewidth=0.5)
-            ax2.scatter(time_vec, 
-                        frame_similarity, 
-                        s=5, 
-                        marker='x', 
-                        color='red')
-            ax2.scatter(time_vec[plot_index], 
-                        frame_similarity[plot_index], 
-                        s=5, 
-                        marker='x', 
-                        color='black')
-            ax2.scatter(time_vec[plot_index], 
-                        corr_max[plot_index], 
-                        s=5, 
-                        marker='x', 
-                        color='black')
-            ax2.format_coord = make_format(ax2, ax1)
-            ax2.set_ylim([0,1])
+                        marker='o')
+        if advanced_velocity:
+            ax.plot(frame_properties['Time'][plot_index],
+                     frame_properties['Velocity str avg'][plot_index,1], 
+                     linewidth=0.5,
+                     color='red')
+
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('v_pol[m/s]')
+        ax.set_title('Poloidal velocity of '+str(exp_id))
+        
+        #Plotting the correlation coefficients
+        fig, ax = plt.subplots()
+        ax.plot(frame_properties['Time'], 
+                 frame_properties['Frame similarity'])
+        ax.scatter(frame_properties['Time'][plot_index], 
+                 frame_properties['Frame similarity'][plot_index],
+                 s=5,)
+        
+        ax.plot(frame_properties['Time'],
+                frame_properties['Correlation max'], 
+                color='red')
+        ax.scatter(frame_properties['Time'][plot_index],
+                   frame_properties['Correlation max'][plot_index],
+                   s=5,
+                   color='red')
+        
+        ax.set_xlabel('Time [s]')
+        ax.set_ylabel('Correlation')
+        ax.set_title('Maximum correlation (red) and \nframe similarity (blue) of '+str(exp_id))
+
+        ax.scatter(frame_properties['Time'][plot_index], 
+                    frame_properties['Frame similarity'][plot_index], 
+                    s=5, 
+                    marker='x', 
+                    color='black')
+        ax.scatter(frame_properties['Time'][plot_index], 
+                    frame_properties['Correlation max'][plot_index], 
+                    s=5, 
+                    marker='x', 
+                    color='black')
+
+        ax.set_ylim([0,1])
         fig.tight_layout()
+        
         if pdf:
             pdf_pages.savefig()
             
         if structure_size:    
             #Plotting the radial size
             plt.figure()
-            plt.plot(time_vec[plot_index], r_size[plot_index]) 
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Size avg'][:,0][plot_index_structure]) 
             if plot_points:
-                plt.scatter(time_vec[plot_index], 
-                            r_size[plot_index], 
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Size avg'][:,0][plot_index_structure], 
                             s=5, 
                             marker='o', 
                             color='red')
@@ -1250,10 +1572,11 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                 
             #Plotting the poloidal size
             plt.figure()
-            plt.plot(time_vec[plot_index], z_size[plot_index]) 
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Size avg'][:,1][plot_index_structure]) 
             if plot_points:
-                plt.scatter(time_vec[plot_index], 
-                            z_size[plot_index], 
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Size avg'][:,1][plot_index_structure], 
                             s=5, 
                             marker='o', 
                             color='red')
@@ -1262,11 +1585,173 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
             plt.title('Average poloidal size of structures of '+str(exp_id))
             if pdf:
                 pdf_pages.savefig()
-                pdf_pages.close()
                 
-        if test:
+            #Plotting the radial position
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Position'][:,0][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Position'][:,0][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Radial position [m]')
+            plt.title('Radial position of the structures of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+                
+            #Plotting the average poloidal position
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Position'][:,1][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Position'][:,1][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Poloidal position [m]')
+            plt.title('Poloidal position of the structures of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+            
+            #Plotting the average elongation
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Elongation avg'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Elongation avg'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Elongation')
+            plt.title('Elongation of the structures of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig() 
+            
+            #Plotting the average angle
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Angle avg'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Angle avg'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Angle')
+            plt.title('Angle of the structures of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig() 
+            
+            #Plotting the maximum radial size
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Size max'][:,0][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Size max'][:,0][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Radial size [m]')
+            plt.title('Radial size of the largest structure of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+            
+            #Plotting the maximum poloidal size
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Size max'][:,1][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Size max'][:,1][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Poloidal size [m]')
+            plt.title('Poloidal size of the largest structure of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+                
+            #Plotting the maximum area
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Area max'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Area max'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Area max [m2]')
+            plt.title('Area of the largest structure of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+            
+            #Plotting the maximum elongation
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Elongation max'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Elongation max'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Elongation max')
+            plt.title('Elongation of the largest structure of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()  
+            
+            #Plotting the maximum angle
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Angle max'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Angle max'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Angle max [m2]')
+            plt.title('Angle of the largest structure of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+            
+            #Plotting the number of structures 
+            plt.figure()
+            plt.plot(frame_properties['Time'][plot_index_structure], 
+                     frame_properties['Str number'][plot_index_structure]) 
+            if plot_points:
+                plt.scatter(frame_properties['Time'][plot_index_structure], 
+                            frame_properties['Str number'][plot_index_structure], 
+                            s=5, 
+                            marker='o', 
+                            color='red')
+            plt.xlabel('Time [s]')
+            plt.ylabel('Str number')
+            plt.title('Number of structures vs. time of '+str(exp_id))
+            if pdf:
+                pdf_pages.savefig()
+                                
+        if pdf:
+           pdf_pages.close()
+                
+        if test_histogram:
             #Plotting the velocity histogram if test is set.
-            hist,bin_edge=np.histogram(z_velocity, bins=(np.arange(100)/100.-0.5)*24000.)
+            hist,bin_edge=np.histogram(frame_properties['Velocity'][:,1], bins=(np.arange(100)/100.-0.5)*24000.)
             bin_edge=(bin_edge[:99]+bin_edge[1:])/2
             plt.figure()
             plt.plot(bin_edge,hist)
@@ -1275,209 +1760,4 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
             plt.ylabel('Number of points')
             
     if return_results:
-        return time, r_velocity, z_velocity, r_size, z_size
-    
-def calculate_nstx_gpi_structure_size(data_object=None,                         #Name of the FLAP.data_object
-                                      exp_id=None,                              #Shot number (if data_object is not used)
-                                      time=None,                                #Time when the structures need to be evaluated (when exp_id is used)
-                                      sample=None,                              #Sample number where the structures need to be evaluated (when exp_id is used)
-                                      spatial=False,                            #Calculate the results in real spatial coordinates
-                                      pixel=False,                              #Calculate the results in pixel coordinates
-                                      mfilter_range=5,                          #Range of the median filter
-                                      nlevel=80//5,                             #The number of contours to be used for the calculation (default:ysize/mfilter_range=80//5)
-                                      filter_struct=True,                       #Filter out the structures with less than filter_level number of contours
-                                      filter_level=None,                        #The number of contours threshold for structures filtering (default:nlevel//4)
-                                      test_result=False,                        #Test the result only (plot the contour and the found structures)
-                                      test=False,                               #Test the contours and the structures before any kind of processing
-                                      ):
-    
-    """
-    The method calculates the radial and poloidal sizes of the structures
-    present in one from of the GPI image. It gathers the isosurface contour
-    coordinates and determines the structures based on certain criteria. In
-    principle no user input is necessary, the code provides a robust solution.
-    The sizes are determined by fitting an ellipse onto the contour at
-    half-height. The code returns the following list:
-        a[structure_index]={'Paths':  [list of the paths, type: matplotlib.path.Path],
-                            'Levels': [levels of the paths, type: list],
-                            'Center': [center of the ellipse in px,py or R,z coordinates, type: numpy.ndarray of two elements],
-                            'Size':   [size of the ellipse in x and y direction or R,z direction, type: ]numpy.ndarray of two elements,
-                            'Tilt':   [angle of the ellipse compared to horizontal in radians, type: numpy.float64],
-                            ('Ellipse': [the entire ellipse object, returned if test_result is True, type: flap_nstx.analysis.nstx_gpi_tools.FitEllipse])
-                            }
-    """
-    
-    
-    if type(data_object) is str:
-        data_object=flap.get_data_object_ref(data_object)
-    if data_object is None:
-        if exp_id is None or (time is None and sample is None):
-            raise IOError('exp_id and time needs to be set if data_object is not set.')
-        try:
-            data_object=flap.get_data_object_ref('GPI', exp_id=exp_id)
-        except:
-            print('---- Reading GPI data ----')
-            data_object=flap.get_data('NSTX_GPI', exp_id=exp_id, name='', object_name='GPI')
-        if time is not None:
-            data_object=data_object.slice_data(slicing={'Time':time})
-        if sample is not None:
-            data_object=data_object.slice_data(slicing={'Sample':sample})
-    if len(data_object.data.shape) != 2:
-        raise TypeError('The frame dataobject needs to be a 2D object without a time coordinate.')
-    if pixel:
-        x_coord_name='Image x'
-        y_coord_name='Image y'
-    if spatial:
-        x_coord_name='Device R'
-        y_coord_name='Device z'
-        
-    x_coord=data_object.coordinate(x_coord_name)[0]
-    y_coord=data_object.coordinate(y_coord_name)[0]
-    
-    data = scipy.ndimage.median_filter(data_object.data, mfilter_range)
-    
-    levels=np.arange(nlevel)/(nlevel-1)*(data.max()-data.min())+data.min()
-    if test:
-        plt.cla()
-    structure_contours=plt.contourf(x_coord, y_coord, data, levels=levels)
-    structures=[]
-    one_structure={'Paths':[None], 
-                   'Levels':[None]}
-    if test:
-        print('Plotting levels')
-    else:
-        plt.close()
-    #The following lines are the heart of the code. It separates the structures
-    #from each other and stores the in the structure list.
-    
-    """
-    Steps of the algorithm:
-        
-        1st step: Take the paths at the highest level and store them. These
-                  create the initial structures
-        2nd step: Take the paths at the second highest level
-            2.1 step: if either of the previous paths contain either of
-                      the paths at this level, the corresponding
-                      path is appended to the contained structure from the 
-                      previous step.
-            2.2 step: if none of the previous structures contain the contour
-                      at this level, a new structure is created.
-        3rd step: Repeat the second step until it runs out of levels.
-        4th step: Delete those structures from the list which doesn't have
-                  enough paths to be called a structure.
-                  
-    (Note: a path is a matplotlib path, a structure is a processed path)
-    """
-    for i_lev in range(len(structure_contours.collections)-1,-1,-1):
-        cur_lev_paths=structure_contours.collections[i_lev].get_paths()
-        n_paths_cur_lev=len(cur_lev_paths)
-        
-        if len(cur_lev_paths) > 0:
-            if len(structures) == 0:
-                for i_str in range(n_paths_cur_lev):
-                    structures.append(copy.deepcopy(one_structure))
-                    structures[i_str]['Paths'][0]=cur_lev_paths[i_str]
-                    structures[i_str]['Levels'][0]=levels[i_lev]
-            else:
-                for i_cur in range(n_paths_cur_lev):
-                    new_path=True
-                    cur_path=cur_lev_paths[i_cur]
-                    for j_prev in range(len(structures)):
-                        if cur_path.contains_path(structures[j_prev]['Paths'][-1]):
-                            structures[j_prev]['Paths'].append(cur_path)
-                            structures[j_prev]['Levels'].append(levels[i_lev])
-                            new_path=False
-                    if new_path:
-                        structures.append(copy.deepcopy(one_structure))
-                        structures[-1]['Paths'][0]=cur_path
-                        structures[-1]['Levels'][0]=levels[i_lev]
-                    if test:
-                        x=cur_lev_paths[i_cur].to_polygons()[0][:,0]
-                        y=cur_lev_paths[i_cur].to_polygons()[0][:,1]
-                        plt.plot(x,y)
-                        plt.axis('equal')
-                        plt.pause(0.001)
-    
-    #Cut the structures based on the filter level
-    if filter_level is None:
-        filter_level=nlevel//5
-    if filter_struct:
-        cut_structures=[]
-        for i_str in range(len(structures)):
-            if len(structures[i_str]['Levels']) > filter_level:
-                cut_structures.append(structures[i_str])
-    structures=cut_structures
-    
-    if test:
-        print('Plotting structures')
-        plt.cla()
-        plt.axis('equal')
-        for struct in structures:
-            plt.contourf(x_coord, y_coord, data, levels=levels)
-            for path in struct['Paths']:
-                x=path.to_polygons()[0][:,0]
-                y=path.to_polygons()[0][:,1]
-                plt.plot(x,y)
-            plt.pause(1)
-            plt.cla()
-            plt.axis('equal')
-        plt.contourf(x_coord, y_coord, data, levels=levels)                
-                
-    #Finding the contour at the half level for each structure and
-    #calculating its properties
-    if len(structures) > 1:
-        #Finding the paths at FWHM
-        paths_at_half=[]
-        for i_str in range(len(structures)):
-            half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
-            ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
-            paths_at_half.append(structures[i_str]['Paths'][ind_at_half])
-        #Process the structures which are embedded (cut the inner one)
-        structures_to_be_removed=[]
-        for ind_path1 in range(len(paths_at_half)):
-            for ind_path2 in range(len(paths_at_half)):
-                if ind_path1 != ind_path2:
-                    if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
-                        structures_to_be_removed.append(ind_path1)
-        structures_to_be_removed=np.unique(structures_to_be_removed)
-        cut_structures=[]
-        for i_str in range(len(structures)):
-            if i_str not in structures_to_be_removed:
-                cut_structures.append(structures[i_str])
-        structures=cut_structures
-    
-    #Calculate the ellipse and its properties for the half level contours    
-    for i_str in range(len(structures)):
-        half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
-        ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
-
-        half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
-        try:
-            ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
-            structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
-            structures[i_str]['Center']=ellipse.center
-            structures[i_str]['Size']=ellipse.size
-            structures[i_str]['Tilt']=ellipse.angle_of_rotation+np.pi/2
-            if test_result:
-                structures[i_str]['Ellipse']=ellipse
-                plt.contourf(x_coord, y_coord, data, levels=levels)
-                #Parametric reproduction of the Ellipse
-                R=np.arange(0,2*np.pi,0.01)
-                phi=ellipse.angle_of_rotation
-                a,b=ellipse.axes_length
-                xx = structures[i_str]['Center'][0] + \
-                     a*np.cos(R)*np.cos(phi) - \
-                     b*np.sin(R)*np.sin(phi)
-                yy = structures[i_str]['Center'][1] + \
-                     a*np.cos(R)*np.sin(phi) + \
-                     b*np.sin(R)*np.cos(phi)
-                plt.plot(xx,yy)
-                plt.plot(half_coords[:,0],half_coords[:,1])
-                plt.pause(0.1)
-        except:
-            print('Ellipse fitting failed.')
-            structures[i_str]['Half path']=None
-            structures[i_str]['Center']=None
-            structures[i_str]['Size']=None
-            structures[i_str]['Tilt']=None
-    return structures
+        return frame_properties
