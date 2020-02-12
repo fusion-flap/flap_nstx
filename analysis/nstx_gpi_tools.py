@@ -701,23 +701,40 @@ def make_plot_cursor_format(current, other):
                 .format(*['({:.6f}, {:.6f})'.format(x, y) for x,y in coords]))
     return format_coord
 
-def polygon_area(x=None,                                                         #x coordinates of the polygon
-                y=None,                                                         #y coordinates of the polygon
-                ):
-    """
-    Returns the area of the polygon based on the so called shoelace formula.
-    Sources: 
-        https://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates
-        https://en.wikipedia.org/wiki/Shoelace_formula
-    """
+class Polygon:
     
-    if x is not None and y is not None:
-        if len(x) != len(y):
-            raise ValueError('x and y must have the same length to be a polygon.')
-        return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
-    else:
-        raise IOError('The input x and y has to be defined')
-
+    def __init__(self,
+                 x=None,
+                 y=None):
+        if ((x is not None and y is not None) and 
+            (len(x) == len(y))):
+            self.x=x
+            self.y=y
+        else:
+            raise IOError('The input x and y has to be defined and must have the same length.')
+    @property
+    def area(self):
+        """
+        Returns the area of the polygon based on the so called shoelace formula.
+        Sources: 
+            https://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates
+            https://en.wikipedia.org/wiki/Shoelace_formula
+        """
+        return 0.5*np.abs(np.dot(self.x,np.roll(self.y,1))-np.dot(self.y,np.roll(self.x,1)))
+    @property
+    def signed_area(self):
+        return 0.5*(np.dot(self.x,np.roll(self.y,1))-np.dot(self.y,np.roll(self.x,1)))
+    
+    @property
+    def centroid(self):
+        """
+        Source: https://en.wikipedia.org/wiki/Polygon
+        Programming based on the area's convention.
+        """
+        x_center=1/(6*self.signed_area) * np.dot(self.x+np.roll(self.x,1),self.x*np.roll(self.y,1)-np.roll(self.x,1)*self.y)
+        y_center=1/(6*self.signed_area) * np.dot(self.y+np.roll(self.y,1),self.x*np.roll(self.y,1)-np.roll(self.x,1)*self.y)
+        return np.asarray([x_center,y_center])
+        
 
 """
 - DIFFERENT STRUCTURE POSITION
@@ -810,8 +827,8 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         if data.max() < threshold_level:
             print('The maximum of the signal doesn\'t reach the threshold level.')
             return None
-        data-=threshold_level
-        data[np.where(data < 0)]=0.
+        data = data - threshold_level
+        data[np.where(data < 0)] = 0.
         
     if levels is None:
         levels=np.arange(nlevel)/(nlevel-1)*(data.max()-data.min())+data.min()
@@ -937,30 +954,56 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         
     #Calculate the ellipse and its properties for the half level contours    
     for i_str in range(len(structures)):
-        half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
-        ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
-
+        str_levels=structures[i_str]['Levels']
+        half_level=(str_levels[-1]-str_levels[0])/2.+str_levels[0]
+        ind_at_half=np.argmin(np.abs(str_levels-half_level))
+        n_path=len(structures[i_str]['Levels'])
+        polygon_areas=np.zeros(n_path)
+        polygon_centroids=np.zeros([n_path,2])
+        polygon_intensities=np.zeros(n_path)
+        for i_path in range(n_path):
+            polygon=structures[i_str]['Paths'][i_path].to_polygons()[0]
+            polygon_areas[i_path]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).area
+            polygon_centroids[i_path,:]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).centroid
+            if i_path == 0:
+                polygon_intensities[i_path]=polygon_areas[i_path]*str_levels[i_path]
+            else:
+                polygon_intensities[i_path]=(polygon_areas[i_path]-polygon_areas[i_path-1])*str_levels[i_path]
+        intensity=np.sum(polygon_intensities)
+        center_of_gravity=np.asarray([np.sum(polygon_intensities*polygon_centroids[:,0])/np.sum(polygon_intensities),
+                                      np.sum(polygon_intensities*polygon_centroids[:,1])/np.sum(polygon_intensities)])
         half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
+        half_polygon=flap_nstx.analysis.Polygon(half_coords[:,0],half_coords[:,1])
+        
         try:
             ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
             structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
+            structures[i_str]['Half level']=half_level
+
             structures[i_str]['Center']=ellipse.center
             structures[i_str]['Size']=ellipse.size
             structures[i_str]['Angle']=ellipse.angle_of_rotation
-            structures[i_str]['Area']=flap_nstx.analysis.polygon_area(half_coords[:,0],
-                                                                     half_coords[:,1])
-            if test_result:
+            
+            structures[i_str]['Centroid']=half_polygon.centroid
+            structures[i_str]['Area']=half_polygon.area
+            structures[i_str]['Intensity']=intensity
+            structures[i_str]['Center of gravity']=center_of_gravity
+            
+            if test_result or test:
                 structures[i_str]['Ellipse']=ellipse
         except:
             print('Ellipse fitting failed.')
             structures[i_str]['Half path']=None
+            structures[i_str]['Half level']=None
+            
             structures[i_str]['Center']=None
             structures[i_str]['Size']=None
             structures[i_str]['Angle']=None
+            
+            structures[i_str]['Centroid']=None            
             structures[i_str]['Area']=None
-            if test_result:
-                structures[i_str]['Ellipse']=None
-                
+            structures[i_str]['Intensity']=None
+            structures[i_str]['Ellipse']=None
     if test_result:
         plt.subplot()
         plt.contourf(x_coord, y_coord, data, levels=levels)
@@ -982,6 +1025,13 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                          b*np.sin(R)*np.cos(phi)
                     plt.plot(x,y)    
                     plt.plot(xx,yy)
+                    plt.scatter(structure['Centroid'][0],
+                                structure['Centroid'][1], color='yellow')
+                    plt.scatter(structure['Center of gravity'][0],
+                                structure['Center of gravity'][1], color='red')
+        plt.xlabel('Image x')
+        plt.ylabel('Image y')
+        plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
         plt.show()
         plt.pause(0.1)
     return structures
