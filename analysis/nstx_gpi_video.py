@@ -51,7 +51,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
                         video_saving_only=False,                                #Saving only the video, not plotting it
                         prevent_saturation=False,                               #Prevent saturation of the image by restarting the colormap
                         colormap='gist_ncar',                                   #Colormap for the plotting
-                        cache_data=False,                                       #Try to load the data from the FLAP storage
+                        cache_data=True,                                       #Try to load the data from the FLAP storage
                         ):                
         
     if exp_id is not None:
@@ -76,13 +76,18 @@ def show_nstx_gpi_video(exp_id=None,                                            
             raise TypeError('time_range needs to be a list with two elements.')
         #time_range=[time_range[0]/1000., time_range[1]/1000.] 
         slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
-        d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
+        d=flap.slice_data(object_name, 
+                          exp_id=exp_id,
+                          slicing=slicing, 
+                          output_name='GPI_SLICED')
         object_name='GPI_SLICED'
         
     if plot_filtered:
         print("**** Filtering GPI ****")
         
-        d=flap.filter_data(object_name,output_name='GPI_FILTERED',coordinate='Time',
+        d=flap.filter_data(object_name,
+                           exp_id=exp_id,
+                           output_name='GPI_FILTERED',coordinate='Time',
                            options={'Type':'Highpass',
                                     'f_low':1e2,
                                     'Design':'Chebyshev II'})
@@ -122,8 +127,10 @@ def show_nstx_gpi_video(exp_id=None,                                            
             
     if subtract_background: #DEPRECATED, DOESN'T DO MUCH HELP
         print('**** Subtracting background ****')
-        d=flap.get_data_object_ref(object_name)
-        background=flap.slice_data(object_name, summing={'Time':'Mean'})
+        d=flap.get_data_object_ref(object_name, exp_id=exp_id)
+        background=flap.slice_data(object_name, 
+                                   exp_id=exp_id,
+                                   summing={'Time':'Mean'})
         
         data_obj=copy.deepcopy(d)
         data_obj.data=data_obj.data/background.data
@@ -198,7 +205,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
         save_video=True
         
     if z_range is None:
-        d=flap.get_data_object_ref(object_name)            
+        d=flap.get_data_object_ref(object_name, exp_id=exp_id)
         z_range=[d.data.min(),d.data.max()]
         
     if z_range[1] < 0:

@@ -464,7 +464,8 @@ def filename(exp_id=None,
     if time_range is None:
         filename+='_whole'
     elif len(time_range) == 2 and type(time_range) == list:
-        filename+='_'+str(time_range[0])+'_'+str(time_range[1])
+        
+        filename+='_'+f"{time_range[0]:.6f}"+'_'+f"{time_range[1]:.6f}"
     else:
         raise ValueError('Time range should be a two element list.')
     if working_directory is not None:
@@ -677,10 +678,11 @@ class FitEllipse:
         by=a[1]*x0+a[4]
         cx=a[2]*y0**2+a[4]*y0+a[5]
         cy=a[0]*x0**2+a[3]*x0+a[5]
-        
         xsize=np.sqrt(bx**2-4*ax*cx)/np.abs(ax)
         ysize=np.sqrt(by**2-4*ay*cy)/np.abs(ay)
-        
+        if np.imag(xsize) != 0 or np.imag(xsize) !=0:
+            print('size is complex')
+            raise ValueError('')
         return np.array([xsize,ysize])
         
 def make_plot_cursor_format(current, other):
@@ -734,14 +736,6 @@ class Polygon:
         x_center=1/(6*self.signed_area) * np.dot(self.x+np.roll(self.x,1),self.x*np.roll(self.y,1)-np.roll(self.x,1)*self.y)
         y_center=1/(6*self.signed_area) * np.dot(self.y+np.roll(self.y,1),self.x*np.roll(self.y,1)-np.roll(self.x,1)*self.y)
         return np.asarray([x_center,y_center])
-        
-
-"""
-- DIFFERENT STRUCTURE POSITION
-- SOME OTHER MEASURES THAN THE ELLIPSE
-- COULD HAVE OTHER MEASURES THAN THE DEFINED HALF LEVEL
-- PLOTTING THE SIZE AND OTHER PARAMETERS OF THE GAS CLOUD ONTO THE RESULTS AS SOME CONFIDENCE LEVEL
-"""        
     
 def nstx_gpi_one_frame_structure_finder(data_object=None,                       #Name of the FLAP.data_object
                                         exp_id='*',                             #Shot number (if data_object is not used)
@@ -962,9 +956,11 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         polygon_centroids=np.zeros([n_path,2])
         polygon_intensities=np.zeros(n_path)
         for i_path in range(n_path):
-            polygon=structures[i_str]['Paths'][i_path].to_polygons()[0]
-            polygon_areas[i_path]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).area
-            polygon_centroids[i_path,:]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).centroid
+            polygon=structures[i_str]['Paths'][i_path].to_polygons()
+            if polygon != []:
+                polygon=polygon[0]
+                polygon_areas[i_path]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).area
+                polygon_centroids[i_path,:]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).centroid
             if i_path == 0:
                 polygon_intensities[i_path]=polygon_areas[i_path]*str_levels[i_path]
             else:
@@ -975,35 +971,40 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
         half_polygon=flap_nstx.analysis.Polygon(half_coords[:,0],half_coords[:,1])
         
+        structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
+        structures[i_str]['Half level']=half_level
+        structures[i_str]['Centroid']=half_polygon.centroid
+        structures[i_str]['Area']=half_polygon.area
+        structures[i_str]['Intensity']=intensity
+        structures[i_str]['Center of gravity']=center_of_gravity
         try:
             ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
-            structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
-            structures[i_str]['Half level']=half_level
-
             structures[i_str]['Center']=ellipse.center
-            structures[i_str]['Size']=ellipse.size
+            size=ellipse.size
+            structures[i_str]['Size']=size
             structures[i_str]['Angle']=ellipse.angle_of_rotation
-            
-            structures[i_str]['Centroid']=half_polygon.centroid
-            structures[i_str]['Area']=half_polygon.area
-            structures[i_str]['Intensity']=intensity
-            structures[i_str]['Center of gravity']=center_of_gravity
+            structures[i_str]['Elongation']=(size[0]-size[1])/(size[0]+size[1])
             
             if test_result or test:
                 structures[i_str]['Ellipse']=ellipse
+            else:
+                structures[i_str]['Ellipse']=None
         except:
             print('Ellipse fitting failed.')
-            structures[i_str]['Half path']=None
-            structures[i_str]['Half level']=None
-            
+
             structures[i_str]['Center']=None
             structures[i_str]['Size']=None
             structures[i_str]['Angle']=None
+            structures[i_str]['Elongation']=None
             
-            structures[i_str]['Centroid']=None            
-            structures[i_str]['Area']=None
-            structures[i_str]['Intensity']=None
             structures[i_str]['Ellipse']=None
+            
+    fitted_structures=[]        
+    for i_str in range(len(structures)):
+        if structures[i_str]['Size'] is not None:
+            fitted_structures.append(structures[i_str])
+            
+    structures=fitted_structures
     if test_result:
         plt.subplot()
         plt.contourf(x_coord, y_coord, data, levels=levels)
@@ -1035,3 +1036,21 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         plt.show()
         plt.pause(0.1)
     return structures
+
+def signal_windowed_avg_err(x,windowsize):
+    """
+    Returns the average and the square root of the variance of signal x in a 
+    defined window size.
+    """
+    if len(x) < windowsize:
+        raise ValueError('The window size is larger than the data\'s length')
+    data_len=len(x)
+    return_data=np.zeros(data_len)
+    return_error=np.zeros(data_len)
+    
+    return_data[0:windowsize]=np.mean(x[0:windowsize])
+    return_error[0:windowsize]=np.sqrt(np.var(x[0:windowsize]))
+    for i_data in range(windowsize,data_len):
+        return_data[i_data]=np.mean(x[i_data-windowsize:i_data])
+        return_error[i_data]=np.sqrt(np.var(x[i_data-windowsize:i_data]))
+    return return_data,return_error
