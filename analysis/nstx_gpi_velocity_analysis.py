@@ -847,11 +847,6 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
             else:
                 return velocity_matrix
             #Profit.
-
-"""
-- Plot error bars on the plots based on the variance of the values in a certain window.
-"""
-
             
 def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          #Shot number
                                           time_range=None,                      #The time range for the calculation
@@ -1488,12 +1483,16 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                 angle_avg[i_frames]=np.nan
                 elongation_avg[i_frames]=np.nan
                 position_avg[i_frames,:]=[np.nan,np.nan]
-               
+                cog_avg[i_frames,:]=[np.nan,np.nan]
+                centroid_avg[i_frames,:]=[np.nan,np.nan]
+                
                 size_max[i_frames,:]=[np.nan,np.nan]
                 area_max[i_frames]=np.nan
                 angle_max[i_frames]=np.nan
                 elongation_max[i_frames]=np.nan
                 position_max[i_frames,:]=[np.nan,np.nan]
+                cog_max[i_frames,:]=[np.nan,np.nan]
+                centroid_max[i_frames,:]=[np.nan,np.nan]
                 
                 str_number[i_frames]=0.
                 frame_cog[i_frames,:]=[np.nan,np.nan]
