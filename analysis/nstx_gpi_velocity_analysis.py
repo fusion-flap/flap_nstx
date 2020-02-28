@@ -1039,6 +1039,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
         slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
                                                      time_range[1]+1/normalize_f_high*10)
         flap.slice_data('GPI',
+                        exp_id=exp_id,
                         slicing=slicing_for_filtering,
                         output_name='GPI_SLICED_FOR_FILTERING')
         
