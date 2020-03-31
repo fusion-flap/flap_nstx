@@ -42,7 +42,8 @@ def calculate_avg_velocity_results(window_average=500e-6,
                                    pdf=False,
                                    plot=True,
                                    return_results=False,
-                                   plot_error=True
+                                   plot_error=True,
+                                   normalized_velocity=False,
                                    ):
 
     database_file='/Users/mlampert/work/NSTX_workspace/ELM_findings_mlampert_velocity_good.csv'
@@ -70,43 +71,59 @@ def calculate_avg_velocity_results(window_average=500e-6,
                      'Angle avg':np.zeros([2*nwin]),
                      'Angle max':np.zeros([2*nwin]),                          
                      'Str number':np.zeros([2*nwin]),
-                     }
-    
+                     }   
+        
     variance_results=copy.deepcopy(average_results)
     notnan_counter_ccf=np.zeros([2*nwin])
     notnan_counter_str=np.zeros([2*nwin])
+    elm_counter=0.
     for index_elm in range(len(elm_index)):
         #preprocess velocity results, tackle with np.nan and outliers
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         #define ELM time for all the cases
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-        filename=wd+'/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
+        if normalized_velocity:
+            filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                 working_directory=wd+'/processed_data',
+                                                 time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                 comment='ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns_nv',
+                                                 extension='pickle')
+        else:
+            filename=wd+'/processed_data/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
         status=db.loc[elm_index[index_elm]]['OK/NOT OK']
-
+        
         if status != 'NO':
             velocity_results=pickle.load(open(filename, 'rb'))
+            if ('GPI Dalpha' in velocity_results.keys() and index_elm == 0):
+                average_results['GPI Dalpha']=np.zeros([2*nwin])
+                variance_results['GPI Dalpha']=np.zeros([2*nwin])
+                
             time=velocity_results['Time']
             elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-window_average,
                                                           time <= elm_time+window_average))
             elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
             elm_time_ind=np.argmin(np.abs(time-elm_time))
-            #current_elm_time=velocity_results['Time'][elm_time_ind[index_elm]]
-            try:
             
+#            try:
+            if True:
                 notnan_counter_ccf+=np.logical_not(np.isnan(velocity_results['Velocity ccf'][elm_time_ind-nwin:elm_time_ind+nwin,0]))
                 notnan_counter_str+=np.logical_not(np.isnan(velocity_results['Velocity str avg'][elm_time_ind-nwin:elm_time_ind+nwin,0]))
                 for key in average_results.keys():
                     ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
-                    (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
+                    if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
+                        (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
                     average_results[key]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]
                     
-            except:
-                print('Failed to add shot '+str(shot)+' @ '+str(elm_time)+' into the results.')
+#            except:
+#                print('Failed to add shot '+str(shot)+' @ '+str(elm_time)+' into the results.')
+            elm_counter+=1.
     
     for key in average_results.keys():
         if not 'ccf' in key:
-            if len(average_results[key].shape) == 1:
+            if key in ['Frame similarity','Correlation max','GPI Dalpha']:
+                average_results[key]=average_results[key]/elm_counter
+            elif len(average_results[key].shape) == 1:
                 average_results[key]=average_results[key]/(notnan_counter_str-1)
             else:
                 average_results[key][:,0]=average_results[key][:,0]/(notnan_counter_str-1)
@@ -123,7 +140,14 @@ def calculate_avg_velocity_results(window_average=500e-6,
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         #define ELM time for all the cases
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
-        filename=wd+'/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
+        if normalized_velocity:
+            filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                 working_directory=wd+'/processed_data',
+                                                 time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                 comment='ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns_nv',
+                                                 extension='pickle')
+        else:
+            filename=wd+'/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
         status=db.loc[elm_index[index_elm]]['OK/NOT OK']
 
         if status != 'NO':
@@ -137,13 +161,17 @@ def calculate_avg_velocity_results(window_average=500e-6,
             try:
                 for key in average_results.keys():
                     ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
-                    (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
+                    if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
+                        (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
                     variance_results[key]+=(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]-average_results[key])**2
             except:
                 pass
+            
     for key in variance_results.keys():
         if not 'ccf' in key:
-            if len(variance_results[key].shape) == 1:
+            if key in ['Frame similarity','Correlation max','GPI Dalpha']:
+                variance_results[key]=np.sqrt(variance_results[key]/elm_counter)
+            elif len(variance_results[key].shape) == 1:
                 variance_results[key]=np.sqrt(variance_results[key]/(notnan_counter_str-2))
             else:
                 variance_results[key][:,0]=np.sqrt(variance_results[key][:,0]/(notnan_counter_str-2))
@@ -159,12 +187,12 @@ def calculate_avg_velocity_results(window_average=500e-6,
     variance_results['Tau']=(np.arange(2*nwin)*sampling_time-window_average)*1e3 #Let the results be in ms
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
     if pdf or plot:
-
         plot_average_velocity_results(average_results=average_results,
                                       variance_results=variance_results,
                                       plot_error=plot_error,
                                       plot=plot,
-                                      pdf=pdf)
+                                      pdf=pdf,
+                                      normalized_velocity=normalized_velocity)
     if return_results:
         return average_results
     
@@ -174,21 +202,18 @@ def plot_kmeans_clustered_elms(ncluster=4,
                                pdf=True,
                                base='Size max',
                                radial=False,
-                               poloidal=False):
+                               poloidal=False,
+                               normalized_velocity=False):
     
     from sklearn.cluster import KMeans
-    from sklearn.decomposition import PCA
     
     window_average=500e-6
     sampling_time=2.5e-6
-
-    database_file='/Users/mlampert/work/NSTX_workspace/ELM_findings_mlampert_velocity_good.csv'
-    db=pandas.read_csv(database_file, index_col=0)
-    elm_index=list(db.index)
-    
+   
     nwin=int(window_average/sampling_time)
     if radial and poloidal:
         raise ValueError('Radial and poloidal cannot be set at the same time.')
+    index=None
     if radial or poloidal:
         if radial:
             index=0
@@ -208,8 +233,15 @@ def plot_kmeans_clustered_elms(ncluster=4,
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         #define ELM time for all the cases
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
-        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-        filename=wd+'/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
+        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']+'/processed_data'
+        if normalized_velocity:
+            filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                 working_directory=wd,
+                                                 time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                 comment='ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns_nv',
+                                                 extension='pickle')
+        else:
+            filename=wd+'/processed_data/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
         status=db.loc[elm_index[index_elm]]['OK/NOT OK']
         
         if status != 'NO':
@@ -220,22 +252,26 @@ def plot_kmeans_clustered_elms(ncluster=4,
             elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
             elm_time_ind=np.argmin(np.abs(time-elm_time))
             #current_elm_time=velocity_results['Time'][elm_time_ind[index_elm]]
-            if base in ['Size','Position', 'Position', 'Centroid', 'COG', 'Velocity str']:
-                base+=' max'
-                cluster_vector=velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin,index]
-                ind_nan=np.isnan(velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin,index])
-                velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
+            if base in ['Size', 'Position', 'Position', 'Centroid', 'COG', 'Velocity str']:
+                base_full=base+' max'
+                cluster_vector=velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin,index]
+                ind_nan=np.isnan(velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin,index])
+                velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
                 to_be_clustered.append(cluster_vector)
             elif base == 'Velocity ccf':
-                cluster_vector=velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin,index]
-                ind_nan=np.isnan(velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin,index])
-                velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
+                base_full=base
+                cluster_vector=velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin,index]
+                ind_nan=np.isnan(velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin,index])
+                velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
                 to_be_clustered.append(cluster_vector)
             else:
-                base+=' max'                
-                cluster_vector=velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin]
-                ind_nan=np.isnan(velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin])
-                velocity_results[base][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
+                if base != 'GPI Dalpha':
+                    base_full=base+' max'
+                else:
+                    base_full=base
+                cluster_vector=velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin]
+                ind_nan=np.isnan(velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin])
+                velocity_results[base_full][elm_time_ind-nwin:elm_time_ind+nwin][ind_nan]=0.
                 to_be_clustered.append(cluster_vector)
             elm_labels['ELM index'].append(elm_index[index_elm])
             elm_labels['Shot'].append(shot)
@@ -273,7 +309,9 @@ def plot_kmeans_clustered_elms(ncluster=4,
                          'Angle max':np.zeros([2*nwin]),                          
                          'Str number':np.zeros([2*nwin]),
                          }
-        
+        if 'GPI Dalpha' in velocity_results.keys():
+            average_results['GPI Dalpha']=np.zeros([2*nwin])    
+            
         label_boolean=np.where(klabels == label)
         variance_results=copy.deepcopy(average_results)
         notnan_counter_ccf=np.zeros([2*nwin])
@@ -289,8 +327,14 @@ def plot_kmeans_clustered_elms(ncluster=4,
             shot=int(db.loc[elm_index[label_boolean][index_elm]]['Shot'])
             #define ELM time for all the cases
             elm_time=db.loc[elm_index[label_boolean][index_elm]]['ELM time']/1000.
-            wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-            filename=wd+'/'+db.loc[elm_index[label_boolean][index_elm]]['Filename']+'.pickle'
+            if normalized_velocity:
+                filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                     working_directory=wd,
+                                                     time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                     comment='ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns_nv',
+                                                     extension='pickle')
+            else:
+                filename=wd+'/processed_data/'+db.loc[elm_index[label_boolean][index_elm]]['Filename']+'.pickle'
             status=db.loc[elm_index[label_boolean][index_elm]]['OK/NOT OK']
     
             if status != 'NO':
@@ -305,8 +349,8 @@ def plot_kmeans_clustered_elms(ncluster=4,
                     notnan_counter_ccf+=np.logical_not(np.isnan(velocity_results['Velocity ccf'][elm_time_ind-nwin:elm_time_ind+nwin,0]))
                     notnan_counter_str+=np.logical_not(np.isnan(velocity_results['Velocity str avg'][elm_time_ind-nwin:elm_time_ind+nwin,0]))
                     for key in average_results.keys():
-                        if key not in ['Frame similarity','Correlation max']:
-                            ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
+                        ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
+                        if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
                         average_results[key]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]
                     elm_counter+=1
@@ -314,7 +358,7 @@ def plot_kmeans_clustered_elms(ncluster=4,
                     print('Failed to add shot '+str(shot)+' @ '+str(elm_time)+' into the results.')
         
         for key in average_results.keys():
-            if key in ['Frame similarity', 'Correlation max']:
+            if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
                 average_results[key]/=elm_counter
             elif not 'ccf' in key:
                 if len(average_results[key].shape) == 1:
@@ -334,7 +378,14 @@ def plot_kmeans_clustered_elms(ncluster=4,
             shot=int(db.loc[elm_index[label_boolean][index_elm]]['Shot'])
             #define ELM time for all the cases
             elm_time=db.loc[elm_index[label_boolean][index_elm]]['ELM time']/1000.
-            filename=wd+'/'+db.loc[elm_index[label_boolean][index_elm]]['Filename']+'.pickle'
+            if normalized_velocity:
+                filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                     working_directory=wd,
+                                                     time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                     comment='ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns_nv',
+                                                     extension='pickle')
+            else:
+                filename=wd+'/processed_data/'+db.loc[elm_index[label_boolean][index_elm]]['Filename']+'.pickle'
             status=db.loc[elm_index[label_boolean][index_elm]]['OK/NOT OK']
     
             if status != 'NO':
@@ -355,7 +406,9 @@ def plot_kmeans_clustered_elms(ncluster=4,
                     pass
                 
         for key in variance_results.keys():
-            if not 'ccf' in key:
+            if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
+                average_results[key]/=elm_counter
+            elif not 'ccf' in key:
                 if len(variance_results[key].shape) == 1:
                     variance_results[key]=np.sqrt(variance_results[key]/(notnan_counter_str-1))
                 else:
@@ -402,21 +455,32 @@ def plot_kmeans_clustered_elms(ncluster=4,
                                                      (all_average_results[index_labels][key][:,1]+all_variance_results[index_labels][key][:,1]).max()]).max()]])
     
     for ind in range(len(all_average_results)):
+        string=''
+        if index is not None:
+            if index == 0:
+                string='radial'
+            else: 
+                string='poloidal'
+        pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULT_kmeans_nc_'+str(ncluster)+'_label_'+str(plot_labels[ind])+'_'+base.replace(' ','_')+'_'+string
         plot_average_velocity_results(average_results=all_average_results[ind],
                                       variance_results=all_variance_results[ind],
                                       ylimits=ylimits,
                                       plot_error=plot_error,
                                       plot=plot,
                                       pdf=pdf,
-                                      pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULT_kmeans_label_'+str(plot_labels[ind])+'_'+base.replace(' ','_')+'_'+str(index))
-        
+                                      pdf_filename=pdf_filename)
+
+
+
+
 def plot_average_velocity_results(average_results=None,
                                   variance_results=None,
                                   plot_error=True,
                                   pdf=True,
                                   plot=True,
                                   pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULTS',
-                                  ylimits=None):
+                                  ylimits=None,
+                                  normalized_velocity=False):
     
     tau_range=[min(average_results['Tau']),max(average_results['Tau'])]
     if plot:
@@ -430,12 +494,15 @@ def plot_average_velocity_results(average_results=None,
      
     plot_index=np.logical_not(np.isnan(average_results['Velocity ccf'][:,0]))
     plot_index_structure=np.logical_not(np.isnan(average_results['Elongation avg']))
-    #Plotting the radial velocity
+
+    #Plotting the radial velocity from CCF
     if pdf:
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         pdf_filename=wd+'/'+pdf_filename
         if plot_error:
             pdf_filename+='_with_error'
+        if normalized_velocity:
+            pdf_filename+='_norm_vel'
         pdf_pages=PdfPages(pdf_filename+'.pdf')
         
     fig, ax = plt.subplots()
@@ -453,26 +520,60 @@ def plot_average_velocity_results(average_results=None,
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=0.2)
-    ax.plot(average_results['Tau'][plot_index], 
-            average_results['Velocity str avg'][plot_index,0], 
-            linewidth=0.5,
-            color='red')
-    ax.plot(average_results['Tau'][plot_index], 
-             average_results['Velocity str max'][plot_index,0], 
-             linewidth=0.5,
-             color='green')
+    ax.plot(average_results['Tau'][plot_index_structure], 
+            average_results['Velocity str avg'][plot_index_structure,0], 
+            linewidth=0.3,
+            color='green')
+    ax.plot(average_results['Tau'][plot_index_structure], 
+             average_results['Velocity str max'][plot_index_structure,0], 
+             linewidth=0.3,
+             color='red')
 
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('v_rad[m/s]')
-    ax.set_title('Radial velocity of '+'the average results.')
+    ax.set_title('Radial velocity of the average results. \n (blue: ccf, green: str avg, red: str max)')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity ccf'][0,:])
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
+        
+    #Plotting the radial velocity from the structures.
+    fig, ax = plt.subplots()
+    ax.plot(average_results['Tau'][plot_index_structure],
+            average_results['Velocity str max'][plot_index_structure,0],
+            color='red')
+    ax.scatter(average_results['Tau'][plot_index_structure], 
+                average_results['Velocity str max'][plot_index_structure,0], 
+                s=5, 
+                marker='o',
+                color='red')
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Velocity str max'][plot_index_structure,0]
+        dy=variance_results['Velocity str max'][plot_index_structure,0]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=0.2)
+    ax.plot(average_results['Tau'][plot_index_structure],
+            average_results['Velocity str avg'][plot_index_structure,0])
+    ax.scatter(average_results['Tau'][plot_index_structure],
+               average_results['Velocity str avg'][plot_index_structure,0], 
+               s=5, 
+               marker='o')
     
-    #Plotting the poloidal velocity
+    ax.set_xlabel('Tau [ms]')
+    ax.set_ylabel('v_rad[m/s]')
+    ax.set_title('Radial velocity of the average (blue) and \n maximum (red) structures.')
+    ax.set_xlim(tau_range)
+    if ylimits is not None:
+        ax.set_ylim(ylimits['Velocity str max'][1,:])
+    fig.tight_layout()
+    if pdf:
+        pdf_pages.savefig()
+        
+    #Plotting the poloidal velocity from CCF
     fig, ax = plt.subplots()
     ax.plot(average_results['Tau'][plot_index], 
              average_results['Velocity ccf'][plot_index,1]) 
@@ -487,20 +588,55 @@ def plot_average_velocity_results(average_results=None,
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=0.2)
-    ax.plot(average_results['Tau'][plot_index],
-            average_results['Velocity str avg'][plot_index,1], 
-            linewidth=0.5,
-            color='red')
-    ax.plot(average_results['Tau'][plot_index],
-            average_results['Velocity str max'][plot_index,1], 
-            linewidth=0.5,
+    ax.plot(average_results['Tau'][plot_index_structure], 
+            average_results['Velocity str avg'][plot_index_structure,1], 
+            linewidth=0.3,
             color='green')
+    ax.plot(average_results['Tau'][plot_index_structure], 
+             average_results['Velocity str max'][plot_index_structure,1], 
+             linewidth=0.3,
+             color='red')        
+    
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('v_pol[m/s]')
-    ax.set_title('Poloidal velocity of '+'the average results.')
+    ax.set_title('Poloidal velocity of the average results. \n (blue: ccf, green: str avg, red: str max)')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity ccf'][1,:])
+    fig.tight_layout()
+    if pdf:
+        pdf_pages.savefig()
+
+    #Plotting the poloidal velocity from the structures.
+    fig, ax = plt.subplots()
+    ax.plot(average_results['Tau'][plot_index_structure],
+            average_results['Velocity str max'][plot_index_structure,1],
+            color='red')
+    ax.scatter(average_results['Tau'][plot_index_structure], 
+                average_results['Velocity str max'][plot_index_structure,1], 
+                s=5, 
+                marker='o',
+                color='red')
+
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Velocity str max'][plot_index_structure,1]
+        dy=variance_results['Velocity str max'][plot_index_structure,1]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=0.2)
+    ax.plot(average_results['Tau'][plot_index_structure],
+            average_results['Velocity str avg'][plot_index_structure,1])    
+    ax.scatter(average_results['Tau'][plot_index_structure],
+               average_results['Velocity str avg'][plot_index_structure,1], 
+               s=5, 
+               marker='o')
+    ax.set_xlabel('Tau [ms]')
+    ax.set_ylabel('v_pol[m/s]')
+    ax.set_title('Poloidal velocity of the average (blue) and \n maximum (red) structures.')
+    ax.set_xlim(tau_range)
+    if ylimits is not None:
+        ax.set_ylim(ylimits['Velocity str max'][1,:])
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
@@ -539,8 +675,33 @@ def plot_average_velocity_results(average_results=None,
         ax.set_ylim(ylimits['Frame similarity'])
     fig.tight_layout()
     if pdf:
-        pdf_pages.savefig()        
-  
+        pdf_pages.savefig()
+        
+    #Average signal in GPI
+    if 'GPI Dalpha' in average_results.keys():
+        fig, ax = plt.subplots()
+        ax.plot(average_results['Tau'], 
+                average_results['GPI Dalpha']) 
+        
+        ax.scatter(average_results['Tau'], 
+                   average_results['GPI Dalpha'], 
+                   s=5, 
+                   marker='o')
+        if plot_error:
+            x=average_results['Tau']
+            y=average_results['GPI Dalpha']
+            dy=variance_results['GPI Dalpha']
+            ax.fill_between(x,y-dy,y+dy,
+                            color='gray',
+                            alpha=0.2)
+        ax.set_xlabel('Tau [ms]')
+        ax.set_ylabel('GPI D alpha ')
+        ax.set_title('Average GPI D alpha signal')
+        ax.set_xlim(tau_range)
+        fig.tight_layout()
+        if pdf:
+            pdf_pages.savefig()
+        
     #Plotting the radial size
     fig, ax = plt.subplots()
     #Maximum
@@ -934,8 +1095,7 @@ def plot_average_velocity_results(average_results=None,
     ax.scatter(average_results['Tau'][:], 
                 average_results['Str number'][:], 
                 s=5, 
-                marker='o', 
-                color='red')
+                marker='o')
     if plot_error:
         x=average_results['Tau']
         y=average_results['Str number']
@@ -954,7 +1114,61 @@ def plot_average_velocity_results(average_results=None,
         pdf_pages.savefig()
     
     if pdf:
-       pdf_pages.close()
+        pdf_pages.close()
     if not plot:
         plt.close('all')
+
+def calculate_avg_tde_velocity_results():
+    
+    from statistics import harmonic_mean 
+    
+    database_file='/Users/mlampert/work/NSTX_workspace/ELM_findings_mlampert_velocity_good.csv'
+    db=pandas.read_csv(database_file, index_col=0)
+    elm_index=list(db.index)
+    average_velocity=np.zeros([21,2])
+    tau=(np.arange(21)/10.-1)*100e-6
+    elm=0.
+    for index_elm in range(len(elm_index)):
+        #preprocess velocity results, tackle with np.nan and outliers
+        shot=int(db.loc[elm_index[index_elm]]['Shot'])
+        #define ELM time for all the cases
+        elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
+        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+        status=db.loc[elm_index[index_elm]]['OK/NOT OK']
+        elm_time_range=[elm_time-2e-3,elm_time+2e-3]
+        if status != 'NO':
+            filename_pol=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.analysis.filename(exp_id=shot, 
+                                                                                time_range=elm_time_range,
+                                                                                purpose='TDE poloidal velocity',
+                                                                                extension='pickle')
+            filename_rad=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.analysis.filename(exp_id=shot, 
+                                                                                time_range=elm_time_range,
+                                                                                purpose='TDE radial velocity',
+                                                                                extension='pickle')
+            data_pol=flap.load(filename_pol)
+            data_rad=flap.load(filename_rad)
+            #data_pol=np.mean(data_pol.data, axis=0)
+            #data_rad=np.mean(data_rad.data, axis=0)
+            print((np.argmax(np.abs(data_pol.data), axis=0)))
+            #data_pol=[data_pol.data[np.argmax(np.abs(data_pol.data[:,i])),i] for i in range(len(data_pol.data[0,:]))]
+            #data_rad=[data_rad.data[np.argmax(np.abs(data_rad.data[:,i])),i] for i in range(len(data_rad.data[0,:]))]
+            data_pol=[harmonic_mean(data_pol.data[:,i]) for i in range(len(data_pol.data[0,:]))]
+            data_rad=[harmonic_mean(data_rad.data[:,i]) for i in range(len(data_rad.data[0,:]))]
+            ind_min=np.argmax(data_rad)
+            ind_elm_range=slice(ind_min-10,ind_min+11)
+            
+            print(ind_elm_range)
+            try:
+                average_velocity[:,0]+=data_rad[ind_elm_range]
+                average_velocity[:,1]+=data_pol[ind_elm_range]
+                elm+=1
+            except:
+                continue
+        average_velocity=average_velocity/elm
         
+    plt.figure()
+    plt.plot(tau, average_velocity[:,0])
+    plt.show()
+    plt.figure()
+    plt.plot(tau, average_velocity[:,1])
+    plt.show()

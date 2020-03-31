@@ -35,6 +35,7 @@ correlation_evolution=np.zeros([n_frames+1,n_lag+1])
 time_ranges=np.asarray([np.arange(0,n_lag+1)/(n_lag)*(time_range[1]-time_range[0])+time_range[0],
                         np.arange(0,n_lag+1)/(n_lag)*(time_range[1]-time_range[0])+time_range[0]+time_window]).T
 flap.get_data('NSTX_GPI', exp_id=exp_id,name='',object_name='GPI')
+
 for j in range(n_lag+1):
     sample0=flap.get_data_object_ref('GPI').slice_data(slicing={'Time':time_ranges[j,0]}).coordinate('Sample')[0][0,0]
     d=flap.slice_data('GPI', 

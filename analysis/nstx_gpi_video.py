@@ -152,6 +152,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
                           exp_id=exp_id,
                           object_name='SEP Y OBJ'
                           )
+            
             oplot_options['path']={'separatrix':{'Data object X':'SEP X OBJ',
                                                  'Data object Y':'SEP Y OBJ',
                                                  'Plot':True,

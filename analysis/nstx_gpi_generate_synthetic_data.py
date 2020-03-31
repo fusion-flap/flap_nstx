@@ -170,12 +170,12 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                             )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                           unit='m',
-                                           mode=flap.CoordinateMode(equidistant=False),
-                                           values=z_coordinates,
-                                           shape=z_coordinates.shape,
-                                           dimension_list=[1,2]
-                                           )))
+                                            unit='m',
+                                            mode=flap.CoordinateMode(equidistant=False),
+                                            values=z_coordinates,
+                                            shape=z_coordinates.shape,
+                                            dimension_list=[1,2]
+                                            )))
     _options={}
     _options["Trigger time [s]"]=0.
     _options["FPS"]=1/sampling_time

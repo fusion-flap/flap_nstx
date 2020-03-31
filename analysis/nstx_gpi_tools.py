@@ -8,6 +8,8 @@ Created on Mon Nov 11 13:37:37 2019
 #Core imports
 import os
 import copy
+import cv2
+
 #Importing and setting up the FLAP environment
 import flap
 import flap_nstx
@@ -583,6 +585,8 @@ class FitEllipse:
     Source:
         http://nicky.vanforeest.com/misc/fitEllipse/fitEllipse.html
         https://stackoverflow.com/questions/39693869/fitting-an-ellipse-to-a-set-of-data-points-in-python/48002645
+        Fitzgibbon, Pilu and Fischer in Fitzgibbon, A.W., Pilu, M., and Fischer R.B., Direct least squares fitting of ellipsees, 
+        Proc. of the 13th Internation Conference on Pattern Recognition, pp 253–257, Vienna, 1996
     Rewritten as an object.
     """
     def __init__(self,  
@@ -1006,6 +1010,7 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
             
     structures=fitted_structures
     if test_result:
+        
         plt.subplot()
         plt.contourf(x_coord, y_coord, data, levels=levels)
         plt.colorbar()  
@@ -1024,17 +1029,17 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                     yy = structure['Center'][1] + \
                          a*np.cos(R)*np.sin(phi) + \
                          b*np.sin(R)*np.cos(phi)
-                    plt.plot(x,y)    
-                    plt.plot(xx,yy)
+                    plt.plot(x,y)    #Plot the half path polygon
+                    plt.plot(xx,yy)  #Plot the ellipse
                     plt.scatter(structure['Centroid'][0],
                                 structure['Centroid'][1], color='yellow')
                     plt.scatter(structure['Center of gravity'][0],
                                 structure['Center of gravity'][1], color='red')
-        plt.xlabel('Image x')
-        plt.ylabel('Image y')
-        plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
-        plt.show()
-        plt.pause(0.1)
+                plt.xlabel('Image x')
+                plt.ylabel('Image y')
+                plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
+                plt.show()
+                plt.pause(0.1)
     return structures
 
 def signal_windowed_avg_err(x,windowsize):
