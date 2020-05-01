@@ -1011,11 +1011,9 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
     
     if parabola_fit:
         comment='pfit_o'+str(subtraction_order_for_velocity)+\
-                '_ct_'+str(correlation_threshold)+\
                 '_fst_'+str(frame_similarity_threshold)
     else:
         comment='max_o'+str(subtraction_order_for_velocity)+\
-                '_ct_'+str(correlation_threshold)+\
                 '_fst_'+str(frame_similarity_threshold)
                 
     if normalize_for_size:
@@ -1244,7 +1242,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
         time=d.coordinate('Time')[0][:,0,0]
         sample_time=time[1]-time[0]
         sample_0=flap.get_data_object_ref(object_name_ccf_velocity).coordinate('Sample')[0][0,0,0]
-        dalpha=flap.get_data_object_ref('GPI_SLICED_FULL').slice_data(summing={'Image x':'Mean', 'Image y':'Mean'}),
+        dalpha=flap.get_data_object_ref('GPI_SLICED_FULL').slice_data(summing={'Image x':'Mean', 'Image y':'Mean'}).data,
         
         frame_properties={'Shot':exp_id,
                           'Time':time[1:-1],
@@ -1377,7 +1375,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                 frame2=np.asarray(d.data[i_frames+1,:,:],dtype='float64')
                 ccf_object.data[i_frames,:,:]=scipy.signal.correlate2d(frame2,frame1, mode='full')
                 
-            frame_properties['Correlation max'][i_frames]=ccf_object.data[i_frames,:,:].max()
+            
             max_index=np.asarray(np.unravel_index(ccf_object.data[i_frames,:,:].argmax(), ccf_object.data[i_frames,:,:].shape))
             
             #Fit a 2D polinomial on top of the peak
@@ -1400,9 +1398,9 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                     index[1] > 2*fitting_range):
                     
                     index=[fitting_range,fitting_range]
-                if ccf_object.data[i_frames,:,:].max() > correlation_threshold and flap_ccf:              
-                    delta_index=[index[0]+max_index[0]-fitting_range-ccf_object.data[i_frames,:,:].shape[0]//2,
-                                 index[1]+max_index[1]-fitting_range-ccf_object.data[i_frames,:,:].shape[1]//2]
+                #if ccf_object.data[i_frames,:,:].max() > correlation_threshold and flap_ccf:              
+                delta_index=[index[0]+max_index[0]-fitting_range-ccf_object.data[i_frames,:,:].shape[0]//2,
+                             index[1]+max_index[1]-fitting_range-ccf_object.data[i_frames,:,:].shape[1]//2]
                 if test:
                     plt.contourf(ccf_object.data[i_frames,:,:].T, levels=np.arange(0,51)/25-1)
                     plt.scatter(index[0]+max_index[0]-fitting_range,
@@ -1414,16 +1412,19 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                 #Not precize values due to the calculation not being in the exact radial and poloidal direction.
                 delta_index=[max_index[0]-ccf_object.data[i_frames,:,:].shape[0]//2,
                              max_index[1]-ccf_object.data[i_frames,:,:].shape[1]//2]
+            
+            frame_properties['Correlation max'][i_frames]=ccf_object.data[i_frames,:,:].max()
             #Checking the threshold of the correlation     
-            if ccf_object.data[i_frames,:,:].max() < correlation_threshold and flap_ccf:
-                print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
-                delta_index=[np.nan,np.nan]
+#            if ccf_object.data[i_frames,:,:].max() < correlation_threshold and flap_ccf:
+#                print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
+#                delta_index=[np.nan,np.nan]
                 
-            #Checking if the two frames are similar enough to take their contribution as valid
             frame_properties['Frame similarity'][i_frames]=ccf_object.data[i_frames,:,:][tuple(np.asarray(ccf_object.data[i_frames,:,:].shape)[:]//2)]
-            if frame_properties['Frame similarity'][i_frames] < frame_similarity_threshold and flap_ccf:
-                print('Frame similarity threshold is not reached.')
-                delta_index=[np.nan,np.nan]
+            #Checking if the two frames are similar enough to take their contribution as valid
+#            if frame_properties['Frame similarity'][i_frames] < frame_similarity_threshold and flap_ccf:
+#                print('Frame similarity threshold is not reached.')
+#                delta_index=[np.nan,np.nan]
+                
             if ccf_object.data[i_frames,:,:].max() < correlation_threshold and flap_ccf:
                 invalid_correlation_frame_counter+=1
             else:
@@ -1767,10 +1768,13 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
             matplotlib.use('agg')
             import matplotlib.pyplot as plt            
         
-        plot_index=np.logical_and(np.logical_not(np.isnan(frame_properties['Velocity ccf'][:,0])),
+#        plot_index=np.logical_and(np.logical_not(np.isnan(frame_properties['Velocity ccf'][:,0])),
+#                                  np.logical_and(frame_properties['Time'] >= time_range[0],
+#                                                 frame_properties['Time'] <= time_range[1]))
+        plot_index=np.logical_and(np.where(frame_properties['Correlation max'] > correlation_threshold),
                                   np.logical_and(frame_properties['Time'] >= time_range[0],
                                                  frame_properties['Time'] <= time_range[1]))
-
+        
         plot_index_structure=np.logical_and(np.logical_not(np.isnan(frame_properties['Elongation avg'])),
                                             np.logical_and(frame_properties['Time'] >= time_range[0],
                                                            frame_properties['Time'] <= time_range[1]))
@@ -1781,7 +1785,7 @@ def calculate_nstx_gpi_avg_frame_velocity(exp_id=None,                          
                                                  working_directory=wd,
                                                  time_range=time_range,
                                                  purpose='ccf velocity',
-                                                 comment=comment)
+                                                 comment=comment+'_ct_'+str(correlation_threshold))
             pdf_filename=filename+'.pdf'
             pdf_pages=PdfPages(pdf_filename)
         fig, ax = plt.subplots()
