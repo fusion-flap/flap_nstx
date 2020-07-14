@@ -109,7 +109,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
     if sinusoidal:
         x0=start_position[0]
         y0=start_position[1]
-        ky=2*np.pi/poloidal_size
+        ky=np.pi/poloidal_size
         omega=poloidal_velocity*ky
         phi0=0
         for i_frames in range(n_time):
@@ -118,10 +118,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                 for k_radial in range(64):
                     x=r_coordinates[k_radial,j_vertical]
                     y=z_coordinates[k_radial,j_vertical]
-                    if np.abs(x-x0)*2 > radial_size: 
-                        A=1/np.sqrt(2*np.pi*radial_size)*np.exp(-0.5*((x-x0)/radial_size)**4)
-                    else:
-                        A=1/np.sqrt(2*np.pi*radial_size)*np.exp(-0.5*((x-x0)/radial_size)**2)
+                    A=1/np.sqrt(2*np.pi*radial_size)*np.exp(-0.5*(np.abs(x-(x0+radial_velocity*cur_time))/(radial_size/2.355))**2)
                     arg=ky*y-omega*cur_time+phi0
                     division=(scipy.signal.square(arg/waveform_divider, duty=0.5/waveform_divider)+1)/2.
                     data_arr[i_frames,k_radial,j_vertical]=amplitude*A*np.sin(arg)*division

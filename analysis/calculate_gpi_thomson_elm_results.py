@@ -538,6 +538,7 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
                                                     plot_error=False,
                                                     pdf=False,                              #Save the results into a PDF
                                                     thomson_time_window=2e-3,               #Time window of the Thomson data compared to the ELM time
+                                                    correlation_threshold=0.6,
                                                     
                                                     spline_thomson=False,                   #Calculate the results from the spline fit Thomson data
                                                     auto_x_range=True,
@@ -676,7 +677,7 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
                     filename=flap_nstx.analysis.filename(exp_id=shot,
                                                          working_directory=wd+'/processed_data',
                                                          time_range=[elm_time-2e-3,elm_time+2e-3],
-                                                         comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_ct_0.6_fst_0.0'+str_add+'_nv',
+                                                         comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
                                                          extension='pickle')
                 else:
                     filename=wd+'/processed_data/'+db.loc[elm_index[elm['index_elm']]]['Filename']+'.pickle'
@@ -692,6 +693,7 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
                     pressure_profile_status != 'NO'):
                     
                     velocity_results=pickle.load(open(filename, 'rb'))
+                    velocity_results['Velocity ccf'][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
                     for key in gpi_results_avg:
                         ind_nan=np.isnan(velocity_results[key])
                         velocity_results[key][ind_nan]=0.

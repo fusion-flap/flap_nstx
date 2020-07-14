@@ -177,7 +177,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
       
     coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
     coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
-     
+
 #   This part is not producing appropriate results due to the equidistant spacing and double
 #   coefficients. Slicing is only possible for single steps.    
     

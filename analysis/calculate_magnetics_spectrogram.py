@@ -66,6 +66,7 @@ def calculate_magnetics_spectrogram(exp_id=None,
                                                    start=magnetics.coordinate('Time')[0][0],
                                                    step=magnetics.coordinate('Time')[0][1]-magnetics.coordinate('Time')[0][0],
                                                    dimension_list=[0])))
+        
         n_time=int((time_range[1]-time_range[0])/time_res)
         spectrum=[]
         for i in range(n_time-1):

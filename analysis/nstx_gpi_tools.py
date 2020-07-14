@@ -368,9 +368,9 @@ def detrend_multidim(data_object=None,
                      output_name=None):
     
     if exp_id is not None:
-        d=flap.get_data_object(data_object, exp_id=exp_id)
+        d=copy.deepcopy(flap.get_data_object(data_object, exp_id=exp_id))
     else:
-        d=flap.get_data_object(data_object)
+        d=copy.deepcopy(flap.get_data_object(data_object))
         
     total_dim=len(d.data.shape)
     if total_dim > 4:
@@ -755,6 +755,7 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                                                                                     #Negative values are substituted with 0.
                                         filter_struct=True,                     #Filter out the structures with less than filter_level number of contours
                                         filter_level=None,                      #The number of contours threshold for structures filtering (default:nlevel//4)
+                                        remove_interlaced_structures=False,     #Filter out the structures which are interlaced. Only the largest structures is preserved, others are removed.
                                         test_result=False,                      #Test the result only (plot the contour and the found structures)
                                         test=False,                             #Test the contours and the structures before any kind of processing
                                         ):
@@ -817,7 +818,6 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
     x_coord=data_object.coordinate(x_coord_name)[0]
     y_coord=data_object.coordinate(y_coord_name)[0]
     data = scipy.ndimage.median_filter(data_object.data, mfilter_range)
-        
     if test:
         plt.cla()
         
@@ -914,7 +914,7 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
     if test:
         print('Plotting structures')
         plt.cla()
-        plt.axis('equal')
+        plt.set_aspect(1.0)
         for struct in structures:
             plt.contourf(x_coord, y_coord, data, levels=levels)
             for path in struct['Paths']:
@@ -923,7 +923,8 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                 plt.plot(x,y)
             plt.pause(1)
             plt.cla()
-            plt.axis('equal')
+            #plt.axis('equal')
+            plt.set_aspect(1.0)
         plt.contourf(x_coord, y_coord, data, levels=levels)
         plt.colorbar()           
                 
@@ -933,27 +934,28 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         #Finding the paths at FWHM
         paths_at_half=[]
         for i_str in range(len(structures)):
-            half_level=(structures[i_str]['Levels'][-1]-structures[i_str]['Levels'][0])/2.+structures[i_str]['Levels'][0]
+            half_level=(structures[i_str]['Levels'][-1]+structures[i_str]['Levels'][0])/2.
             ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
             paths_at_half.append(structures[i_str]['Paths'][ind_at_half])
         #Process the structures which are embedded (cut the inner one)
-        structures_to_be_removed=[]
-        for ind_path1 in range(len(paths_at_half)):
-            for ind_path2 in range(len(paths_at_half)):
-                if ind_path1 != ind_path2:
-                    if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
-                        structures_to_be_removed.append(ind_path1)
-        structures_to_be_removed=np.unique(structures_to_be_removed)
-        cut_structures=[]
-        for i_str in range(len(structures)):
-            if i_str not in structures_to_be_removed:
-                cut_structures.append(structures[i_str])
-        structures=cut_structures
+        if remove_interlaced_structures:
+            structures_to_be_removed=[]
+            for ind_path1 in range(len(paths_at_half)):
+                for ind_path2 in range(len(paths_at_half)):
+                    if ind_path1 != ind_path2:
+                        if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
+                            structures_to_be_removed.append(ind_path1)
+            structures_to_be_removed=np.unique(structures_to_be_removed)
+            cut_structures=[]
+            for i_str in range(len(structures)):
+                if i_str not in structures_to_be_removed:
+                    cut_structures.append(structures[i_str])
+            structures=cut_structures
         
     #Calculate the ellipse and its properties for the half level contours    
     for i_str in range(len(structures)):
         str_levels=structures[i_str]['Levels']
-        half_level=(str_levels[-1]-str_levels[0])/2.+str_levels[0]
+        half_level=(str_levels[-1]+str_levels[0])/2.
         ind_at_half=np.argmin(np.abs(str_levels-half_level))
         n_path=len(structures[i_str]['Levels'])
         polygon_areas=np.zeros(n_path)
@@ -1011,7 +1013,8 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
     structures=fitted_structures
     if test_result:
         
-        plt.subplot()
+        fig,ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54/1.62))
+        ax.set_aspect(1.0)
         plt.contourf(x_coord, y_coord, data, levels=levels)
         plt.colorbar()  
         if len(structures) > 0:

@@ -276,6 +276,7 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                save_pdf=False,
                                colormap='gist_ncar',
                                save_for_paraview=False,
+                               colorbar_visibility=True
                                ):
     
     if time_range is None and start_time is None:
@@ -301,17 +302,58 @@ def show_nstx_gpi_video_frames(exp_id=None,
         object_name='GPI'
     else:
         raise ValueError('The experiment ID needs to be set.')
+    if time_range is None:
+        time_range=[start_time,start_time+n_frame*2.5e-6]
+    if normalize:
+        
+        flap.slice_data(object_name, 
+                        slicing={'Time':flap.Intervals(time_range[0]-1/1e3*10,
+                                                       time_range[1]+1/1e3*10)},
+                        output_name='GPI_SLICED_FOR_FILTERING')
+        
+        norm_obj=flap.filter_data('GPI_SLICED_FOR_FILTERING',
+                                  exp_id=exp_id,
+                                  coordinate='Time',
+                                  options={'Type':'Lowpass',
+                                           'f_high':1e3,
+                                           'Design':'Elliptic'},
+                                  output_name='GAS_CLOUD')
+        
+        norm_obj.data=np.flip(norm_obj.data,axis=0)
+        norm_obj=flap.filter_data('GAS_CLOUD',
+                                  exp_id=exp_id,
+                                  coordinate='Time',
+                                  options={'Type':'Lowpass',
+                                           'f_high':1e3,
+                                           'Design':'Elliptic'},
+                                 output_name='GAS_CLOUD')
+        
+        norm_obj.data=np.flip(norm_obj.data,axis=0)                
+        coefficient=flap.slice_data('GAS_CLOUD',
+                                    exp_id=exp_id,
+                                    slicing={'Time':flap.Intervals(time_range[0],time_range[1])},
+                                    output_name='GPI_GAS_CLOUD').data
+                                    
+        data_obj=flap.slice_data('GPI', 
+                                 exp_id=exp_id,
+                                 slicing={'Time':flap.Intervals(time_range[0],time_range[1])})
+        data_obj.data = data_obj.data/coefficient
+        flap.add_data_object(data_obj, 'GPI_SLICED_DENORM')
+        object_name='GPI_SLICED_DENORM'
+                        
     if plot_filtered:
         print("**** Filtering GPI")
         object_name='GPI_FILTERED'
         try:
             flap.get_data_object_ref(object_name, exp_id=exp_id)
         except:
-            flap.filter_data('GPI',exp_id=exp_id,output_name='GPI_FILTERED',coordinate='Time',
+            flap.filter_data(object_name,
+                             exp_id=exp_id,
+                             coordinate='Time',
                              options={'Type':'Highpass',
                                       'f_low':1e2,
-                                      'Design':'Chebyshev II'}) #Data is in milliseconds
-                
+                                      'Design':'Chebyshev II'},
+                             output_name='GPI_FILTERED') #Data is in milliseconds                                
     if plot_flux or plot_separatrix:
         print('Gathering MDSPlus EFIT data.')
         oplot_options={}
@@ -356,54 +398,61 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if n_frame == 30:
         ny=6
         nx=5
-        gs=GridSpec(nx,ny)
-        for index_grid_x in range(nx):
-            for index_grid_y in range(ny):
-                plt.subplot(gs[index_grid_x,index_grid_y])
-                if start_time is not None:
-                    slicing={'Sample':start_sample_num+index_grid_x*ny+index_grid_y}
-                else:
-                    time=time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y)
-                    slicing={'Time':time}
-                d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
-                slicing={'Time':d.coordinate('Time')[0][0,0]}
-                if plot_flux:
-                    flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
-                    oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
-                                                      'Plot':True,
-                                                      'Colormap':None,
-                                                      'nlevel':51}}
-                    
-                if plot_separatrix:
-                    flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
-                    flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
-                    oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
-                                                         'Data object Y':'SEP Y SLICE',
-                                                         'Plot':True,
-                                                         'Color':'red'}}
-                visibility=[True,True]
-                if index_grid_x != nx-1:
-                    visibility[0]=False
-                if index_grid_y != 0:
-                    visibility[1]=False
-                flap.plot('GPI_SLICED',
-                          plot_type='contour',
-                          exp_id=exp_id,
-                          axes=[x_axis,y_axis,'Time'],
-                          options={'Z range':z_range,
-                                   'Interpolation': 'Closest value',
-                                   'Clear':False,
-                                   'Equal axes':True,
-                                   'Plot units':{'Device R':'mm',
-                                                 'Device z':'mm'},
-                                   'Axes visibility':visibility,
-                                   'Colormap':colormap,
-                                   'Overplot options':oplot_options,
-                                   },
-                           plot_options={'levels':51},
-                           )
-                actual_time=d.coordinate('Time')[0][0,0]
-                plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')
+    if n_frame == 20:
+        ny=5
+        nx=4
+    gs=GridSpec(nx,ny)
+    for index_grid_x in range(nx):
+        for index_grid_y in range(ny):
+            
+            plt.subplot(gs[index_grid_x,index_grid_y])
+            
+            if start_time is not None:
+                slicing={'Sample':start_sample_num+index_grid_x*ny+index_grid_y}
+            else:
+                time=time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y)
+                slicing={'Time':time}
+            d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
+            slicing={'Time':d.coordinate('Time')[0][0,0]}
+            if plot_flux:
+                flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
+                oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
+                                                  'Plot':True,
+                                                  'Colormap':None,
+                                                  'nlevel':51}}
+                
+            if plot_separatrix:
+                flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
+                flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
+                oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
+                                                     'Data object Y':'SEP Y SLICE',
+                                                     'Plot':True,
+                                                     'Color':'red'}}
+            visibility=[True,True]
+            if index_grid_x != nx-1:
+                visibility[0]=False
+            if index_grid_y != 0:
+                visibility[1]=False
+            flap.plot('GPI_SLICED',
+                      plot_type='contour',
+                      exp_id=exp_id,
+                      axes=[x_axis,y_axis,'Time'],
+                      options={'Z range':z_range,
+                               'Interpolation': 'Closest value',
+                               'Clear':False,
+                               'Equal axes':True,
+                               'Plot units':{'Device R':'m',
+                                             'Device z':'m'},
+                               'Axes visibility':visibility,
+                               'Colormap':colormap,
+                               'Colorbar':colorbar_visibility,
+                               'Overplot options':oplot_options,
+                               },
+                       plot_options={'levels':255},
+                       )
+            actual_time=d.coordinate('Time')[0][0,0]
+            #plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')
+            plt.title(f"{actual_time*1000:.3f}"+'ms')
     if save_pdf:
         if time_range is not None:
             plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')

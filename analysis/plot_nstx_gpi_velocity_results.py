@@ -45,12 +45,18 @@ def calculate_avg_velocity_results(window_average=500e-6,
                                    pdf=False,
                                    plot=True,
                                    return_results=False,
-                                   plot_error=True,
+                                   return_error=False,
+                                   plot_variance=True,
+                                   plot_error=False,
                                    normalized_velocity=False,
                                    normalized_structure=True,
                                    subtraction_order=1,
                                    opacity=0.2,
-                                   correlation_threshold=0.6
+                                   correlation_threshold=0.6,
+                                   plot_max_only=False,
+                                   plot_for_publication=False,
+                                   gpi_plane_calculation=False,
+                                   plot_scatter=True,
                                    ):
 
     database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'
@@ -61,12 +67,15 @@ def calculate_avg_velocity_results(window_average=500e-6,
     average_results={'Velocity ccf':np.zeros([2*nwin,2]),
                      'Velocity str avg':np.zeros([2*nwin,2]),
                      'Velocity str max':np.zeros([2*nwin,2]),
+                     'Acceleration ccf':np.zeros([2*nwin,2]),
                      'Frame similarity':np.zeros([2*nwin]),
                      'Correlation max':np.zeros([2*nwin]),
                      'Size avg':np.zeros([2*nwin,2]),
                      'Size max':np.zeros([2*nwin,2]),
                      'Position avg':np.zeros([2*nwin,2]),
                      'Position max':np.zeros([2*nwin,2]),
+                     'Separatrix dist avg':np.zeros([2*nwin]),
+                     'Separatrix dist max':np.zeros([2*nwin]),                     
                      'Centroid avg':np.zeros([2*nwin,2]),
                      'Centroid max':np.zeros([2*nwin,2]),                          
                      'COG avg':np.zeros([2*nwin,2]),
@@ -79,10 +88,36 @@ def calculate_avg_velocity_results(window_average=500e-6,
                      'Angle max':np.zeros([2*nwin]),                          
                      'Str number':np.zeros([2*nwin]),
                      'GPI Dalpha':np.zeros([2*nwin]),
-                     }   
-    
+                     }
+        
     notnan_counter=copy.deepcopy(average_results)
+    inf_counter=np.zeros([2*nwin])
     variance_results=copy.deepcopy(average_results)
+    error_results=copy.deepcopy(average_results)
+    
+    error_results['Velocity ccf'][:,0]=3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Velocity ccf'][:,1]=3.75e-3/2.5e-6  #Pixel resolution
+    
+    error_results['Velocity str max'][:,0]=3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Velocity str max'][:,1]=3.75e-3/2.5e-6  #Pixel resolution
+    
+    error_results['Acceleration ccf'][:,0]=2*3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Acceleration ccf'][:,1]=2*3.75e-3/2.5e-6  #Pixel resolution
+    
+    error_results['Size max'][:,0]=10e-3
+    error_results['Size max'][:,1]=10e-3
+    
+    error_results['Position max'][:,0]=3.75e-3
+    error_results['Position max'][:,1]=3.75e-3
+    
+    error_results['Separatrix dist max']=13.75e-3
+    
+    
+    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+    coeff_r_new=3./800.
+    coeff_z_new=3./800.
+    
     elm_counter=0.
     for index_elm in range(len(elm_index)):
         #preprocess velocity results, tackle with np.nan and outliers
@@ -106,6 +141,65 @@ def calculate_avg_velocity_results(window_average=500e-6,
         
         if status != 'NO':
             velocity_results=pickle.load(open(filename, 'rb'))
+            velocity_results['GPI Dalpha']=velocity_results['GPI Dalpha'][0]
+            
+            velocity_results['Separatrix dist avg']=np.zeros(velocity_results['Position avg'].shape[0])
+            velocity_results['Separatrix dist max']=np.zeros(velocity_results['Position max'].shape[0])
+            
+            R_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\RBDRY',
+                                exp_id=shot,
+                                object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
+            z_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\ZBDRY',
+                                exp_id=shot,
+                                object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
+                                
+            sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
+                                                      np.logical_and(z_sep > coeff_z[2],
+                                                                     z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
+            try:
+                sep_GPI_ind=np.asarray(sep_GPI_ind[0])
+                sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
+                sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)            
+                z_sep_GPI=z_sep[(sep_GPI_ind)]
+                R_sep_GPI=R_sep[sep_GPI_ind]
+                GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
+                R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
+                z_sep_GPI_interp=GPI_z_vert
+                for key in ['max','avg']:
+                    for ind_time in range(len(velocity_results['Position '+key][:,0])):
+                        velocity_results['Separatrix dist '+key][ind_time]=np.min(np.sqrt((velocity_results['Position '+key][ind_time,0]-R_sep_GPI_interp)**2 + 
+                                                                                          (velocity_results['Position '+key][ind_time,1]-z_sep_GPI_interp)**2))
+                        ind_z_min=np.argmin(np.abs(z_sep_GPI-velocity_results['Position '+key][ind_time,1]))
+                        if z_sep_GPI[ind_z_min] >= velocity_results['Position '+key][ind_time,1]:
+                            ind1=ind_z_min
+                            ind2=ind_z_min+1
+                        else:
+                            ind1=ind_z_min-1
+                            ind2=ind_z_min
+                            
+                        radial_distance=velocity_results['Position '+key][ind_time,0]-((velocity_results['Position '+key][ind_time,1]-z_sep_GPI[ind2])/(z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
+                        if radial_distance < 0:
+                            velocity_results['Separatrix dist '+key][ind_time]*=-1
+            except:
+                pass
+
+            if gpi_plane_calculation:
+                det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
+                
+                for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
+                    orig=copy.deepcopy(velocity_results[key])
+                    velocity_results[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
+                    velocity_results[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
+                    
+                velocity_results['Elongation max'][:]=(velocity_results['Size max'][:,0]-velocity_results['Size max'][:,1])/(velocity_results['Size max'][:,0]+velocity_results['Size max'][:,1])
+                velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
+            
+            velocity_results['Acceleration ccf']=copy.deepcopy(velocity_results['Velocity ccf'])
+            velocity_results['Acceleration ccf'][2:,0]=(velocity_results['Velocity ccf'][2:,0]-velocity_results['Velocity ccf'][0:-2,0])/(2*sampling_time)
+            velocity_results['Acceleration ccf'][2:,1]=(velocity_results['Velocity ccf'][2:,1]-velocity_results['Velocity ccf'][0:-2,1])/(2*sampling_time)
+                
             if ('GPI Dalpha' in velocity_results.keys() and index_elm == 0):
                 average_results['GPI Dalpha']=np.zeros([2*nwin])
                 variance_results['GPI Dalpha']=np.zeros([2*nwin])
@@ -174,7 +268,69 @@ def calculate_avg_velocity_results(window_average=500e-6,
         status=db.loc[elm_index[index_elm]]['OK/NOT OK']
 
         if status != 'NO':
+            
             velocity_results=pickle.load(open(filename, 'rb'))
+            velocity_results['GPI Dalpha']=velocity_results['GPI Dalpha'][0]
+
+            velocity_results['Separatrix dist avg']=np.zeros(velocity_results['Position avg'].shape[0])
+            velocity_results['Separatrix dist max']=np.zeros(velocity_results['Position max'].shape[0])
+            
+            velocity_results['Acceleration ccf']=copy.deepcopy(velocity_results['Velocity ccf'])
+            velocity_results['Acceleration ccf'][2:,0]=(velocity_results['Velocity ccf'][2:,0]-velocity_results['Velocity ccf'][0:-2,0])/(2*sampling_time)
+            velocity_results['Acceleration ccf'][2:,1]=(velocity_results['Velocity ccf'][2:,1]-velocity_results['Velocity ccf'][0:-2,1])/(2*sampling_time)
+            
+            R_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\RBDRY',
+                                exp_id=shot,
+                                object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
+            z_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\ZBDRY',
+                                exp_id=shot,
+                                object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
+                                
+            sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
+                                                      np.logical_and(z_sep > coeff_z[2],
+                                                                     z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
+            try:
+                sep_GPI_ind=np.asarray(sep_GPI_ind[0])
+                sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
+                sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)            
+                z_sep_GPI=z_sep[(sep_GPI_ind)]
+                R_sep_GPI=R_sep[sep_GPI_ind]
+                GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
+                R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
+                z_sep_GPI_interp=GPI_z_vert
+                for key in ['max','avg']:
+                    for ind_time in range(len(velocity_results['Position '+key][:,0])):
+                        velocity_results['Separatrix dist '+key][ind_time]=np.min(np.sqrt((velocity_results['Position '+key][ind_time,0]-R_sep_GPI_interp)**2 + 
+                                                                                  (velocity_results['Position '+key][ind_time,1]-z_sep_GPI_interp)**2))
+                        ind_z_min=np.argmin(np.abs(z_sep_GPI-velocity_results['Position '+key][ind_time,1]))
+                        if z_sep_GPI[ind_z_min] >= velocity_results['Position '+key][ind_time,1]:
+                            ind1=ind_z_min
+                            ind2=ind_z_min+1
+                        else:
+                            ind1=ind_z_min-1
+                            ind2=ind_z_min
+                        
+                        radial_distance=velocity_results['Position '+key][ind_time,0]-((velocity_results['Position '+key][ind_time,1]-z_sep_GPI[ind2])/(z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
+                        if radial_distance < 0:
+                            velocity_results['Separatrix dist '+key][ind_time]*=-1
+            except:
+                pass
+            if gpi_plane_calculation:
+                coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+                coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+                coeff_r_new=3./800.
+                coeff_z_new=3./800.
+                det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
+                
+                for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
+                    orig=copy.deepcopy(velocity_results[key])
+                    velocity_results[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
+                    velocity_results[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
+                
+                velocity_results['Elongation max'][:]=(velocity_results['Size max'][:,0]-velocity_results['Size max'][:,1])/(velocity_results['Size max'][:,0]+velocity_results['Size max'][:,1])
+                velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
             velocity_results['Velocity ccf'][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
             time=velocity_results['Time']
             elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-window_average,
@@ -195,8 +351,16 @@ def calculate_avg_velocity_results(window_average=500e-6,
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
                     variance_results[key]+=(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]-average_results[key])**2
+                    if key == 'Elongation max':
+                        cur_error=20e-3/(velocity_results['Size max'][elm_time_ind-nwin:elm_time_ind+nwin,0]+
+                                         velocity_results['Size max'][elm_time_ind-nwin:elm_time_ind+nwin,1])
+                        ind_inf=np.isinf(cur_error)
+                        cur_error[ind_inf]=0.
+                        inf_counter+=np.logical_not(ind_inf)
+                        error_results['Elongation max']+=cur_error
             except:
                 pass
+            
     for key in variance_results.keys():
         if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
             variance_results[key]=np.sqrt(variance_results[key]/elm_counter)
@@ -216,16 +380,42 @@ def calculate_avg_velocity_results(window_average=500e-6,
     average_results['Tau']=(np.arange(2*nwin)*sampling_time-window_average)*1e3 #Let the results be in ms
     variance_results['Tau']=(np.arange(2*nwin)*sampling_time-window_average)*1e3 #Let the results be in ms
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
+
+    
+    error_results['Velocity ccf'][:,0]/=np.sqrt(notnan_counter['Velocity ccf'][:,0])
+    error_results['Velocity ccf'][:,1]/=np.sqrt(notnan_counter['Velocity ccf'][:,1])
+    
+    error_results['Velocity str max'][:,0]/=np.sqrt(notnan_counter['Velocity str max'][:,0])
+    error_results['Velocity str max'][:,1]/=np.sqrt(notnan_counter['Velocity str max'][:,1])
+    
+    error_results['Acceleration ccf'][:,0]/=np.sqrt(notnan_counter['Acceleration ccf'][:,0])
+    error_results['Acceleration ccf'][:,1]/=np.sqrt(notnan_counter['Acceleration ccf'][:,1])
+    
+    error_results['Size max'][:,0]/=np.sqrt(notnan_counter['Size max'][:,0])
+    error_results['Size max'][:,1]/=np.sqrt(notnan_counter['Size max'][:,1])
+    
+    error_results['Position max'][:,0]/=np.sqrt(notnan_counter['Position max'][:,0])
+    error_results['Position max'][:,1]/=np.sqrt(notnan_counter['Position max'][:,1])
+    
+    error_results['Separatrix dist max']/=np.sqrt(notnan_counter['Size max'][:,0])
+    error_results['Elongation max']/=inf_counter*np.sqrt(notnan_counter['Elongation max'])
     
     if pdf or plot:
         plot_average_velocity_results(average_results=average_results,
                                       variance_results=variance_results,
+                                      error_results=error_results,
                                       plot_error=plot_error,
+                                      plot_variance=plot_variance,
                                       plot=plot,
                                       pdf=pdf,
+                                      plot_max_only=plot_max_only,
+                                      plot_for_publication=plot_for_publication,
                                       pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULTS_'+str(correlation_threshold),
                                       normalized_velocity=normalized_velocity,
-                                      opacity=opacity)
+                                      opacity=opacity,
+                                      plot_scatter=plot_scatter)
+    if return_error:
+        return average_results, error_results
     if return_results:
         return average_results
     
@@ -600,13 +790,18 @@ def plot_kmeans_clustered_elms(ncluster=4,
 
 def plot_average_velocity_results(average_results=None,
                                   variance_results=None,
-                                  plot_error=True,
+                                  error_results=None,
+                                  plot_variance=True,
+                                  plot_error=False,
                                   pdf=True,
                                   plot=True,
+                                  plot_max_only=False,
+                                  plot_for_publication=False,
                                   pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULTS',
                                   ylimits=None,
                                   normalized_velocity=False,
-                                  opacity=0.2):
+                                  opacity=0.2,
+                                  plot_scatter=False):
     
     tau_range=[min(average_results['Tau']),max(average_results['Tau'])]
     if plot:
@@ -620,36 +815,76 @@ def plot_average_velocity_results(average_results=None,
      
     plot_index=np.logical_not(np.isnan(average_results['Velocity ccf'][:,0]))
     plot_index_structure=np.logical_not(np.isnan(average_results['Elongation avg']))
-
+    if plot_for_publication:
+        figsize=(8.5/2.54, 
+                 8.5/2.54/1.618*1.1)
+        plt.rc('font', family='serif', serif='Helvetica')
+        labelsize=9
+        linewidth=0.5
+        major_ticksize=2
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+    else:
+        figsize=None
 
     if pdf:
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         pdf_filename=wd+'/plots/'+pdf_filename
-        if plot_error:
+        if plot_variance:
             pdf_filename+='_with_error'
         if normalized_velocity:
             pdf_filename+='_norm_vel'
         pdf_pages=PdfPages(pdf_filename+'.pdf')
+        
     #Plotting the radial velocity from CCF        
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     
     ax.plot(average_results['Tau'][plot_index], 
              average_results['Velocity ccf'][plot_index,0])
-    ax.scatter(average_results['Tau'][plot_index], 
-                average_results['Velocity ccf'][plot_index,0], 
-                s=5, 
-                marker='o')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                    average_results['Velocity ccf'][plot_index,0], 
+                    s=5, 
+                    marker='o')
+    if plot_variance:
         x=average_results['Tau'][plot_index]
         y=average_results['Velocity ccf'][plot_index,0]
         dy=variance_results['Velocity ccf'][plot_index,0]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    ax.plot(average_results['Tau'][plot_index_structure], 
-            average_results['Velocity str avg'][plot_index_structure,0], 
-            linewidth=0.3,
-            color='green')
+        
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Velocity ccf'][plot_index,0]
+        dy=error_results['Velocity ccf'][plot_index,0]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+        
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                average_results['Velocity str avg'][plot_index_structure,0], 
+                linewidth=0.3,
+                color='green')
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Velocity str max'][plot_index_structure,0], 
              linewidth=0.3,
@@ -661,33 +896,47 @@ def plot_average_velocity_results(average_results=None,
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity ccf'][0,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting the radial velocity from the structures.
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.plot(average_results['Tau'][plot_index_structure],
             average_results['Velocity str max'][plot_index_structure,0],
             color='red')
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Velocity str max'][plot_index_structure,0], 
-                s=5, 
-                marker='o',
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Velocity str max'][plot_index_structure,0], 
+                    s=5, 
+                    marker='o',
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Velocity str max'][plot_index_structure,0]
         dy=variance_results['Velocity str max'][plot_index_structure,0]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    ax.plot(average_results['Tau'][plot_index_structure],
-            average_results['Velocity str avg'][plot_index_structure,0])
-    ax.scatter(average_results['Tau'][plot_index_structure],
-               average_results['Velocity str avg'][plot_index_structure,0], 
-               s=5, 
-               marker='o')
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Velocity str max'][plot_index,0]
+        dy=error_results['Velocity str max'][plot_index,0]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure],
+                average_results['Velocity str avg'][plot_index_structure,0])
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure],
+                   average_results['Velocity str avg'][plot_index_structure,0], 
+                   s=5, 
+                   marker='o')
     
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('v_rad[m/s]')
@@ -695,29 +944,43 @@ def plot_average_velocity_results(average_results=None,
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity str max'][1,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting the poloidal velocity from CCF
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.plot(average_results['Tau'][plot_index], 
              average_results['Velocity ccf'][plot_index,1]) 
-    ax.scatter(average_results['Tau'][plot_index], 
-                average_results['Velocity ccf'][plot_index,1], 
-                s=5, 
-                marker='o')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                    average_results['Velocity ccf'][plot_index,1], 
+                    s=5, 
+                    marker='o')
+    if plot_variance:
         x=average_results['Tau'][plot_index]
         y=average_results['Velocity ccf'][plot_index,1]
         dy=variance_results['Velocity ccf'][plot_index,1]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    ax.plot(average_results['Tau'][plot_index_structure], 
-            average_results['Velocity str avg'][plot_index_structure,1], 
-            linewidth=0.3,
-            color='green')
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Velocity ccf'][plot_index,1]
+        dy=error_results['Velocity ccf'][plot_index,1]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+        
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                average_results['Velocity str avg'][plot_index_structure,1], 
+                linewidth=0.3,
+                color='green')
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Velocity str max'][plot_index_structure,1], 
              linewidth=0.3,
@@ -729,61 +992,82 @@ def plot_average_velocity_results(average_results=None,
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity ccf'][1,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
 
     #Plotting the poloidal velocity from the structures.
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.plot(average_results['Tau'][plot_index_structure],
             average_results['Velocity str max'][plot_index_structure,1],
             color='red')
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Velocity str max'][plot_index_structure,1], 
-                s=5, 
-                marker='o',
-                color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Velocity str max'][plot_index_structure,1], 
+                    s=5, 
+                    marker='o',
+                    color='red')
 
-    if plot_error:
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Velocity str max'][plot_index_structure,1]
         dy=variance_results['Velocity str max'][plot_index_structure,1]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    ax.plot(average_results['Tau'][plot_index_structure],
-            average_results['Velocity str avg'][plot_index_structure,1])    
-    ax.scatter(average_results['Tau'][plot_index_structure],
-               average_results['Velocity str avg'][plot_index_structure,1], 
-               s=5, 
-               marker='o')
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Velocity str max'][plot_index,1]
+        dy=error_results['Velocity str max'][plot_index,1]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+        
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure],
+                average_results['Velocity str avg'][plot_index_structure,1])    
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure],
+                       average_results['Velocity str avg'][plot_index_structure,1], 
+                       s=5, 
+                       marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('v_pol[m/s]')
     ax.set_title('Poloidal velocity of the average (blue) and \n maximum (red) structures.')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Velocity str max'][1,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
     
     #Plotting both radial and poloidal velocity from CCF        
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     
     ax.plot(average_results['Tau'][plot_index], 
              average_results['Velocity ccf'][plot_index,0])
-    ax.scatter(average_results['Tau'][plot_index], 
-                average_results['Velocity ccf'][plot_index,0], 
-                s=5, 
-                marker='o')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                    average_results['Velocity ccf'][plot_index,0], 
+                    s=5, 
+                    marker='o')
     ax.plot(average_results['Tau'][plot_index], 
              average_results['Velocity ccf'][plot_index,1],
              color='red')
-    ax.scatter(average_results['Tau'][plot_index], 
-               average_results['Velocity ccf'][plot_index,1],
-               s=5, 
-               marker='o',
-               color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                   average_results['Velocity ccf'][plot_index,1],
+                   s=5, 
+                   marker='o',
+                   color='red')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Velocity [m/s]')
     ax.set_title('Poloidal velocity (red) and radial velocity (blue)\n of the average results.')
@@ -792,79 +1076,187 @@ def plot_average_velocity_results(average_results=None,
     if ylimits is not None:
         ax.set_ylim(average_results['Velocity ccf'][plot_index,0].min(),
                     average_results['Velocity ccf'][plot_index,1].max())
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting both radial and poloidal velocity from CCF        
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     
     ax.plot(average_results['Tau'][plot_index], 
             average_results['Velocity ccf'][plot_index,0]*average_results['Velocity ccf'][plot_index,1])
-    ax.scatter(average_results['Tau'][plot_index], 
-               average_results['Velocity ccf'][plot_index,0]*average_results['Velocity ccf'][plot_index,1], 
-               s=5, 
-               marker='o')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                   average_results['Velocity ccf'][plot_index,0]*average_results['Velocity ccf'][plot_index,1], 
+                   s=5, 
+                   marker='o')
 
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Velocity^2 [m^2/s^2]')
     ax.set_title('Poloidal velocity*radial velocity of the average results.')
     ax.set_xlim(tau_range)
 
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()        
+    
+    #Radial acceleration
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    ax.plot(average_results['Tau'][plot_index], 
+             average_results['Acceleration ccf'][plot_index,0])
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                    average_results['Acceleration ccf'][plot_index,0], 
+                    s=5, 
+                    marker='o')
+    if plot_variance:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Acceleration ccf'][plot_index,0]
+        dy=variance_results['Acceleration ccf'][plot_index,0]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Acceleration ccf'][plot_index,0]
+        dy=error_results['Acceleration ccf'][plot_index,0]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
         
+    ax.set_xlabel('Tau [ms]')
+    ax.set_ylabel('v_rad[m/s]')
+    ax.set_title('Radial acceleration of the average results. \n (blue: ccf, green: str avg, red: str max)')
+    ax.set_xlim(tau_range)
+    if ylimits is not None:
+        ax.set_ylim(ylimits['Acceleration ccf'][0,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+    fig.tight_layout()
+    if pdf:
+        pdf_pages.savefig()
+        
+    #Poloidal acceleration
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    ax.plot(average_results['Tau'][plot_index], 
+             average_results['Acceleration ccf'][plot_index,1])
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index], 
+                    average_results['Acceleration ccf'][plot_index,1], 
+                    s=5, 
+                    marker='o')
+    if plot_variance:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Acceleration ccf'][plot_index,1]
+        dy=variance_results['Acceleration ccf'][plot_index,1]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Acceleration ccf'][plot_index,1]
+        dy=error_results['Acceleration ccf'][plot_index,1]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)        
+
+
+    ax.set_xlabel('Tau [ms]')
+    ax.set_ylabel('a_pol[m/s]')
+    ax.set_title('Poloidal accelearion of the average results. \n (blue: ccf, green: str avg, red: str max)')
+    ax.set_xlim(tau_range)
+    if ylimits is not None:
+        ax.set_ylim(ylimits['Acceleration ccf'][plot_index_structure,1])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+    fig.tight_layout()
+    if pdf:
+        pdf_pages.savefig()
+    
+    
     #Plotting the correlations
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Frame similarity
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Frame similarity'][plot_index_structure],
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-               average_results['Frame similarity'][plot_index_structure], 
-               s=5, 
-               marker='o', 
-               color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                   average_results['Frame similarity'][plot_index_structure], 
+                   s=5, 
+                   marker='o', 
+                   color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Frame similarity'][plot_index_structure]
         dy=variance_results['Frame similarity'][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index]
+        y=average_results['Frame similarity'][plot_index_structure]
+        dy=error_results['Frame similarity'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
     #Maximum correlation
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Correlation max'][plot_index_structure]) 
-    
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Correlation max'][plot_index_structure], 
-                s=5, 
-                marker='o')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Correlation max'][plot_index_structure], 
+                    s=5, 
+                    marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Correlation')
     ax.set_title('Maximum correlation (blue) and frame similarity (red) \n of the average results.')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Frame similarity'])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Average signal in GPI
     if 'GPI Dalpha' in average_results.keys():
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=figsize)
         ax.plot(average_results['Tau'], 
                 average_results['GPI Dalpha']) 
-        
-        ax.scatter(average_results['Tau'], 
-                   average_results['GPI Dalpha'], 
-                   s=5, 
-                   marker='o')
-        if plot_error:
+        if plot_scatter:
+            ax.scatter(average_results['Tau'], 
+                       average_results['GPI Dalpha'], 
+                       s=5, 
+                       marker='o')
+        if plot_variance:
             x=average_results['Tau']
             y=average_results['GPI Dalpha']
             dy=variance_results['GPI Dalpha']
+            ax.fill_between(x,y-dy,y+dy,
+                            color='gray',
+                            alpha=opacity)
+        if plot_error:
+            x=average_results['Tau']
+            y=average_results['GPI Dalpha']
+            dy=error_results['GPI Dalpha']
             ax.fill_between(x,y-dy,y+dy,
                             color='gray',
                             alpha=opacity)
@@ -872,417 +1264,632 @@ def plot_average_velocity_results(average_results=None,
         ax.set_ylabel('GPI D alpha ')
         ax.set_title('Average GPI D alpha signal')
         ax.set_xlim(tau_range)
+        
+        if plot_for_publication:
+            x1,x2=ax.get_xlim()
+            y1,y2=ax.get_ylim()
+            ax.set_aspect((x2-x1)/(y2-y1)/1.618)
         fig.tight_layout()
         if pdf:
             pdf_pages.savefig()
         
     #Plotting the radial size
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Size max'][:,0][plot_index_structure],
-             color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-               average_results['Size max'][:,0][plot_index_structure], 
-               s=5, 
-               marker='o', 
-               color='red')
-    if plot_error:
+             color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                   average_results['Size max'][:,0][plot_index_structure], 
+                   s=5, 
+                   marker='o', 
+                   color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Size max'][:,0][plot_index_structure]
         dy=variance_results['Size max'][:,0][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Size max'][:,0][plot_index_structure]
+        dy=error_results['Size max'][:,0][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)       
+
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Size avg'][:,0][plot_index_structure]) 
-    
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Size avg'][:,0][plot_index_structure], 
-                s=5, 
-                marker='o')
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Size avg'][:,0][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Size avg'][:,0][plot_index_structure], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Radial size [m]')
     ax.set_title('Average (blue) and maximum (red) radial\n size of structures of '+'the average results.')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Size max'][0,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting the poloidal size
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Size max'][:,1][plot_index_structure], 
-             color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Size max'][:,1][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+             color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Size max'][:,1][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Size max'][:,1][plot_index_structure]
         dy=variance_results['Size max'][:,1][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Size avg'][:,1][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Size avg'][:,1][plot_index_structure], 
-                s=5, 
-                marker='o')
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Size max'][:,1][plot_index_structure]
+        dy=error_results['Size max'][:,1][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+        
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Size avg'][:,1][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Size avg'][:,1][plot_index_structure], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Poloidal size [m]')
     ax.set_title('Average (blue) and maximum (red) poloidal\n size of structures of '+'the average results.')    
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Size max'][1,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()    
         
     #Plotting the radial position of the fit ellipse
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Position max'][:,0][plot_index_structure], 
-             color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Position max'][:,0][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+             color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Position max'][:,0][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Position max'][:,0][plot_index_structure]
         dy=variance_results['Position max'][:,0][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Position max'][:,0][plot_index_structure]
+        dy=error_results['Position max'][:,0][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Position avg'][:,0][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Position avg'][:,0][plot_index_structure], 
-                s=5, 
-                marker='o')
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                average_results['Position avg'][:,0][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Position avg'][:,0][plot_index_structure], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Radial position [m]')            
     ax.set_title('Average (blue) and maximum (red) radial\n position of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Position max'][0,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()                  
 
     #Plotting the radial centroid of the half path
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Centroid max'][plot_index_structure,0], 
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Centroid max'][plot_index_structure,0], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Centroid max'][plot_index_structure,0], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Centroid max'][:,0][plot_index_structure]
         dy=variance_results['Centroid max'][:,0][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Centroid max'][:,0][plot_index_structure]
+        dy=error_results['Centroid max'][:,0][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Centroid avg'][plot_index_structure,0]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Centroid avg'][plot_index_structure,0], 
-                s=5, 
-                marker='o')
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Centroid avg'][plot_index_structure,0]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Centroid avg'][plot_index_structure,0], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Radial centroid [m]')
     ax.set_title('Average (blue) and maximum (red) radial\n centroid of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Centroid max'][0,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig() 
 
     #Plotting the radial COG of the structure
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['COG max'][plot_index_structure,0], 
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['COG max'][plot_index_structure,0], 
-                s=5, 
-                marker='o', 
-                color='red')      
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['COG max'][plot_index_structure,0], 
+                    s=5, 
+                    marker='o', 
+                    color='red')      
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['COG max'][:,0][plot_index_structure]
         dy=variance_results['COG max'][:,0][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['COG max'][:,0][plot_index_structure]
+        dy=error_results['COG max'][:,0][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['COG avg'][plot_index_structure,0]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['COG avg'][plot_index_structure,0], 
-                s=5, 
-                marker='o')
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['COG avg'][plot_index_structure,0]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['COG avg'][plot_index_structure,0], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Radial COG [m]')
     ax.set_title('Average (blue) and maximum (red) radial\n center of gravity of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['COG max'][0,:])    
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()      
         
     #Plotting the poloidal position of the fit ellipse
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Position max'][:,1][plot_index_structure], 
              color='red')
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Position max'][:,1][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Position max'][:,1][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Position max'][:,1][plot_index_structure]
         dy=variance_results['Position max'][:,1][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Position max'][:,1][plot_index_structure]
+        dy=error_results['Position max'][:,1][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Position avg'][:,1][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Position avg'][:,1][plot_index_structure], 
-                s=5, 
-                marker='o')     
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Position avg'][:,1][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Position avg'][:,1][plot_index_structure], 
+                        s=5, 
+                        marker='o')     
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Poloidal position [m]')
     ax.set_title('Average (blue) and maximum (red) poloidal\n position of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Position max'][1,:])
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()                               
         
     #Plotting the poloidal centroid of the half path
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Centroid max'][plot_index_structure,1], 
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Centroid max'][plot_index_structure,1], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Centroid max'][plot_index_structure,1], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Centroid max'][:,1][plot_index_structure]
         dy=variance_results['Centroid max'][:,1][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    #Average            
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Centroid avg'][plot_index_structure,1]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Centroid avg'][plot_index_structure,1], 
-                s=5, 
-                marker='o')
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Centroid max'][:,1][plot_index_structure]
+        dy=error_results['Centroid max'][:,1][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)
+    #Average
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Centroid avg'][plot_index_structure,1]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Centroid avg'][plot_index_structure,1], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Poloidal centroid [m]')
     ax.set_title('Average (blue) and maximum (red) poloidal\n centroid of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Centroid max'][1,:])    
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()          
         
     #Plotting the poloidal COG of the structure
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['COG max'][plot_index_structure,1], 
-             color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['COG max'][plot_index_structure,1], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+             color='red')
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['COG max'][plot_index_structure,1], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['COG max'][:,1][plot_index_structure]
         dy=variance_results['COG max'][:,1][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
+                        alpha=opacity)
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['COG max'][:,1][plot_index_structure]
+        dy=error_results['COG max'][:,1][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
                         alpha=opacity)        
-    #Average            
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['COG avg'][plot_index_structure,1]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['COG avg'][plot_index_structure,1], 
-                s=5, 
-                marker='o')
+    #Average
+    if not plot_max_only:    
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['COG avg'][plot_index_structure,1]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['COG avg'][plot_index_structure,1], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Poloidal COG [m]')
     ax.set_title('Average (blue) and maximum (red) radial\n center of gravity of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['COG max'][1,:])        
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
+        
+
+    #Plotting the distance from the separatrix
+    fig, ax = plt.subplots(figsize=figsize)
+    #Maximum
+    ax.plot(average_results['Tau'][plot_index_structure], 
+             average_results['Separatrix dist max'][plot_index_structure], 
+             color='red') 
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Separatrix dist max'][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Separatrix dist max'][plot_index_structure]
+        dy=variance_results['Separatrix dist max'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)        
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Separatrix dist max'][plot_index_structure]
+        dy=error_results['Separatrix dist max'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)   
+    #Average
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Separatrix dist avg'][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Separatrix dist avg'][plot_index_structure], 
+                        s=5, 
+                        marker='o')
+    ax.set_xlabel('Tau [ms]')
+    ax.set_ylabel('Sep dist [m]')
+    ax.set_title('Average (blue) and maximum (red) distance from separatrix\n of structures of '+'the average results.')   
+    ax.set_xlim(tau_range)
+    if ylimits is not None:
+        ax.set_ylim(ylimits['Separatrix dist max'])     
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+    fig.tight_layout()
+    if pdf:
+        pdf_pages.savefig() 
     
     #Plotting the elongation
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Elongation max'][plot_index_structure], 
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Elongation max'][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Elongation max'][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Elongation max'][plot_index_structure]
         dy=variance_results['Elongation max'][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
-                        alpha=opacity)        
+                        alpha=opacity)      
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Elongation max'][plot_index_structure]
+        dy=error_results['Elongation max'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)          
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Elongation avg'][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Elongation avg'][plot_index_structure], 
-                s=5, 
-                marker='o')     
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Elongation avg'][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Elongation avg'][plot_index_structure], 
+                        s=5, 
+                        marker='o')
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Elongation')
     ax.set_title('Average (blue) and maximum (red) elongation\n of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Elongation max'])     
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()                
     
     #Plotting the angle
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
              average_results['Angle max'][plot_index_structure], 
              color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Angle max'][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Angle max'][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Angle max'][plot_index_structure]
         dy=variance_results['Angle max'][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)
-    #Average            
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Angle avg'][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Angle avg'][plot_index_structure], 
-                s=5, 
-                marker='o') 
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Angle max'][plot_index_structure]
+        dy=error_results['Angle max'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)               
+        
+    #Average
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Angle avg'][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Angle avg'][plot_index_structure], 
+                        s=5, 
+                        marker='o') 
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Angle [rad]')
     ax.set_title('Average (blue) and maximum (red) angle\n of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Angle max'])     
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting the area
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     #Maximum
     ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Area max'][plot_index_structure], 
-                color='red') 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Area max'][plot_index_structure], 
-                s=5, 
-                marker='o', 
-                color='red')
-    if plot_error:
+            average_results['Area max'][plot_index_structure], 
+            color='red') 
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][plot_index_structure], 
+                    average_results['Area max'][plot_index_structure], 
+                    s=5, 
+                    marker='o', 
+                    color='red')
+    if plot_variance:
         x=average_results['Tau'][plot_index_structure]
         y=average_results['Area max'][plot_index_structure]
         dy=variance_results['Area max'][plot_index_structure]
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
                         alpha=opacity)        
+    if plot_error:
+        x=average_results['Tau'][plot_index_structure]
+        y=average_results['Area max'][plot_index_structure]
+        dy=error_results['Area max'][plot_index_structure]
+        ax.fill_between(x,y-dy,y+dy,
+                        color='gray',
+                        alpha=opacity)             
     #Average
-    ax.plot(average_results['Tau'][plot_index_structure], 
-             average_results['Area avg'][plot_index_structure]) 
-    ax.scatter(average_results['Tau'][plot_index_structure], 
-                average_results['Area avg'][plot_index_structure], 
-                s=5, 
-                marker='o')  
+    if not plot_max_only:
+        ax.plot(average_results['Tau'][plot_index_structure], 
+                 average_results['Area avg'][plot_index_structure]) 
+        if plot_scatter:
+            ax.scatter(average_results['Tau'][plot_index_structure], 
+                        average_results['Area avg'][plot_index_structure], 
+                        s=5, 
+                        marker='o')  
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Area [m2]')
     ax.set_title('Average (blue) and maximum (red) area\n of structures of '+'the average results.')   
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Area max'])  
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
         
     #Plotting the number of structures 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.plot(average_results['Tau'][:], 
              average_results['Str number'][:]) 
-    ax.scatter(average_results['Tau'][:], 
-                average_results['Str number'][:], 
-                s=5, 
-                marker='o')
-    if plot_error:
+    if plot_scatter:
+        ax.scatter(average_results['Tau'][:], 
+                    average_results['Str number'][:], 
+                    s=5, 
+                    marker='o')
+    if plot_variance:
         x=average_results['Tau']
         y=average_results['Str number']
         dy=variance_results['Str number']
         ax.fill_between(x,y-dy,y+dy,
                         color='gray',
-                        alpha=opacity)           
+                        alpha=opacity)     
     ax.set_xlabel('Tau [ms]')
     ax.set_ylabel('Str number')
     ax.set_title('Number of structures vs. time of '+'the average results.')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Str number']) 
+    if plot_for_publication:
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_aspect((x2-x1)/(y2-y1)/1.618)
     fig.tight_layout()
     if pdf:
         pdf_pages.savefig()
@@ -1629,10 +2236,12 @@ def calculate_avg_sz_velocity_results(window_average=500e-6,
                 s=5, 
                 marker='o')
     ax.plot(average_results['Tau'], 
-            average_results['Maximum correlation p']) 
+            average_results['Maximum correlation p'],
+            color='red') 
     ax.scatter(average_results['Tau'], 
                 average_results['Maximum correlation p'], 
-                s=5, 
+                s=5,
+                color='red',
                 marker='o')
     if plot_error:
         x=average_results['Tau']
@@ -1657,5 +2266,3 @@ def calculate_avg_sz_velocity_results(window_average=500e-6,
     if pdf:
         pdf_object.savefig()
         pdf_object.close()
-    
-    print(average_results['Maximum correlation p'])
