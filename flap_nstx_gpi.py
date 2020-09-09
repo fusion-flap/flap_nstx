@@ -10,21 +10,22 @@ Needs pims package installed
 e.g.: conda install -c conda-forge pims
 
 """
-
+#Core imports
 import os
-import numpy as np
 import copy
 import subprocess
+#CINE reader import
 import pims
-from scipy import interpolate
+#FLAP imports
+import flap
+#Scientic package imports
 import matplotlib.pyplot as plt
 from matplotlib import path as pltPath
-import flap
-
-#from .spatcal import *
+import numpy as np
+from scipy import interpolate
 
 if (flap.VERBOSE):
-    print("Importing flap_nstx_gpi")
+    print("Importing flap_nstx")
     
     
 def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, coordinates=None, data_source=None):
@@ -36,7 +37,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     if (exp_id is None):
         raise ValueError('exp_id should be set for NSTX GPI.')
     if (type(exp_id) is not int):
-        raise TypeError("exp_id should be an integer.")
+        raise TypeError("exp_id should be an integer and not %s"%(type(exp_id)))
 
     default_options = {'Local datapath':'data',
                        'Datapath':None,
@@ -51,6 +52,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                        'End delay': 0,
                        'Download only': False
                        }
+    
     _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
     folder={
@@ -114,38 +116,32 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
             raise SystemError("The file couldn't be transferred to the local directory.")
     if (_options['Download only']):
             d = flap.DataObject(data_array=np.asarray([0,1]),
-                        data_unit=None,
-                        coordinates=None,
-                        exp_id=exp_id,
-                        data_title=data_title,
-                        info={'Options':_options},
-                        data_source="NSTX_GPI")
+                                data_unit=None,
+                                coordinates=None,
+                                exp_id=exp_id,
+                                data_title=data_title,
+                                info={'Options':_options},
+                                data_source="NSTX_GPI")
             return d
         
     images=pims.Cine(local_file_folder+file_name)
 
-    data_arr=np.asarray(images[:], dtype=np.int16)
+    data_arr=np.flip(np.asarray(images[:], dtype=np.int16),2) #The original data is 80x64, this line converts it to 64x80
+    
     data_unit = flap.Unit(name='Signal',unit='Digit')
-
-    time_arr=np.asarray([i[0].timestamp() - images.trigger_time['datetime'].timestamp()-images.trigger_time['second_fraction']  for i in images.frame_time_stamps],dtype=np.float)\
-                    +np.asarray([i[1]              for i in images.frame_time_stamps],dtype=np.float)
-
+    
+    #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
+    #The frame_rate corresponds with the one from IDL.
+    trigger_time=images.header_dict['first_image_no']/images.frame_rate
+    
+    
     coord = [None]*6
     
-    
-        #def get_time_to_trigger(self, i):
-        #"""Get actual time (s) of frame i, relative to trigger."""
-        #ti = 
-        #ti = images.frame_time_stamps[i][0].timestamp() + images.frame_time_stamps[i][1]
-        #tt= 
-        #tt = images.trigger_time['datetime'].timestamp() + images.trigger_time['second_fraction']
-        #return ti - tt
-    
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
-                                               unit='ms',
+                                               unit='s',
                                                mode=flap.CoordinateMode(equidistant=True),
-                                               start=time_arr[0]*1000.,
-                                               step=(time_arr[1]-time_arr[0])*1000.,
+                                               start=trigger_time,
+                                               step=1/float(images.frame_rate),
                                                #shape=time_arr.shape,
                                                dimension_list=[0]
                                                )))
@@ -173,33 +169,60 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                                dimension_list=[2]
                                                )))
     
-        #Get the spatial calibration for the GPI data
+    #Get the spatial calibration for the GPI data
     #This spatial calibration is based on the rz_map.dat which used a linear
     #approximation for the transformation between pixel and spatial coordinates
     #This needs to be updated as soon as more information is available on the
     #calibration coordinates.
       
-    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])
-    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])
-     
+    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters
+    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000. #The coordinates are in meters
+
+#   This part is not producing appropriate results due to the equidistant spacing and double
+#   coefficients. Slicing is only possible for single steps.    
+    
+#    coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_r[2],
+#                                               step=[coeff_r[0],coeff_r[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
+#    
+#    coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_z[2],
+#                                               step=[coeff_z[0],coeff_z[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
+    r_coordinates=np.zeros([64,80])
+    z_coordinates=np.zeros([64,80])
+    for i_x in range(64):
+        for i_y in range(80):
+            r_coordinates[i_x,i_y]=coeff_r[0]*i_x+coeff_r[1]*i_y+coeff_r[2]
+            z_coordinates[i_x,i_y]=coeff_z[0]*i_x+coeff_z[1]*i_y+coeff_z[2]
+
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-                                               unit='mm',
-                                               mode=flap.CoordinateMode(equidistant=True),
-                                               start=coeff_r[2],
-                                               step=[coeff_r[0],coeff_r[1]],
-                                               dimension_list=[1,2]
-                                               )))
+                                            unit='m',
+                                            mode=flap.CoordinateMode(equidistant=False),
+                                            values=r_coordinates,
+                                            shape=r_coordinates.shape,
+                                            dimension_list=[1,2]
+                                            )))
     
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-                                               unit='mm',
-                                               mode=flap.CoordinateMode(equidistant=True),
-                                               start=coeff_z[2],
-                                               step=[coeff_z[0],coeff_z[1]],
-                                               dimension_list=[1,2]
-                                               )))
+                                           unit='m',
+                                           mode=flap.CoordinateMode(equidistant=False),
+                                           values=z_coordinates,
+                                           shape=z_coordinates.shape,
+                                           dimension_list=[1,2]
+                                           )))
     
-    _options["Trigger time"]=images.trigger_time['second_fraction']
+    _options["Trigger time [s]"]=trigger_time
     _options["FPS"]=images.frame_rate
+    _options["Sample time [s]"]=1/float(images.frame_rate)
+    _options["Exposure time [s]"]=images.tagged_blocks['exposure_only'][0] 
     _options["X size"]=images.frame_shape[0]
     _options["Y size"]=images.frame_shape[1]
     _options["Bits"]=images.bitmapinfo_dict["bi_bit_count"]
@@ -227,36 +250,40 @@ def add_coordinate(data_object,
             raise ValueError('R,z or t coordinates are missing.')
         try:
             psi_rz_obj=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\PSIRZ',
+                                     name='\EFIT02::\PSIRZ',
                                      exp_id=data_object.exp_id,
                                      object_name='PSIRZ_FOR_COORD')
             psi_mag=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIMAG',
+                                     name='\EFIT02::\SSIMAG',
                                      exp_id=data_object.exp_id,
                                      object_name='SSIMAG_FOR_COORD')
             psi_bdry=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT01::\SSIBRY',
+                                     name='\EFIT02::\SSIBRY',
                                      exp_id=data_object.exp_id,
                                      object_name='SSIBRY_FOR_COORD')
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
         psi_values=psi_rz_obj.data
-        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
-        psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
-        psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
+        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]
+        psi_r_coord=psi_rz_obj.coordinate('Device R')[0]
+        psi_z_coord=psi_rz_obj.coordinate('Device z')[0]
         #Do the interpolation
         psi_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
-        try:
-            for index_t in range(psi_t_coord.shape[0]):
-                points=np.asarray([psi_r_coord[index_t,:,:].flatten(),psi_z_coord[index_t,:,:].flatten()]).transpose()
-                values=((psi_values[index_t]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])).flatten()
-                psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,values,(gpi_r_coord[0,:,:].transpose(),gpi_z_coord[0,:,:].transpose()),method='cubic').transpose()
-            psi_values_total_interpol=np.zeros(data_object.data.shape)
-            for index_r in range(gpi_r_coord.shape[1]):
-                for index_z in range(gpi_r_coord.shape[2]):
-                    psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])              
-        except:
-            raise ValueError("An error has occured during the interpolation.")
+
+        for index_t in range(psi_t_coord.shape[0]):
+            points=np.asarray([psi_r_coord[index_t,:,:].flatten(),
+                               psi_z_coord[index_t,:,:].flatten()]).transpose()
+            psi_values_spat_interpol[index_t,:,:]=interpolate.griddata(points,psi_values[index_t,:,:].transpose().flatten(),
+                                                                       np.asarray([gpi_r_coord[0,:,:].flatten(),gpi_z_coord[0,:,:].flatten()]).transpose(),method='cubic').reshape(psi_values_spat_interpol[index_t,:,:].shape)
+            psi_values_spat_interpol[index_t,:,:]=(psi_values_spat_interpol[index_t,:,:]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])
+        psi_values_spat_interpol[np.isnan(psi_values_spat_interpol)]=0.
+        psi_values_total_interpol=np.zeros(data_object.data.shape)
+        
+        for index_r in range(gpi_r_coord.shape[1]):
+            for index_z in range(gpi_r_coord.shape[2]):
+                psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])       
+
+        psi_values_total_interpol[np.isnan(psi_values_total_interpol)]=0.
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux r',
                                        unit='',
                                        mode=flap.CoordinateMode(equidistant=False),
@@ -267,6 +294,7 @@ def add_coordinate(data_object,
         data_object.coordinates.append(new_coordinates)
         
     if ('Flux theta' in coordinates):
+        print("ADDING FLUX THETA IS DEPRECATED AND MIGHT FAIL.")
         try:
             gpi_time=data_object.coordinate('Time')[0][:,0,0]
             gpi_r_coord=data_object.coordinate('Device R')[0]
@@ -288,12 +316,12 @@ def add_coordinate(data_object,
                                      object_name='ZMAXIS_FOR_COORD')
             r_bdry_obj=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\RBDRY',
-                                     exp_id=exp_id,
+                                     exp_id=data_object.exp_id,
                                      object_name='SEP X OBJ'
                                      )
             z_bdry_obj=flap.get_data('NSTX_MDSPlus',
                                      name='\EFIT01::\ZBDRY',
-                                     exp_id=exp_id,
+                                     exp_id=data_object.exp_id,
                                      object_name='SEP Y OBJ'
                                      )
         except:
@@ -301,13 +329,13 @@ def add_coordinate(data_object,
         try:
         #if True:
             psi_values=psi_rz_obj.data
-            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]*1000. #GPI data is in ms.
-            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]*1000 #GPI data is in mm.
-            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]*1000.#GPI data is in mm.
-            r_bdry=r_bdry_obj.data*1000.
-            z_bdry=z_bdry_obj.data*1000.
-            r_maxis=r_mag_axis.data*1000.
-            z_maxis=z_mag_axis.data*1000.
+            psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]
+            psi_r_coord=psi_rz_obj.coordinate('Device R')[0]
+            psi_z_coord=psi_rz_obj.coordinate('Device z')[0]
+            r_bdry=r_bdry_obj.data
+            z_bdry=z_bdry_obj.data
+            r_maxis=r_mag_axis.data
+            z_maxis=z_mag_axis.data
         except:
             raise ValueError("The flux data cannot be found.")
         
@@ -324,7 +352,6 @@ def add_coordinate(data_object,
                 if n_paths > 0:
                     for index_paths in range(n_paths):
                         path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices # Get the actual coordinates of the curve.   
-                        #np.argmin(np.abs(path[:,1]))
                         #The following code calculates the angles. The full arclength is calculated along with the partial arclengths.
                         # The angle is then difined as the fraction of the arclength fraction and the entire arclength.
                         arclength=0.
@@ -365,7 +392,7 @@ def add_coordinate(data_object,
             boundary_fraction=0.90
             boundary_data=np.asarray([r_bdry[index_t],z_bdry[index_t]])
             points_at_fraction=np.asarray([(boundary_data[0,:]-r_maxis[index_t])*boundary_fraction+r_maxis[index_t],
-                                     (boundary_data[1,:]-z_maxis[index_t])*boundary_fraction+z_maxis[index_t]])
+                                           (boundary_data[1,:]-z_maxis[index_t])*boundary_fraction+z_maxis[index_t]])
             values_at_fraction=interpolate.griddata(points,values,(points_at_fraction[1,:],points_at_fraction[0,:]),method='cubic')
             values_at_fraction[np.isnan(values_at_fraction)]=0.
             #2. Redefine the poloidal coord vector to only have points inside the 95% of the separatrix
@@ -447,9 +474,9 @@ def add_coordinate(data_object,
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
         try:
         #if True:
-            t_maxis=r_mag_axis.coordinate('Time')[0]*1000.
-            r_maxis=r_mag_axis.data*1000.
-            z_maxis=z_mag_axis.data*1000.
+            t_maxis=r_mag_axis.coordinate('Time')[0]
+            r_maxis=r_mag_axis.data
+            z_maxis=z_mag_axis.data
         except:
             raise ValueError("The flux data cannot be found.")
         r_maxis_at_gpi_range=np.interp(gpi_time,t_maxis,r_maxis)

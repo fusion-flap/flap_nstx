@@ -5,7 +5,6 @@ Created on Fri May 10 18:50:28 2019
 @author: Mate Lampert (mlampert@pppl.gov)
 """
 
-import matplotlib.pyplot as plt
 import os
 
 import flap
@@ -143,6 +142,28 @@ def test_flap_time(exp_id=140620):
     
     flap.list_data_objects()
     
+def test_gpi_trace(exp_id=140620):
+    flap.delete_data_object('*')
+    print("\n------- test data read with NSTX GPI data --------")
+
+    d=flap.get_data('NSTX_GPI',exp_id=exp_id,name='',object_name='GPI')
+    print("**** Storage contents")
+    flap.list_data_objects()
+    plt.close('all')
+    #print("**** Filtering GPI")
+    #d_filter=flap.filter_data('GPI',output_name='GPI_filt',coordinate='Time',
+    #                          options={'Type':'Highpass','f_low':1e2/1e3,'Design':'Chebyshev II'}) #Data is in milliseconds
+
+    print("**** Plotting filtered GPI")
+    #flap.plot('GPI',plot_type='animation',
+    #          slicing={'Time':flap.Intervals(550.,580.)},
+    #          axes=['Device R','Device z','Time'],
+    #          options={'Z range':[0,512],'Wait':0.0,'Clear':False})
+    #
+    print(d.time)
+    
+    flap.list_data_objects()
+    
 # Reading configuration file in the test directory
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"test_nstx_gpi.cfg")
@@ -150,5 +171,5 @@ flap.config.read(file_name=fn)
 
 
 #test_flap_time()
-#test_NSTX_GPI_data_animation()
-test_NSTX_GPI_norm_flux_coord()
+test_NSTX_GPI_data_animation()
+#test_NSTX_GPI_norm_flux_coord()
