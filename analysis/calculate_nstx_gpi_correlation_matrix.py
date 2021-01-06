@@ -440,7 +440,6 @@ def plot_all_parameters_vs_all_other(window_average=0.5e-3,
         if status != 'NO':
             velocity_results=pickle.load(open(filename, 'rb'))
             
-            
             velocity_results['Separatrix dist avg']=np.zeros(velocity_results['Position avg'].shape[0])
             velocity_results['Separatrix dist max']=np.zeros(velocity_results['Position max'].shape[0])
             velocity_results['GPI Dalpha']=velocity_results['GPI Dalpha'][0]
@@ -570,22 +569,22 @@ def plot_all_parameters_vs_all_other_average(window_average=0.5e-3,
     plot_inds=np.asarray([0,1,4,5,11])
     gs=GridSpec(len(plot_inds),len(plot_inds))
     results=calculate_avg_velocity_results(window_average=500e-6,
-                                            sampling_time=2.5e-6,
-                                            pdf=False,
-                                            plot=False,
-                                            return_results=not plot_error,
-                                            return_error=plot_error,
-                                            plot_error=False,
-                                            normalized_velocity=True,
-                                            normalized_structure=True,
-                                            subtraction_order=subtraction_order,
-                                            opacity=0.2,
-                                            correlation_threshold=0.6,
-                                            plot_max_only=False,
-                                            plot_for_publication=False,
-                                            gpi_plane_calculation=gpi_plane_calculation,
-                                            plot_scatter=False,
-                                            )
+                                           sampling_time=2.5e-6,
+                                           pdf=False,
+                                           plot=False,
+                                           return_results=not plot_error,
+                                           return_error=plot_error,
+                                           plot_error=False,
+                                           normalized_velocity=True,
+                                           normalized_structure=True,
+                                           subtraction_order=subtraction_order,
+                                           opacity=0.2,
+                                           correlation_threshold=0.6,
+                                           plot_max_only=False,
+                                           plot_for_publication=False,
+                                           gpi_plane_calculation=gpi_plane_calculation,
+                                           plot_scatter=False,
+                                           )
     if not plot_error:
         velocity_results=results
     else:

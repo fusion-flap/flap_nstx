@@ -58,7 +58,7 @@ def flap_nstx_thomson_data(exp_id=None,
         
         mdsnames=['ts_times',           #The time vector of the measurement (60Hz measurement with the Thomson)
                   'FIT_RADII',          #Radius of the measurement                  
-                  'FIT_R_WIDTH',        #N/A (proably error of the radious)
+                  'FIT_R_WIDTH',        
                   'FIT_TE',             #Electron temperature profile numpy array([radius,time])
                   'FIT_TE_ERR',         #The error for Te (symmetric)
                   'FIT_NE',             #Electron density profile numpy array([radius,time])
@@ -85,9 +85,9 @@ def flap_nstx_thomson_data(exp_id=None,
         thomson['FIT_RADII'] /= 100.
         thomson['SPLINE_RADII'] /= 100.
         
-        thomson['FIT_NE'] *= 10e6
-        thomson['FIT_NE_ERR'] *= 10e6
-        thomson['SPLINE_NE'] *= 10e6
+        thomson['FIT_NE'] *= 1e6
+        thomson['FIT_NE_ERR'] *= 1e6
+        thomson['SPLINE_NE'] *= 1e6
         
         conn.closeAllTrees()
         conn.disconnect()
@@ -403,6 +403,7 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
                                   return_parameters=False,
                                   plot_time=None,
                                   pdf_object=None,
+                                  modified_tanh=False,
                                   ):
     """
     
@@ -433,15 +434,16 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
     time=d.coordinate('Time')[0][0,:]
     thomson_profile={'Time':time,
                      'Data':d.data,
-                     'Error':d.error,
                      'Device R':d.coordinate('Device R')[0],
                      'Flux r':d.coordinate('Flux r')[0],
                      'Height':np.zeros(time.shape),
                      'Width':np.zeros(time.shape),
+                     'a':np.zeros(time.shape),
                      'Slope':np.zeros(time.shape),
                      'Position':np.zeros(time.shape),
                      'SOL offset':np.zeros(time.shape),
                      'Max gradient':np.zeros(time.shape),
+                     'Value at max':np.zeros(time.shape),
                      'Error':{'Height':np.zeros(time.shape),
                               'SOL offset':np.zeros(time.shape),
                               'Position':np.zeros(time.shape),
@@ -459,12 +461,16 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
 #        def mtanh(x,b_slope):
 #            return ((1+b_slope*x)*np.exp(x)-np.exp(-x))/(np.exp(x)+np.exp(-x))
 #        return (b_height-b_sol)/2*(mtanh((b_pos-r)/(2*b_width),b_slope)+1)+b_sol
-    
-    def tanh_fit_function(r, b_height, b_sol, b_pos, b_width):
-        def tanh(x):
-            return (np.exp(x)-np.exp(-x))/(np.exp(x)+np.exp(-x))
-        return (b_height-b_sol)/2*(tanh((b_pos-r)/(2*b_width))+1)+b_sol
-        
+    if not modified_tanh:
+        def tanh_fit_function(r, b_height, b_sol, b_pos, b_width):
+            def tanh(x):
+                return (np.exp(x)-np.exp(-x))/(np.exp(x)+np.exp(-x))
+            return (b_height-b_sol)/2*(tanh((b_pos-r)/(2*b_width))+1)+b_sol
+    else:
+        def tanh_fit_function(x, b_height, b_sol, b_pos, b_width, b_slope):
+            x_mod=2*(x - b_pos)/b_width
+            return (b_height+b_sol)/2 + (b_height-b_sol)/2*((1 - b_slope*x_mod)*np.exp(-x_mod) - np.exp(x_mod))/(np.exp(x_mod) + np.exp(-x_mod))
+            
     for i_time in range(len(time)):
         x_data=d.coordinate(r_coord_name)[0][:,i_time]
         y_data=d.data[:,i_time]
@@ -482,14 +488,24 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
             y_data_error=y_data_error[ind_coord]
     #        print(x_data)
     #        print(ind_coord)
-            p0=[y_data[0],                                      #b_height
-                y_data[-1],                                     #b_sol
-                x_data[0],                                      #b_pos
-                (x_data[-1]-x_data[0])/2.,                      #b_width
-                #(y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]), #b_slope this is supposed to be some kind of liear modification to the 
-                                                                #tanh function called mtanh. It messes up the fitting quite a bit and it's not useful at all.
-                ]
+            if not modified_tanh:
+                p0=[y_data[0],                                      #b_height
+                    y_data[-1],                                     #b_sol
+                    x_data[0],                                      #b_pos
+                    (x_data[-1]-x_data[0])/2.,                      #b_width
+                    #(y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]), #b_slope this is supposed to be some kind of liear modification to the 
+                                                                    #tanh function called mtanh. It messes up the fitting quite a bit and it's not useful at all.
+                    ]
     
+            else:
+                p0=[y_data[0],                                      #b_height
+                    y_data[-1],                                     #b_sol
+                    x_data[0],                                      #b_pos
+                    (x_data[-1]-x_data[0])/2.,                      #b_width
+                    (y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]),
+                    ]
+                    
+        
             popt, pcov = curve_fit(tanh_fit_function, 
                                    x_data, 
                                    y_data, 
@@ -530,7 +546,7 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
                 plt.title('Fit '+profile_string+' profile of '+str(exp_id)+time_string)
                 plt.xlabel(xlabel)
                 plt.ylabel(ylabel)
-                plt.pause(0.001)
+                plt.pause(1.0)
 
                 if pdf_object is not None:
                     pdf_object.savefig()
@@ -542,13 +558,20 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
             thomson_profile['SOL offset'][i_time]=popt[1]
             thomson_profile['Position'][i_time]=popt[2]
             thomson_profile['Width'][i_time]=popt[3]
-            thomson_profile['Max gradient'][i_time]=(popt[1]-popt[0])/(popt[3]) #from paper and pen calculation
+            if modified_tanh:
+                thomson_profile['Slope'][i_time]=popt[4]
+                
+            thomson_profile['Max gradient'][i_time]=(popt[1]-popt[0])/(4*popt[3]*np.cosh(0)**2)
+            thomson_profile['Value at max'][i_time]=(popt[0]+popt[1])/2
             
             thomson_profile['Error']['Height'][i_time]=perr[0]
             thomson_profile['Error']['SOL offset'][i_time]=perr[1]
             thomson_profile['Error']['Position'][i_time]=perr[2]
             thomson_profile['Error']['Width'][i_time]=perr[3]
-            thomson_profile['Error']['Max gradient'][i_time]=1/(np.abs(popt[3]))*(np.abs(perr[1])+np.abs(perr[0]))+np.abs((popt[1]-popt[0])/(popt[3]**2))*np.abs(perr[3])
+            if modified_tanh:
+                thomson_profile['Slope'][i_time]=perr[4]
+            thomson_profile['Error']['Max gradient'][i_time]=(np.abs(1/(4*popt[3]*np.cosh(0)**2)*perr[1])+
+                                                              np.abs(1/(4*popt[3]*np.cosh(0)**2)*perr[0]))
  
             #thomson_profile_parameters['Slope'][i_time]=popt[4]
         except:
@@ -599,3 +622,5 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
     else:
         return thomson_profile
         
+    
+    

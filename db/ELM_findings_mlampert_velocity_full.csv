@@ -1,0 +1,204 @@
+﻿Num,Filename,Shot,ELM time,OK/NOT OK,Velocity,Correlation,Size,Angle,Elongation,Comment
+0,NSTX_GPI_138614_0.835_0.839_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138614,837.5,OK,,,,,,"Something happened to the gas puff, strange trace. Not much radial and poloidal movement, but the size of the gas cloud changes trementeously"
+1,NSTX_GPI_138617_0.87_0.874_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138617,,NO,,,,,,
+2,NSTX_GPI_138617_0.835_0.839_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138617,837.3,OK,,,,,,
+3,NSTX_GPI_138617_0.838_0.842_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138617,840.2,OK,,,,,,
+4,NSTX_GPI_138617_0.853_0.857_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138617,855.3,OK,,,,,,
+5,NSTX_GPI_138617_0.859_0.863_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138617,,NO,,,,,,
+6,NSTX_GPI_138620_0.88_0.884_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138620,,NO,,,,,,
+7,NSTX_GPI_138620_0.866_0.87_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138620,867.7,QUESTIONABLE,,,,,,
+8,NSTX_GPI_138748_0.427_0.431_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138748,429.5,OK,,,,,,
+9,NSTX_GPI_138748_0.448_0.452_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138748,,NO,,,,,,
+10,NSTX_GPI_138748_0.496_0.5_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138748,,NO,,,,,,There is some error for the gas cloud which need to be checked. Is there any problem with remaining objects between the ELMs
+11,NSTX_GPI_138748_0.531_0.535_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138748,,NO,,,,,,
+12,NSTX_GPI_138855_0.624_0.628_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138855,625.5,OK,,,,,,
+13,NSTX_GPI_138855_0.644_0.648_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138855,,NO,,,,,,
+14,NSTX_GPI_138855_0.674_0.678_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,138855,676,OK,,,,,,
+15,NSTX_GPI_139053_0.429_0.433_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139053,,NO,,,,,,
+16,NSTX_GPI_139053_0.435_0.439_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139053,,NO,,,,,,
+17,NSTX_GPI_139054_0.41_0.414_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,412,OK,,,,,,
+18,NSTX_GPI_139054_0.46_0.464_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,,NO,,,,,,
+19,NSTX_GPI_139054_0.424_0.428_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,,NO,,,,,,
+20,NSTX_GPI_139054_0.429_0.433_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,,NO,,,,,,
+21,NSTX_GPI_139054_0.437_0.441_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,,NO,,,,,,
+22,NSTX_GPI_139054_0.444_0.448_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139054,446.3,QUESTIONABLE,,,,,,
+23,NSTX_GPI_139057_0.554_0.558_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139057,556.8,OK,,,,,,
+24,NSTX_GPI_139058_0.531_0.535_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139058,,NO,,,,,,
+25,NSTX_GPI_139058_0.556_0.56_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139058,558,OK,,,,,,
+26,NSTX_GPI_139058_0.574_0.578_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139058,,NO,,,,,,
+27,NSTX_GPI_139058_0.598_0.602_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139058,617,QUESTIONABLE,,,,,,
+28,NSTX_GPI_139291_0.345_0.349_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139291,347.2,OK,,,,,,
+29,NSTX_GPI_139292_0.364_0.368_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139292,366.5,QUESTIONABLE,,,,,,
+30,NSTX_GPI_139292_0.387_0.391_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139292,389.7,OK,,,,,,
+31,NSTX_GPI_139292_0.436_0.44_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139292,439,OK,,,,,,A lot of oscillations
+32,NSTX_GPI_139296_0.342_0.346_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139296,,NO,,,,,,
+33,NSTX_GPI_139877_0.295_0.299_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139877,298.2,OK,,,,,,
+34,NSTX_GPI_139877_0.301_0.305_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139877,303.3,OK,,,,,,
+35,NSTX_GPI_139877_0.318_0.322_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139877,320.9,OK,,,,,,
+36,NSTX_GPI_139878_0.326_0.33_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139878,329.3,OK,,,,,,
+37,NSTX_GPI_139878_0.336_0.34_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139878,339.5,OK,,,,,,
+38,NSTX_GPI_139878_0.344_0.348_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139878,346.5,OK,,,,,,
+39,NSTX_GPI_139878_0.369_0.373_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139878,370.5,QUESTIONABLE,,,,,,
+40,NSTX_GPI_139878_0.369_0.373_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139878,372.2,QUESTIONABLE,,,,,,
+41,NSTX_GPI_139881_0.313_0.317_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139881,315.5,OK,,,,,,
+42,NSTX_GPI_139881_0.323_0.327_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139881,325.5,OK,,,,,,
+43,NSTX_GPI_139885_0.323_0.327_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139885,325,OK,,,,,,
+44,NSTX_GPI_139885_0.331_0.335_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139885,333,OK,,,,,,
+45,NSTX_GPI_139890_0.382_0.386_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139890,384.3,QUESTIONABLE,,,,,,Compound
+46,NSTX_GPI_139891_0.306_0.31_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139891,308.2,OK,,,,,,
+47,NSTX_GPI_139892_0.298_0.302_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139892,300.8,OK,,,,,,
+48,NSTX_GPI_139893_0.302_0.306_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139893,304.8,OK,,,,,,
+49,NSTX_GPI_139893_0.326_0.33_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139893,328,OK,,,,,,
+50,NSTX_GPI_139895_0.317_0.321_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139895,319.8,OK,,,,,,
+51,NSTX_GPI_139896_0.311_0.315_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139896,313.5,OK,,,,,,
+52,NSTX_GPI_139896_0.322_0.326_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139896,324.4,OK,,,,,,probably wrong velocity estimation
+53,NSTX_GPI_139896_0.34_0.344_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139896,343,OK,,,,,,
+54,NSTX_GPI_139897_0.296_0.3_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139897,299.3,QUESTIONABLE,,,,,,
+55,NSTX_GPI_139897_0.353_0.357_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139897,356.3,OK,,,,,,
+56,NSTX_GPI_139901_0.305_0.309_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139901,307.5,OK,,,,,,
+57,NSTX_GPI_139901_0.323_0.327_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139901,325,OK,,,,,,Done
+58,NSTX_GPI_139901_0.345_0.349_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139901,347.5,OK,,,,,,
+59,NSTX_GPI_139903_0.338_0.342_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139903,340.7,OK,,,,,,Done
+60,NSTX_GPI_139906_0.307_0.311_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139906,307.1,OK,,,,,,
+61,NSTX_GPI_139906_0.307_0.311_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139906,307.6,OK,,,,,,
+62,NSTX_GPI_139906_0.307_0.311_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139906,308.3,OK,,,,,,
+63,NSTX_GPI_139907_0.331_0.335_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139907,334.7,OK,,,,,,Couple of small events before
+64,NSTX_GPI_139907_0.333_0.337_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139907,340.7,QUESTIONABLE,,,,,,
+65,NSTX_GPI_139908_0.381_0.385_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139908,383.2,QUESTIONABLE,,,,,,Looks compound
+66,NSTX_GPI_139913_0.342_0.346_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139913,,NO,,,,,,Low SNR
+67,NSTX_GPI_139913_0.368_0.372_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139913,370.5,OK,,,,,,"Three smaller events before at 367, 368.5 and 369.5"
+68,NSTX_GPI_139914_0.366_0.37_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139914,367.3,QUESTIONABLE,,,,,,"Doesn't look like an ELM, only a small event"
+69,NSTX_GPI_139914_0.384_0.388_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139914,386.5,OK,,,,,,Two ELMs one after the other
+70,NSTX_GPI_139914_0.384_0.388_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139914,387.1,OK,,,,,,Two ELMs one after the other
+71,NSTX_GPI_139950_0.382_0.386_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139950,384.2,OK,,,,,,
+72,NSTX_GPI_139953_0.395_0.399_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139953,397.7,OK,,,,,,
+73,NSTX_GPI_139954_0.349_0.353_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139954,351.3,QUESTIONABLE,,,,,,
+74,NSTX_GPI_139955_0.414_0.418_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139955,,NO,,,,,,"There are some events, but they don't look like ELMs"
+75,NSTX_GPI_139956_0.354_0.358_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139956,,NO,,,,,,
+76,NSTX_GPI_139956_0.361_0.365_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139956,363.5,OK,,,,,,
+77,NSTX_GPI_139957_0.366_0.37_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139957,368.5,QUESTIONABLE,,,,,,
+78,NSTX_GPI_139958_0.403_0.407_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139958,405,QUESTIONABLE,,,,,,Just a small event
+79,NSTX_GPI_139959_0.331_0.335_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139959,,NO,,,,,,
+80,NSTX_GPI_139959_0.374_0.378_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139959,,NO,,,,,,No sign of an ELM
+81,NSTX_GPI_139962_0.337_0.341_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139962,,NO,,,,,,
+82,NSTX_GPI_139962_0.38_0.384_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139962,,NO,,,,,,
+83,NSTX_GPI_139962_0.3925_0.3965_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139962,394.5,OK,,,,,,
+84,NSTX_GPI_139962_0.4042_0.4082_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139962,406.2,OK,,,,,,Velocity blib is wrong
+85,NSTX_GPI_139963_0.316_0.32_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139963,,NO,,,,,,
+86,NSTX_GPI_139963_0.331_0.335_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139963,,NO,,,,,,
+87,NSTX_GPI_139965_0.388_0.392_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139965,,NO,,,,,,
+88,NSTX_GPI_139965_0.3895_0.3935_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139965,391.5,OK,,,,,,
+89,NSTX_GPI_139969_0.4075_0.4115_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139969,409.5,QUESTIONABLE,,,,,,
+90,NSTX_GPI_139971_0.417_0.421_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139971,419.2,OK,,,,,,
+91,NSTX_GPI_139971_0.427_0.431_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,139971,,NO,,,,,,No sign of an ELM
+92,NSTX_GPI_140382_0.613_0.617_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140382,,NO,,,,,,
+93,NSTX_GPI_140526_0.408_0.412_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140526,410,OK,,,,,,
+94,NSTX_GPI_140616_0.4315_0.4355_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140616,433.5,OK,,,,,,
+95,NSTX_GPI_140617_0.418_0.422_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140617,420.5,QUESTIONABLE,,,,,,
+96,NSTX_GPI_140619_0.491_0.495_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140619,,NO,,,,,,
+97,NSTX_GPI_140619_0.504_0.508_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140619,506.5,OK,,,,,,Two events
+98,NSTX_GPI_140619_0.513_0.517_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140619,,NO,,,,,,
+99,NSTX_GPI_140620_0.549_0.553_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140620,,NO,,,,,,
+100,NSTX_GPI_140620_0.556_0.56_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140620,556.5,OK,,,,,,"Smaller, but separate event"
+101,NSTX_GPI_140620_0.5554_0.5594_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,140620,557.4,OK,,,,,,No large event at the time of the exact calculation
+102,NSTX_GPI_141283_0.638_0.642_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141283,640.7,OK,,,,,,
+103,NSTX_GPI_141300_0.499_0.503_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141300,501.5,OK,,,,,,"Compound looking event, different from the others"
+104,NSTX_GPI_141300_0.52_0.524_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141300,522.2,QUESTIONABLE,,,,,,"Compound looking event, different from the others"
+105,NSTX_GPI_141301_0.462_0.466_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141301,,NO,,,,,,
+106,NSTX_GPI_141301_0.539_0.543_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141301,477.5,QUESTIONABLE,,,,,,"Compound looking event, different from the others"
+107,NSTX_GPI_141303_0.525_0.529_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141303,527,OK,,,,,,
+108,NSTX_GPI_141303_0.534_0.538_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141303,536,QUESTIONABLE,,,,,,"Compound looking event, different from the others"
+109,NSTX_GPI_141303_0.5412_0.5452_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141303,543.2,QUESTIONABLE,,,,,,
+110,NSTX_GPI_141304_0.505_0.509_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141304,507.7,QUESTIONABLE,,,,,,
+111,NSTX_GPI_141304_0.518_0.522_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141304,520.7,QUESTIONABLE,,,,,,
+112,NSTX_GPI_141304_0.522_0.526_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141304,524.8,QUESTIONABLE,,,,,,
+113,NSTX_GPI_141305_0.476_0.48_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141305,477.5,QUESTIONABLE,,,,,,
+114,NSTX_GPI_141305_0.482_0.486_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141305,484.5,QUESTIONABLE,,,,,,
+115,NSTX_GPI_141305_0.484_0.488_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141305,486.3,OK,,,,,,Interesting oscillation of the velocity before the ELM
+116,NSTX_GPI_141305_0.494_0.498_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141305,496.1,OK,,,,,,
+117,NSTX_GPI_141305_0.516_0.52_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141305,518,OK,,,,,,
+118,NSTX_GPI_141306_0.468_0.472_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141306,470.5,QUESTIONABLE,,,,,,Compound looking with oscillation
+119,NSTX_GPI_141306_0.493_0.497_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141306,495.3,QUESTIONABLE,,,,,,Compound looking
+120,NSTX_GPI_141307_0.491_0.495_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,493.3,QUESTIONABLE,,,,,,Compound looking
+121,NSTX_GPI_141307_0.497_0.501_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,499,OK,,,,,,
+122,NSTX_GPI_141307_0.503_0.507_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,505,OK,,,,,,Velocity oscillation before
+123,NSTX_GPI_141307_0.506_0.51_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,508.5,OK,,,,,,Compound looking
+124,NSTX_GPI_141307_0.5085_0.5125_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,510.5,QUESTIONABLE,,,,,,"Three ELM events, but only small ones"
+125,NSTX_GPI_141307_0.51_0.514_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,512,QUESTIONABLE,,,,,,
+126,NSTX_GPI_141307_0.5113_0.5153_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,513.3,QUESTIONABLE,,,,,,Double event
+127,NSTX_GPI_141307_0.501_0.505_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141307,503,QUESTIONABLE,,,,,,
+128,NSTX_GPI_141309_0.473_0.477_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141309,475,OK,,,,,,Velocity oscillation precursor
+129,NSTX_GPI_141309_0.493_0.497_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141309,495.5,QuESTIONABLE,,,,,,
+130,NSTX_GPI_141310_0.463_0.467_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,465.7,QUESTIONABLE,,,,,,
+131,NSTX_GPI_141310_0.473_0.477_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,475.5,QUESTIONABLE,,,,,,
+132,NSTX_GPI_141310_0.481_0.485_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,482.5,OK,,,,,,"OK, but kind of compound"
+133,NSTX_GPI_141310_0.489_0.493_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,491.5,OK,,,,,,"OK, but kind of compound"
+134,NSTX_GPI_141310_0.496_0.5_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,498,QUESTIONABLE,,,,,,
+135,NSTX_GPI_141310_0.5065_0.5105_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141310,508.5,OK,,,,,,
+136,NSTX_GPI_141311_0.4695_0.4735_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141311,471.5,QUESTIONABLE,,,,,,
+137,NSTX_GPI_141311_0.492_0.496_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141311,495,QUESTIONABLE,,,,,,
+138,NSTX_GPI_141311_0.498_0.502_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141311,,NO,,,,,,
+139,NSTX_GPI_141311_0.503_0.507_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141311,505.7,OK,,,,,,Compound looking
+140,NSTX_GPI_141311_0.544_0.548_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141311,546.5,OK,,,,,,
+141,NSTX_GPI_141313_0.459_0.463_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,,NO,,,,,,
+142,NSTX_GPI_141313_0.489_0.493_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,491,OK,,,,,,
+143,NSTX_GPI_141313_0.502_0.506_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,,NO,,,,,,
+144,NSTX_GPI_141313_0.5137_0.5177_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,515.7,QUESTIONABLE,,,,,,
+145,NSTX_GPI_141313_0.531_0.535_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,533.5,OK,,,,,,
+146,NSTX_GPI_141313_0.538_0.542_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141313,,NO,,,,,,
+147,NSTX_GPI_141314_0.467_0.471_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,470,QUESTIONABLE,,,,,,
+148,NSTX_GPI_141314_0.499_0.503_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,501,QUESTIONABLE,,,,,,
+149,NSTX_GPI_141314_0.49_0.494_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,493,OK,,,,,,
+150,NSTX_GPI_141314_0.506_0.51_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,508.3,QUESTIONABLE,,,,,,
+151,NSTX_GPI_141314_0.5145_0.5185_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,516.5,QUESTIONABLE,,,,,,
+152,NSTX_GPI_141314_0.51_0.514_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141314,512.9,QUESTIONABLE,,,,,,
+153,NSTX_GPI_141315_0.55_0.554_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141315,,NO,,,,,,
+154,NSTX_GPI_141318_0.524_0.528_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141318,526.2,OK,,,,,,
+155,NSTX_GPI_141318_0.566_0.57_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141318,569.3,QUESTIONABLE,,,,,,
+156,NSTX_GPI_141319_0.558_0.562_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141319,560.5,QUESTIONABLE,,,,,,
+157,NSTX_GPI_141319_0.55_0.554_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141319,552.3,QUESTIONABLE,,,,,,
+158,NSTX_GPI_141319_0.566_0.57_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141319,568.4,QUESTIONABLE,,,,,,
+159,NSTX_GPI_141320_0.595_0.599_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141320,597.3,OK,,,,,,
+160,NSTX_GPI_141321_0.547_0.551_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,549.4,QUESTIONABLE,,,,,,
+161,NSTX_GPI_141321_0.549_0.553_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,551.5,OK,,,,,,
+162,NSTX_GPI_141321_0.564_0.568_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,,NO,,,,,,
+163,NSTX_GPI_141321_0.571_0.575_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,573.5,OK,,,,,,
+164,NSTX_GPI_141321_0.575_0.579_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,577.9,QUESTIONABLE,,,,,,
+165,NSTX_GPI_141321_0.579_0.583_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,131321,581,QUESTIONABLE,,,,,,
+166,NSTX_GPI_141322_0.545_0.549_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141322,547.5,QUESTIONABLE,,,,,,
+167,NSTX_GPI_141326_0.5587_0.5627_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141326,560.7,OK,,,,,,
+168,NSTX_GPI_141448_0.481_0.485_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141448,483,OK,,,,,,
+169,NSTX_GPI_141449_0.481_0.485_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141449,,NO,,,,,,???
+170,NSTX_GPI_141450_0.53_0.534_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141450,531.3,QUESTIONABLE,,,,,,Three different distinctive ELMs in the time window
+171,NSTX_GPI_141450_0.53_0.534_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141450,531.8,QUESTIONABLE,,,,,,
+172,NSTX_GPI_141450_0.53_0.534_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141450,532.7,QUESTIONABLE,,,,,,
+173,NSTX_GPI_141456_0.55_0.554_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141456,552.5,OK,,,,,,
+174,NSTX_GPI_141461_0.48_0.484_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141461,482.5,QUESTIONABLE,,,,,,
+175,NSTX_GPI_141464_0.487_0.491_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,151464,489,QUESTIONABLE,,,,,,Looks compound
+176,NSTX_GPI_141464_0.497_0.501_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141464,499.5,OK,,,,,,
+177,NSTX_GPI_141464_0.503_0.507_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141464,,NO,,,,,,
+178,NSTX_GPI_141464_0.541_0.545_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141464,,NO,,,,,,
+179,NSTX_GPI_141745_0.266_0.27_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141745,268,OK,,,,,,
+180,NSTX_GPI_141747_0.255_0.259_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141747,257,OK,,,,,,Looks compound
+181,NSTX_GPI_141919_0.243_0.247_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141919,245,OK,,,,,,
+182,NSTX_GPI_141919_0.2407_0.2447_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141919,242.7,OK,,,,,,
+183,NSTX_GPI_141920_0.257_0.261_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141920,259.5,OK,,,,,,
+184,NSTX_GPI_141920_0.257_0.261_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141920,260,OK,,,,,,Distinctive event after the first one
+185,NSTX_GPI_141920_0.2757_0.2797_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141920,277.7,OK,,,,,,
+186,NSTX_GPI_141920_0.2767_0.2807_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141920,278.7,OK,,,,,,Two events quite close to each other
+187,NSTX_GPI_141920_0.284_0.288_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141920,286.5,QUESTIONABLE,,,,,,
+188,NSTX_GPI_141922_0.24_0.244_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141922,242.4,QUESTIONABLE,,,,,,
+189,NSTX_GPI_141922_0.259_0.263_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,141922,261,QUESTIONABLE,,,,,,
+190,NSTX_GPI_142000_0.227_0.231_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142000,229,OK,,,,,,
+191,NSTX_GPI_142001_0.228_0.232_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142001,230.5,OK,,,,,,
+192,NSTX_GPI_142006_0.238_0.242_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142006,240.5,OK,,,,,,
+193,NSTX_GPI_142006_0.241_0.245_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142006,243.3,OK,,,,,,Looks compound
+194,NSTX_GPI_142006_0.2447_0.2487_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142006,246.7,OK,,,,,,
+195,NSTX_GPI_142231_0.362_0.366_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142231,,NO,,,,,,
+196,NSTX_GPI_142231_0.379_0.383_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142231,381.2,QUESTIONABLE,,,,,,Compound
+197,NSTX_GPI_142231_0.386_0.39_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142231,388,QUESTIONABLE,,,,,,Compound
+198,NSTX_GPI_142231_0.428_0.432_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142231,430,OK,,,,,,
+199,NSTX_GPI_142231_0.444_0.448_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142231,446,QUESTIONABLE,,,,,,
+200,NSTX_GPI_142232_0.392_0.396_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142232,394,OK,,,,,,Bunch of small events in the time range
+201,NSTX_GPI_142232_0.4103_0.4143_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142232,412.3,OK,,,,,,
+202,NSTX_GPI_142232_0.428_0.432_ccf_velocity_pfit_o1_ct_0.6_fst_0.0_ns,142232,430.5,QUESTIONABLE,,,,,,Looks compound

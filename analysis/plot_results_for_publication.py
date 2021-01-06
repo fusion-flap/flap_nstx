@@ -15,7 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
 
 from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity, flap_nstx_thomson_data
-from flap_nstx.analysis import nstx_gpi_velocity_analysis_spatio_temporal_displacement
+from flap_nstx.analysis import nstx_gpi_velocity_analysis_spatio_temporal_displacement, plot_all_parameters_vs_all_other
 
 import flap
 import flap_nstx
@@ -28,7 +28,7 @@ flap_nstx.register()
 styled=True
 if styled:
     plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=3.
+    labelsize=9.
     linewidth=0.5
     major_ticksize=2.
     plt.rc('text', usetex=False)
@@ -58,13 +58,13 @@ else:
 plot=[False, #Figure 0
       False, #Figure 1
       False, #Figure 2
-      False, #Figure 3
+      True, #Figure 3
       False, #Figure 4
       False, #Figure 5
       False, #Figure 6
       False, #Figure 7
       False, #Figure 8
-      True, #Figure 9
+      False, #Figure 9
       False, #Figure 10
       False, #Figure 11
       False, #Figure 12
@@ -111,8 +111,9 @@ def plot_results_for_paper():
         plt.xlim([0,1.2])
         plt.subplot(gs[3,0])
         d=flap_nstx_thomson_data(exp_id=139901, density=True, output_name='DENSITY')
-        dR = d.coordinate('Device R')[0][:,:]-np.insert(d.coordinate('Device R')[0][0:-1,:],0,0,axis=0)
-        LID=np.sum(d.data*dR,axis=0)
+        #dR = d.coordinate('Device R')[0][:,:]-np.insert(d.coordinate('Device R')[0][0:-1,:],0,0,axis=0)
+        #LID=np.sum(d.data*dR,axis=0)/np.sum(dR)
+        LID=np.trapz(d.data[:,:], d.coordinate('Device R')[0][:,:], axis=0)/(np.max(d.coordinate('Device R')[0][:,:],axis=0)-np.min(d.coordinate('Device R')[0][:,:],axis=0))
         plt.plot(d.coordinate('Time')[0][0,:],LID)
         plt.title('Line integrated density')
         plt.xlabel('Time [s]')
@@ -146,34 +147,36 @@ def plot_results_for_paper():
         flap.get_data('NSTX_MDSPlus',
                       name='\WF::\DALPHA',
                       exp_id=139901,
-                      object_name='DALPHA').plot(options={'Axes visibility':[False,False]})
+                      object_name='DALPHA').plot(options={'Axes visibility':[False,True]})
         plt.xlim([0.25,0.4])
+        plt.ylim([0,3])
         plt.subplot(gs[1,1])
         flap.get_data('NSTX_GPI',
                       name='',
                       exp_id=139901,
-                      object_name='GPI').slice_data(summing={'Image x':'Mean', 'Image y':'Mean'}).plot(options={'Axes visibility':[False,False]})
+                      object_name='GPI').slice_data(summing={'Image x':'Mean', 'Image y':'Mean'}).plot(options={'Axes visibility':[False,True]})
         plt.xlim([0.25,0.4])
         
         plt.subplot(gs[2,1])
         flap.get_data('NSTX_MDSPlus',
                       name='IP',
                       exp_id=139901,
-                      object_name='IP').plot(options={'Axes visibility':[False,False]})
+                      object_name='IP').plot(options={'Axes visibility':[False,True]})
         plt.xlim([0.25,0.4])
         
         plt.subplot(gs[3,1])
         d=flap_nstx_thomson_data(exp_id=139901, density=True, output_name='DENSITY')
-        dR = d.coordinate('Device R')[0][:,:]-np.insert(d.coordinate('Device R')[0][0:-1,:],0,0,axis=0)
-        LID=np.sum(d.data*dR,axis=0)
+#        dR = d.coordinate('Device R')[0][:,:]-np.insert(d.coordinate('Device R')[0][0:-1,:],0,0,axis=0)
+#        LID=np.sum(d.data*dR,axis=0)
+        LID=np.trapz(d.data[:,:], d.coordinate('Device R')[0][:,:], axis=0)/(np.max(d.coordinate('Device R')[0][:,:],axis=0)-np.min(d.coordinate('Device R')[0][:,:],axis=0))
         plt.plot(d.coordinate('Time')[0][0,:],LID)
         plt.title('Line integrated density')
         plt.xlabel('Time [s]')
-        plt.ylabel('n_e [m^-2]')
+        plt.ylabel('n_e [m^-3]')
         plt.xlim([0.25,0.4])
         ax=plt.gca()
         ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
+#        ax.get_yaxis().set_visible(False)
         
         plt.subplot(gs[4,1])
         magnetics=flap.get_data('NSTX_MDSPlus',
@@ -197,7 +200,7 @@ def plot_results_for_paper():
     
         plt.xlim([0.25,0.4])
         ax=plt.gca()
-        ax.get_yaxis().set_visible(False)
+#        ax.get_yaxis().set_visible(False)
         pdf.savefig()
         pdf.close()
         
@@ -376,13 +379,13 @@ def plot_results_for_paper():
                            'Clear':False,
                            'Equal axes':True,
                            'Axes visibility':[True,True],
-                           'Colormap':'gist_ncar',
-                           'Colorbar':False,
+#                           'Colormap':'gist_ncar',
+                           'Colorbar':True,
                            #'Overplot options':oplot_options,
                            },
                    plot_options={'levels':51},
                        )
-        plt.title("324.959ms")
+        plt.title("324.956ms")
         plt.subplot(gs[1])
         flap.plot('GPI_SLICED_FULL', 
                    plot_type='contour', 
@@ -393,12 +396,12 @@ def plot_results_for_paper():
                             'Clear':False,
                             'Equal axes':True,
                             'Axes visibility':[True,False],
-                            'Colorbar':False,
-                            'Colormap':'gist_ncar',
+                            'Colorbar':True,
+#                            'Colormap':'gist_ncar',
                             },
                     plot_options={'levels':51},
                     )
-        plt.title("324.961ms")
+        plt.title("324.959ms")
         plt.subplot(gs[2])
         flap.plot('GPI_CCF_F_BY_F', 
                   plot_type='contour', 
@@ -520,22 +523,33 @@ def plot_results_for_paper():
     #Figure 12
     if plot[11]:
     #Conditional averaged results
-        calculate_avg_velocity_results(pdf=True, 
-                                       plot=True, 
-                                       plot_max_only=True,
-                                       plot_for_publication=True,
-                                       normalized_velocity=True, 
-                                       subtraction_order=4, 
-                                       normalized_structure=True, 
-                                       opacity=0.5, 
-                                       correlation_threshold=0.6,
-                                       gpi_plane_calculation=True,
-                                       plot_scatter=False)
+#        calculate_avg_velocity_results(pdf=True, 
+#                                       plot=True, 
+#                                       plot_max_only=True,
+#                                       plot_for_publication=True,
+#                                       normalized_velocity=True, 
+#                                       subtraction_order=4, 
+#                                       normalized_structure=True, 
+#                                       opacity=0.5, 
+#                                       correlation_threshold=0.6,
+#                                       gpi_plane_calculation=True,
+#                                       plot_scatter=False)
+        plot_nstx_gpi_velocity_distribution(n_hist=50, correlation_threshold=0.6, nocalc=True, general_plot=False, plot_for_velocity=True)
+        plot_nstx_gpi_velocity_distribution(n_hist=50, correlation_threshold=0.6, nocalc=True, general_plot=False, plot_for_structure=True)
+    
     #Post processing done with Illustrator
     
     #Figure 11
     if plot[12]:
-        if pearson:
+        if not pearson:
+            pdf=PdfPages(wd+'/plots/figure_13_dependence.pdf')
+            plt.figure()
+            plt.subplots(figsize=(17/2.54,17/2.54/1.618))
+            plot_all_parameters_vs_all_other_average(window_average=0.2e-3, symbol_size=0.3, plot_error=True)
+            pdf.savefig()
+            pdf.close() 
+            
+        else:
             pdf=PdfPages(wd+'/plots/figure_13_pearson_matrix.pdf')
             pearson=calculate_nstx_gpi_correlation_matrix(calculate_average=False,
                                                           gpi_plane_calculation=True,
@@ -605,12 +619,5 @@ def plot_results_for_paper():
             pdf.savefig()
             pdf.close()
             
-        else:
-            pdf=PdfPages(wd+'/plots/figure_13_dependence.pdf')
-            plt.figure()
-            plt.subplots(figsize=(17/2.54,17/2.54/1.618))
-            plot_all_parameters_vs_all_other_average(window_average=0.2e-3, symbol_size=0.3, plot_error=True)
-            pdf.savefig()
-            pdf.close()
     #Pierson matrix single plot
     #Figure 12

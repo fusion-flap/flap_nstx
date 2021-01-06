@@ -57,8 +57,12 @@ def calculate_avg_velocity_results(window_average=500e-6,
                                    plot_for_publication=False,
                                    gpi_plane_calculation=False,
                                    plot_scatter=True,
+                                   elm_time_base='frame similarity'
                                    ):
-
+    
+    if elm_time_base not in ['frame similarity', 'radial velocity']:
+        raise ValueError('elm_time_base should be either "frame similarity" or "radial velocity"')
+    
     database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'
     db=pandas.read_csv(database_file, index_col=0)
     elm_index=list(db.index)
@@ -89,7 +93,9 @@ def calculate_avg_velocity_results(window_average=500e-6,
                      'Str number':np.zeros([2*nwin]),
                      'GPI Dalpha':np.zeros([2*nwin]),
                      }
-        
+    
+    
+    
     notnan_counter=copy.deepcopy(average_results)
     inf_counter=np.zeros([2*nwin])
     variance_results=copy.deepcopy(average_results)
@@ -101,8 +107,8 @@ def calculate_avg_velocity_results(window_average=500e-6,
     error_results['Velocity str max'][:,0]=3.75e-3/2.5e-6  #Pixel resolution
     error_results['Velocity str max'][:,1]=3.75e-3/2.5e-6  #Pixel resolution
     
-    error_results['Acceleration ccf'][:,0]=2*3.75e-3/2.5e-6  #Pixel resolution
-    error_results['Acceleration ccf'][:,1]=2*3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Acceleration ccf'][:,0]=2*3.75e-3/6.25e-12  #Pixel resolution
+    error_results['Acceleration ccf'][:,1]=2*3.75e-3/6.25e-12  #Pixel resolution
     
     error_results['Size max'][:,0]=10e-3
     error_results['Size max'][:,1]=10e-3
@@ -197,45 +203,56 @@ def calculate_avg_velocity_results(window_average=500e-6,
                 velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
             
             velocity_results['Acceleration ccf']=copy.deepcopy(velocity_results['Velocity ccf'])
-            velocity_results['Acceleration ccf'][2:,0]=(velocity_results['Velocity ccf'][2:,0]-velocity_results['Velocity ccf'][0:-2,0])/(2*sampling_time)
-            velocity_results['Acceleration ccf'][2:,1]=(velocity_results['Velocity ccf'][2:,1]-velocity_results['Velocity ccf'][0:-2,1])/(2*sampling_time)
+            velocity_results['Acceleration ccf'][1:,0]=(velocity_results['Velocity ccf'][1:,0]-velocity_results['Velocity ccf'][0:-1,0])/(2*sampling_time)
+            velocity_results['Acceleration ccf'][1:,1]=(velocity_results['Velocity ccf'][1:,1]-velocity_results['Velocity ccf'][0:-1,1])/(2*sampling_time)
                 
             if ('GPI Dalpha' in velocity_results.keys() and index_elm == 0):
                 average_results['GPI Dalpha']=np.zeros([2*nwin])
                 variance_results['GPI Dalpha']=np.zeros([2*nwin])
-            velocity_results['Velocity ccf'][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
+                
+            corr_thres_index=np.where(velocity_results['Correlation max'] < correlation_threshold)
+            velocity_results['Velocity ccf'][corr_thres_index,:]=[np.nan,np.nan]
+            velocity_results['GPI Dalpha'][corr_thres_index]=np.nan
+            velocity_results['Correlation max'][corr_thres_index]=np.nan
+            
             time=velocity_results['Time']
             elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-window_average,
                                                           time <= elm_time+window_average))
-            elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            if elm_time_base == 'frame similarity':
+                elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            if elm_time_base == 'radial velocity':
+                elm_time=(time[elm_time_interval_ind])[np.argmax(velocity_results['Velocity ccf'][elm_time_interval_ind,0])]
             elm_time_ind=np.argmin(np.abs(time-elm_time))
-            try:
-                for key in average_results.keys():
-                    if len(average_results[key].shape) == 1:
-                        ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
-                        notnan_counter[key]+=np.logical_not(ind_nan)
-                        if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
-                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
-                        average_results[key]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]
-                    else:
-                        ind_nan_rad=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])
-                        ind_nan_pol=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])
-                        notnan_counter[key][:,0]+=np.logical_not(ind_nan_rad)
-                        notnan_counter[key][:,1]+=np.logical_not(ind_nan_pol)
-                        if len(ind_nan_rad) > 0 and len(ind_nan_pol) > 0:
-                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
-                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
-                        average_results[key][:,0]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0]
-                        average_results[key][:,1]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1]
-            except:
-                pass
+
+            for key in average_results.keys():
+                if len(average_results[key].shape) == 1:
+                    ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
+                    notnan_counter[key]+=np.logical_not(ind_nan)
+                    #if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
+                    if len(ind_nan) > 0:
+                        (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
+                    average_results[key]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]
+                else:
+                    ind_nan_rad=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])
+                    ind_nan_pol=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])
+                    
+                    notnan_counter[key][:,0]+=np.logical_not(ind_nan_rad)
+                    notnan_counter[key][:,1]+=np.logical_not(ind_nan_pol)
+                    
+                    (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
+                    (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
+                        
+                    average_results[key][:,0]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0]
+                    average_results[key][:,1]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1]
+
             elm_counter+=1
-    
+
     for key in average_results.keys():
         notnan_counter[key][np.where(notnan_counter[key] == 0)] = 1.
-        if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
-            average_results[key]=average_results[key]/elm_counter
-        elif not 'ccf' in key:
+        #if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
+        #    average_results[key]=average_results[key]/elm_counter
+        #elifnot 'ccf' in key:
+        if not 'ccf' in key:
             if len(average_results[key].shape) == 1:
                 average_results[key]=average_results[key]/(notnan_counter[key])
             else:
@@ -271,13 +288,28 @@ def calculate_avg_velocity_results(window_average=500e-6,
             
             velocity_results=pickle.load(open(filename, 'rb'))
             velocity_results['GPI Dalpha']=velocity_results['GPI Dalpha'][0]
-
+            
+            if gpi_plane_calculation:
+                coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+                coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+                coeff_r_new=3./800.
+                coeff_z_new=3./800.
+                det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
+                
+                for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
+                    orig=copy.deepcopy(velocity_results[key])
+                    velocity_results[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
+                    velocity_results[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
+                
+                velocity_results['Elongation max'][:]=(velocity_results['Size max'][:,0]-velocity_results['Size max'][:,1])/(velocity_results['Size max'][:,0]+velocity_results['Size max'][:,1])
+                velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
+                
             velocity_results['Separatrix dist avg']=np.zeros(velocity_results['Position avg'].shape[0])
             velocity_results['Separatrix dist max']=np.zeros(velocity_results['Position max'].shape[0])
             
             velocity_results['Acceleration ccf']=copy.deepcopy(velocity_results['Velocity ccf'])
-            velocity_results['Acceleration ccf'][2:,0]=(velocity_results['Velocity ccf'][2:,0]-velocity_results['Velocity ccf'][0:-2,0])/(2*sampling_time)
-            velocity_results['Acceleration ccf'][2:,1]=(velocity_results['Velocity ccf'][2:,1]-velocity_results['Velocity ccf'][0:-2,1])/(2*sampling_time)
+            velocity_results['Acceleration ccf'][1:,0]=(velocity_results['Velocity ccf'][1:,0]-velocity_results['Velocity ccf'][0:-1,0])/sampling_time
+            velocity_results['Acceleration ccf'][1:,1]=(velocity_results['Velocity ccf'][1:,1]-velocity_results['Velocity ccf'][0:-1,1])/sampling_time
             
             R_sep=flap.get_data('NSTX_MDSPlus',
                                 name='\EFIT02::\RBDRY',
@@ -317,32 +349,26 @@ def calculate_avg_velocity_results(window_average=500e-6,
                             velocity_results['Separatrix dist '+key][ind_time]*=-1
             except:
                 pass
-            if gpi_plane_calculation:
-                coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
-                coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
-                coeff_r_new=3./800.
-                coeff_z_new=3./800.
-                det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
-                
-                for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
-                    orig=copy.deepcopy(velocity_results[key])
-                    velocity_results[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
-                    velocity_results[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
-                
-                velocity_results['Elongation max'][:]=(velocity_results['Size max'][:,0]-velocity_results['Size max'][:,1])/(velocity_results['Size max'][:,0]+velocity_results['Size max'][:,1])
-                velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
-            velocity_results['Velocity ccf'][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
+            
+            corr_thres_index=np.where(velocity_results['Correlation max'] < correlation_threshold)
+            velocity_results['Velocity ccf'][corr_thres_index,:]=[np.nan,np.nan]
+            velocity_results['GPI Dalpha'][corr_thres_index]=np.nan
+            velocity_results['Correlation max'][corr_thres_index]=np.nan
+            
             time=velocity_results['Time']
             elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-window_average,
                                                           time <= elm_time+window_average))
-            elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            if elm_time_base == 'frame similarity':
+                elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            if elm_time_base == 'radial velocity':
+                elm_time=(time[elm_time_interval_ind])[np.argmax(velocity_results['Velocity ccf'][elm_time_interval_ind,0])]
             elm_time_ind=np.argmin(np.abs(time-elm_time))
             #current_elm_time=velocity_results['Time'][elm_time_ind[index_elm]]
             try:
                 for key in average_results.keys():
                     if len(average_results[key].shape) == 1:
                         ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
-                        if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
+                        if len(ind_nan) > 0: # and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
                     else:
                         ind_nan_rad=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])
@@ -351,6 +377,7 @@ def calculate_avg_velocity_results(window_average=500e-6,
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
                             (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
                     variance_results[key]+=(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]-average_results[key])**2
+                    
                     if key == 'Elongation max':
                         cur_error=20e-3/(velocity_results['Size max'][elm_time_ind-nwin:elm_time_ind+nwin,0]+
                                          velocity_results['Size max'][elm_time_ind-nwin:elm_time_ind+nwin,1])
@@ -362,9 +389,10 @@ def calculate_avg_velocity_results(window_average=500e-6,
                 pass
             
     for key in variance_results.keys():
-        if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
-            variance_results[key]=np.sqrt(variance_results[key]/elm_counter)
-        elif not 'ccf' in key:
+        #if key in ['Frame similarity', 'Correlation max', 'GPI dalpha']:
+        #    variance_results[key]=variance_results[key]/np.sqrt(elm_counter)
+        #elif
+        if not 'ccf' in key:
             if len(variance_results[key].shape) == 1:
                 variance_results[key]=np.sqrt(variance_results[key]/(notnan_counter[key])) #SQRT FROM HERE
             else:
@@ -400,6 +428,18 @@ def calculate_avg_velocity_results(window_average=500e-6,
     error_results['Separatrix dist max']/=np.sqrt(notnan_counter['Size max'][:,0])
     error_results['Elongation max']/=inf_counter*np.sqrt(notnan_counter['Elongation max'])
     
+    for key in average_results:
+        if len(average_results[key].shape) == 1:
+            print(key, 
+                  average_results[key][nwin-1],
+                  average_results[key][nwin],
+                  average_results[key][nwin+1])
+        else:
+            print(key,
+                  average_results[key][nwin-1,:],
+                  average_results[key][nwin,:],
+                  average_results[key][nwin+1,:])
+    
     if pdf or plot:
         plot_average_velocity_results(average_results=average_results,
                                       variance_results=variance_results,
@@ -410,7 +450,7 @@ def calculate_avg_velocity_results(window_average=500e-6,
                                       pdf=pdf,
                                       plot_max_only=plot_max_only,
                                       plot_for_publication=plot_for_publication,
-                                      pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULTS_'+str(correlation_threshold),
+                                      pdf_filename='NSTX_GPI_ALL_ELM_AVERAGE_RESULTS_'+str(correlation_threshold)+'_'+elm_time_base.replace(' ','_'),
                                       normalized_velocity=normalized_velocity,
                                       opacity=opacity,
                                       plot_scatter=plot_scatter)
@@ -1134,8 +1174,8 @@ def plot_average_velocity_results(average_results=None,
                         alpha=opacity)
         
     ax.set_xlabel('Tau [ms]')
-    ax.set_ylabel('v_rad[m/s]')
-    ax.set_title('Radial acceleration of the average results. \n (blue: ccf, green: str avg, red: str max)')
+    ax.set_ylabel('a_rad[m/s2]')
+    ax.set_title('Radial acceleration of the average results.')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Acceleration ccf'][0,:])
@@ -1154,9 +1194,9 @@ def plot_average_velocity_results(average_results=None,
              average_results['Acceleration ccf'][plot_index,1])
     if plot_scatter:
         ax.scatter(average_results['Tau'][plot_index], 
-                    average_results['Acceleration ccf'][plot_index,1], 
-                    s=5, 
-                    marker='o')
+                   average_results['Acceleration ccf'][plot_index,1], 
+                   s=5, 
+                   marker='o')
     if plot_variance:
         x=average_results['Tau'][plot_index]
         y=average_results['Acceleration ccf'][plot_index,1]
@@ -1174,8 +1214,8 @@ def plot_average_velocity_results(average_results=None,
 
 
     ax.set_xlabel('Tau [ms]')
-    ax.set_ylabel('a_pol[m/s]')
-    ax.set_title('Poloidal accelearion of the average results. \n (blue: ccf, green: str avg, red: str max)')
+    ax.set_ylabel('a_pol[m/s2]')
+    ax.set_title('Poloidal acceleration of the average results')
     ax.set_xlim(tau_range)
     if ylimits is not None:
         ax.set_ylim(ylimits['Acceleration ccf'][plot_index_structure,1])
@@ -2265,4 +2305,316 @@ def calculate_avg_sz_velocity_results(window_average=500e-6,
     fig.tight_layout()
     if pdf:
         pdf_object.savefig()
+        pdf_object.close()
+        
+        
+def calculate_avg_angular_velocity_results(elm_time_window=2e-3,                #The time window for which calculations are available saved in a file
+                                           window_average=500e-6,               #The time window the averaging is done for, should be less than elm_time_window
+                                           sampling_time=2.5e-6,                #Sampling time of the GPI measurement
+                                           pdf=False,                           #Save the results in a PDF
+                                           plot=True,                           #Plot the results in a matplotlib figure
+                                           return_results=False,                #Return the results in a dict
+                                           return_error=False,                  #Return the errors in a dict
+                                           plot_variance=True,                  #Plot the variance onto the plots
+                                           plot_error=False,                    #Plot the measurement error onto the plots
+                                           
+                                           opacity=0.2,                         #Opacity of the overplotted error or variance areas
+                                           correlation_threshold=0.6,           #Correlation threshold of the data to be plotted
+                                           plot_for_publication=False,          #Use the settings for almost publication ready plotting
+                                           elm_time_base='frame similarity',    #Shouldn't be changed
+                                           angle_threshold=45,                  #Threshold for the angle rotation calculation to be valid
+                                           ):
+    
+    if elm_time_base not in ['frame similarity', 'radial velocity']:
+        raise ValueError('elm_time_base should be either "frame similarity" or "radial velocity"')
+    
+    database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'
+    db=pandas.read_csv(database_file, index_col=0)
+    elm_index=list(db.index)
+    
+    angular_velocity_threshold=angle_threshold/sampling_time
+    
+    nwin=int(window_average/sampling_time)
+    average_results={'Velocity ccf FLAP':np.zeros([2*nwin,2]),
+                     'Angular velocity ccf FLAP':np.zeros([2*nwin]),
+                     'Angular velocity ccf FLAP log':np.zeros([2*nwin]),
+                     'Expansion velocity ccf FLAP':np.zeros([2*nwin]),
+                     
+                     'Velocity ccf skim':np.zeros([2*nwin,2]),
+                     'Angular velocity ccf':np.zeros([2*nwin]),
+                     'Angular velocity ccf log':np.zeros([2*nwin]),
+                     'Expansion velocity ccf':np.zeros([2*nwin]),                     
+                     }
+    
+    notnan_counter=copy.deepcopy(average_results)
+    variance_results=copy.deepcopy(average_results)
+    error_results=copy.deepcopy(average_results)
+    
+    error_results['Velocity ccf FLAP'][:,0]=3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Velocity ccf FLAP'][:,1]=3.75e-3/2.5e-6  #Pixel resolution
+
+    error_results['Velocity ccf skim'][:,0]=3.75e-3/2.5e-6  #Pixel resolution
+    error_results['Velocity ccf skim'][:,1]=3.75e-3/2.5e-6  #Pixel resolution
+
+    error_results['Angular velocity ccf'][:]=np.pi/180./2.5e-6  #Pixel resolution
+    error_results['Expansion velocity ccf'][:]=np.nan #10e-3/2.5e-6  #Pixel resolution should be divided by the size of the structure or the method needs to be differentiated 
+   
+    elm_counter=0.
+    
+    for index_elm in range(len(elm_index)):
+        #preprocess velocity results, tackle with np.nan and outliers
+        shot=int(db.loc[elm_index[index_elm]]['Shot'])
+        #define ELM time for all the cases
+        
+        #try:
+        elm_time_file=db.loc[elm_index[index_elm]]['Time prec']
+        #except:
+        #    elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
+        #    print('Not the precize time was used due to an error in the reading of the DB.')
+            
+        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+                
+       
+        filename=flap_nstx.analysis.filename(exp_id=shot,
+                                             working_directory=wd+'/processed_data',
+                                             time_range=[elm_time_file-elm_time_window,elm_time_file+elm_time_window],
+                                             purpose='ccf ang velocity',
+                                             comment='pfit_o'+str(4)+'_fst_'+str(0.0),
+                                             extension='pickle')
+
+        status=db.loc[elm_index[index_elm]]['OK/NOT OK']
+        
+        if status != 'NO':
+            velocity_results=pickle.load(open(filename, 'rb'))
+            
+            for key in ['Velocity ccf FLAP', 'Velocity ccf skim']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
+            
+            for key in ['Angular velocity ccf', 'Angular velocity ccf FLAP', 
+                        'Angular velocity ccf log', 'Angular velocity ccf FLAP log']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold)]=np.nan
+                velocity_results[key][np.where(np.abs(velocity_results[key]) > angular_velocity_threshold)]=np.nan
+                
+            for key in ['Expansion velocity ccf', 'Expansion velocity ccf FLAP']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold)]=np.nan
+            
+            time=velocity_results['Time']
+            elm_time_interval_ind=np.where(np.logical_and(time >= elm_time_file-elm_time_window,
+                                                          time <= elm_time_file+elm_time_window))
+            
+            elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            
+            elm_time_ind=np.argmin(np.abs(time-elm_time_file))
+
+            try:
+#            if True:
+                for key in average_results.keys():
+                    if len(average_results[key].shape) == 1:
+                        ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
+                        notnan_counter[key]+=np.logical_not(ind_nan)
+                        if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max']:
+                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
+                        average_results[key]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]
+                    else:
+                        ind_nan_rad=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])
+                        ind_nan_pol=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])
+                        
+                        notnan_counter[key][:,0]+=np.logical_not(ind_nan_rad)
+                        notnan_counter[key][:,1]+=np.logical_not(ind_nan_pol)
+                        
+                        (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
+                        (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
+                            
+                        average_results[key][:,0]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0]
+                        average_results[key][:,1]+=velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1]
+                elm_counter+=1
+            except:
+                print(elm_time-elm_time_file, filename)
+            
+
+    for key in average_results.keys():
+        notnan_counter[key][np.where(notnan_counter[key] == 0)] = 1.
+        if key in ['Frame similarity', 'Correlation max']:
+            average_results[key]=average_results[key]/elm_counter
+        else:
+            if len(average_results[key].shape) == 1:
+                average_results[key]=average_results[key]/(notnan_counter[key])
+            else:
+                average_results[key][:,0]=average_results[key][:,0]/(notnan_counter[key][:,0])
+                average_results[key][:,1]=average_results[key][:,1]/(notnan_counter[key][:,1])
+
+    for index_elm in range(len(elm_index)):
+        #preprocess velocity results, tackle with np.nan and outliers
+        shot=int(db.loc[elm_index[index_elm]]['Shot'])
+        #define ELM time for all the cases
+        elm_time=db.loc[elm_index[index_elm]]['Time prec']
+
+        filename=flap_nstx.analysis.filename(exp_id=shot,
+                                             working_directory=wd+'/processed_data',
+                                             time_range=[elm_time-elm_time_window,elm_time+elm_time_window],
+                                             purpose='ccf ang velocity',
+                                             comment='pfit_o'+str(4)+'_fst_'+str(0.0),
+                                             extension='pickle')
+
+        status=db.loc[elm_index[index_elm]]['OK/NOT OK']
+
+        if status != 'NO':
+            
+            velocity_results=pickle.load(open(filename, 'rb'))
+            
+            for key in ['Velocity ccf FLAP', 'Velocity ccf skim']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
+            
+            for key in ['Angular velocity ccf', 'Angular velocity ccf FLAP', 
+                        'Angular velocity ccf log', 'Angular velocity ccf FLAP log']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold)]=np.nan
+                velocity_results[key][np.where(np.abs(velocity_results[key]) > angular_velocity_threshold)]=np.nan
+                
+            for key in ['Expansion velocity ccf', 'Expansion velocity ccf FLAP']:
+                velocity_results[key][np.where(velocity_results['Correlation max'] < correlation_threshold)]=np.nan
+            
+            time=velocity_results['Time']
+            elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-window_average,
+                                                          time <= elm_time+window_average))
+            if elm_time_base == 'frame similarity':
+                elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+            if elm_time_base == 'radial velocity':
+                elm_time=(time[elm_time_interval_ind])[np.argmax(velocity_results['Velocity ccf FLAP'][elm_time_interval_ind,0])]
+            elm_time_ind=np.argmin(np.abs(time-elm_time))
+            
+            try:
+#            if True:
+                for key in average_results.keys():
+                    if len(average_results[key].shape) == 1:
+                        ind_nan=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])
+                        if len(ind_nan) > 0 and key not in ['Frame similarity','Correlation max', 'GPI Dalpha']:
+                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin])[ind_nan]=0.
+                    else:
+                        ind_nan_rad=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])
+                        ind_nan_pol=np.isnan(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])
+                        if len(ind_nan_rad) > 0 and len(ind_nan_pol) > 0:
+                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0])[ind_nan_rad]=0.
+                            (velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1])[ind_nan_pol]=0.
+                    variance_results[key]+=(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]-average_results[key])**2
+            except:
+                pass
+            
+    for key in variance_results.keys():
+        if key in ['Frame similarity', 'Correlation max']:
+            variance_results[key]=np.sqrt(variance_results[key]/elm_counter)
+        elif not 'ccf' in key:
+            if len(variance_results[key].shape) == 1:
+                variance_results[key]=np.sqrt(variance_results[key]/(notnan_counter[key])) #SQRT FROM HERE
+            else:
+                variance_results[key][:,0]=np.sqrt(variance_results[key][:,0]/(notnan_counter[key][:,0]))
+                variance_results[key][:,1]=np.sqrt(variance_results[key][:,1]/(notnan_counter[key][:,1]))
+        else:
+            if len(average_results[key].shape) == 1:
+                variance_results[key]=np.sqrt(variance_results[key]/(notnan_counter[key]))
+            else:
+                variance_results[key][:,0]=np.sqrt(variance_results[key][:,0]/(notnan_counter[key][:,0]))
+                variance_results[key][:,1]=np.sqrt(variance_results[key][:,1]/(notnan_counter[key][:,1])) #UNTIL HERE
+
+    average_results['Tau']=(np.arange(2*nwin)*sampling_time-window_average)*1e3 #Let the results be in ms
+    variance_results['Tau']=(np.arange(2*nwin)*sampling_time-window_average)*1e3 #Let the results be in ms
+        #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
+
+    for key in ['Velocity ccf FLAP', 'Velocity ccf skim']:
+        error_results[key][:,0]/=np.sqrt(notnan_counter[key][:,0])
+        error_results[key][:,1]/=np.sqrt(notnan_counter[key][:,1])
+    
+    for key in ['Angular velocity ccf', 'Angular velocity ccf log',
+                'Angular velocity ccf FLAP', 'Angular velocity ccf FLAP log',
+                'Expansion velocity ccf', 'Expansion velocity ccf FLAP']:
+        error_results[key]/=np.sqrt(notnan_counter[key])
+
+    y_vector=[{'Title':'Radial velocity ccf',
+               'Data':average_results['Velocity ccf FLAP'][:,0],
+               'Data label':'Velocity ccf FLAP',
+               'Variance':variance_results['Velocity ccf FLAP'][:,0],
+               'Overplot':average_results['Velocity ccf skim'][:,0],
+               'Overplot label':'Velocity ccf skim',
+               'Error':error_results['Velocity ccf FLAP'][:,0],
+               'ylabel':'v_rad [m/s]',
+               },
+    
+              {'Title':'Poloidal velocity ccf',
+               'Data':average_results['Velocity ccf FLAP'][:,1],
+               'Data label':'Velocity ccf FLAP',
+               'Variance':variance_results['Velocity ccf FLAP'][:,1],
+               'Overplot':average_results['Velocity ccf skim'][:,1],
+               'Overplot label':'Velocity ccf skim',
+               'Error':error_results['Velocity ccf FLAP'][:,1],
+               'ylabel':'v_pol [m/s]',
+               },
+              
+              {'Title':'Angular velocity ccf',
+               'Data':average_results['Angular velocity ccf'],
+               'Data label':'Angular velocity ccf',
+               'Variance':variance_results['Angular velocity ccf'],
+               'Overplot':average_results['Angular velocity ccf FLAP'],
+               'Overplot label':'Angular velocity ccf FLAP',
+               'Error':error_results['Angular velocity ccf'],
+               'ylabel':'omega [1/s]',
+               },
+               
+              {'Title':'Angular velocity ccf log',
+               'Data':average_results['Angular velocity ccf log'],
+               'Data label':'Angular velocity ccf log',
+               'Variance':variance_results['Angular velocity ccf log'],
+               'Overplot':average_results['Angular velocity ccf FLAP log'],
+               'Overplot label':'Angular velocity ccf FLAP log',
+               'Error':error_results['Angular velocity ccf log'],
+               'ylabel':'omega [1/s]',
+               },               
+              
+              {'Title':'Expansion velocity ccf',
+               'Data':average_results['Expansion velocity ccf'],
+               'Data label':'Expansion velocity ccf',
+               'Variance':variance_results['Expansion velocity ccf'],
+               'Overplot':average_results['Expansion velocity ccf FLAP'],
+               'Overplot label':'Expansion velocity ccf FLAP',
+               'Error':error_results['Expansion velocity ccf'],
+               'ylabel':'Expansion [a.u.]',
+               },
+              ]
+    
+    pdf_object=PdfPages(wd+'/plots/all_angular_velocity_results.pdf')
+    
+    for i in range(len(y_vector)):
+        fig, ax = plt.subplots()
+        ax.plot(average_results['Tau'], 
+                y_vector[i]['Data'], 
+                label=y_vector[i]['Data label'],
+                ) 
+        
+        ax.plot(average_results['Tau'],
+                y_vector[i]['Overplot'],
+                label=y_vector[i]['Overplot label'],
+                )
+        
+        if plot_error:
+            x=average_results['Tau']
+            y=y_vector[i]['Data']
+            dy=y_vector[i]['Error']
+            ax.fill_between(x,y-dy,y+dy,
+                            color='tab:blue',
+                            alpha=opacity)
+        if plot_variance:
+            x=average_results['Tau']
+            y=y_vector[i]['Data']
+            dy=y_vector[i]['Variance']
+            ax.fill_between(x,y-dy,y+dy,
+                            color='grey',
+                            alpha=opacity)
+        plt.legend()
+        ax.set_xlabel('Tau [ms]')
+        ax.set_ylabel(y_vector[i]['ylabel'])
+        ax.set_title(y_vector[i]['Title'])
+    
+        fig.tight_layout()
+        if pdf:
+            pdf_object.savefig()
+            
+    if pdf:
         pdf_object.close()

@@ -49,6 +49,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
                         new_plot=True,                                          #Plot the video into a new figure window
                         save_video=False,                                       #Save the video into an mp4 format
                         video_saving_only=False,                                #Saving only the video, not plotting it
+                        video_framerate=24,
                         prevent_saturation=False,                               #Prevent saturation of the image by restarting the colormap
                         colormap='gist_ncar',                                   #Colormap for the plotting
                         cache_data=True,                                       #Try to load the data from the FLAP storage
@@ -249,6 +250,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
                            'Waittime':waittime,
                            'Video file':video_filename,
                            'Video format':'mp4',
+                           'Video framerate':video_framerate,
                            'Prevent saturation':prevent_saturation,
                            })
         if video_saving_only:

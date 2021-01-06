@@ -19,6 +19,7 @@ import flap_nstx
 
 from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
 from flap_nstx.analysis import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
+from flap_nstx.analysis import read_ahmed_fit_parameters
 
 from matplotlib.backends.backend_pdf import PdfPages
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -557,7 +558,6 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
                                                     inverse_fit=False,
                                                     plot_linear_fit=True,
                                                     test=False,
-                                                    
                                                     ):
     if averaging not in ['before_after', 'full', 'elm']:
         raise ValueError('Averaging should be one of the following: before_after, full, elm')
@@ -643,16 +643,8 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
             gpi_results_avg={'Velocity ccf':[],
                              'Velocity str avg':[],
                              'Velocity str max':[],
-                             #'Frame similarity':[],
-                             #'Correlation max':[],
                              'Size avg':[],
                              'Size max':[],
-                             #'Position avg':[],
-                             #'Position max':[],
-                             #'Centroid avg':[],
-                             #'Centroid max':[],                          
-                             #'COG avg':[],
-                             #'COG max':[],
                              'Area avg':[],
                              'Area max':[],
                              'Elongation avg':[],
@@ -1017,6 +1009,369 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
                                              np.min(y_var_after[non_zero_ind_y_after])]),
                                      np.max([np.max(y_var_before[non_zero_ind_y_before]),
                                              np.max(y_var_after[non_zero_ind_y_after])])])
+                        
+                    if 'Velocity' in key_gpi:
+                        dimension_gpi='[m/s]'
+                    if 'Size' in key_gpi:
+                        dimension_gpi='[m]'
+                        
+                    ax.set_xlabel(key_grad+' gradient '+dimension)
+                    ax.set_ylabel(key_gpi+' '+title_addon[var_ind]+' '+dimension_gpi)
+                    ax.set_title(key_grad+' gradient'+' vs. '+key_gpi+gpi_key_str_addon+' '+title_addon[var_ind]+title_redblue)
+                    fig.tight_layout()
+                    if pdf:
+                        pdf_pages.savefig()       
+                        
+        if pdf:
+            pdf_pages.close()
+    if not plot:
+        plt.close('all')           
+    file.close()
+    
+def plot_elm_parameters_vs_ahmed_fitting(averaging='before',
+                                         parameter='grad_glob',
+                                         normalized_structure=True,
+                                         normalized_velocity=True,
+                                         subtraction_order=4,
+                                         test=False,
+                                         recalc=True,
+                                         elm_window=500e-6,
+                                         elm_duration=100e-6,
+                                         correlation_threshold=0.6,
+                                         plot=False,
+                                         auto_x_range=True,
+                                         auto_y_range=True,
+                                         plot_error=True,
+                                         pdf=True,
+                                         dependence_error_threshold=0.5,
+                                         plot_only_good=False,
+                                         plot_linear_fit=False,
+                                         pressure_grad_range=None,               #Plot range for the pressure gradient
+                                         density_grad_range=None,                #Plot range for the density gradient
+                                         temperature_grad_range=None,            #Plot range for the temperature gradient (no outliers, no range)
+                                         ):
+    
+    
+    
+    if averaging not in ['before', 'after', 'full', 'elm']:
+        raise ValueError('Averaging should be one of the following: before_after, full, elm')
+    if parameter not in ['grad_glob','ped_height','value_at_max_grad']:
+        raise ValueError('Parameter should be one of the following: grad_glob,ped_height,value_at_max_grad')
+        #GPI spatial_coefficients
+    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    
+    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+    coeff_r_new=3./800.
+    coeff_z_new=3./800.
+    
+    
+    flap.delete_data_object('*')
+    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+    
+    result_filename=wd+'/processed_data/'+'elm_profile_dependence'
+        
+    result_filename+='_'+averaging+'_avg'
+    
+        
+    if normalized_structure:
+        result_filename+='_ns'
+    if normalized_velocity:
+        result_filename+='_nv'
+    result_filename+='_so'+str(subtraction_order)
+
+    scaling_db_file=result_filename+'.pickle'
+
+    if test:
+        import matplotlib.pyplot as plt
+        plt.figure()
+    db_dict=read_ahmed_fit_parameters()
+    
+    if not os.path.exists(scaling_db_file) or recalc:
+        
+        #Load and process the ELM database    
+        database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'
+        db=pandas.read_csv(database_file, index_col=0)
+        elm_index=list(db.index)
+
+        
+        #Defining the variables for the calculation
+        gradient={'Pressure':[],
+                  'Density':[],
+                  'Temperature':[]}
+        gradient_error={'Pressure':[],
+                        'Density':[],
+                        'Temperature':[]}
+        gpi_results_avg={'Velocity ccf':[],
+                         'Velocity str avg':[],
+                         'Velocity str max':[],
+                         'Size avg':[],
+                         'Size max':[],
+                         'Area avg':[],
+                         'Area max':[],
+                         'Elongation avg':[],
+                         'Elongation max':[],                          
+                         'Angle avg':[],
+                         'Angle max':[],                          
+                         'Str number':[],
+                         }
+        
+        gpi_results_max=copy.deepcopy(gpi_results_avg)
+        index_correction=0
+        for elm_ind in elm_index:
+            
+            elm_time=db.loc[elm_ind]['ELM time']/1000.
+            shot=int(db.loc[elm_ind]['Shot'])
+            
+            if normalized_velocity:
+                if normalized_structure:
+                    str_add='_ns'
+                else:
+                    str_add=''
+                filename=flap_nstx.analysis.filename(exp_id=shot,
+                                                     working_directory=wd+'/processed_data',
+                                                     time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                     comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
+                                                     extension='pickle')
+            else:
+                filename=wd+'/processed_data/'+db.loc[elm_ind]['Filename']+'.pickle'
+            #grad.slice_data(slicing=time_slicing)
+            status=db.loc[elm_ind]['OK/NOT OK']
+            
+            if status != 'NO':
+                
+                velocity_results=pickle.load(open(filename, 'rb'))
+                
+                det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
+                
+                for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
+                    orig=copy.deepcopy(velocity_results[key])
+                    velocity_results[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
+                    velocity_results[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
+                    
+                velocity_results['Elongation max'][:]=(velocity_results['Size max'][:,0]-velocity_results['Size max'][:,1])/(velocity_results['Size max'][:,0]+velocity_results['Size max'][:,1])
+                velocity_results['Elongation avg'][:]=(velocity_results['Size avg'][:,0]-velocity_results['Size avg'][:,1])/(velocity_results['Size avg'][:,0]+velocity_results['Size avg'][:,1])
+                
+                velocity_results['Velocity ccf'][np.where(velocity_results['Correlation max'] < correlation_threshold),:]=[np.nan,np.nan]
+                for key in gpi_results_avg:
+                    ind_nan=np.isnan(velocity_results[key])
+                    velocity_results[key][ind_nan]=0.
+                time=velocity_results['Time']
+                
+                elm_time_interval_ind=np.where(np.logical_and(time >= elm_time-elm_duration,
+                                                              time <= elm_time+elm_duration))
+                nwin=int(elm_window/2.5e-6)     #Length of the window for the calculation before and after the ELM
+                n_elm=int(elm_duration/2.5e-6)  #Length of the ELM burst approx. 100us
+                
+                elm_time=(time[elm_time_interval_ind])[np.argmin(velocity_results['Frame similarity'][elm_time_interval_ind])]
+                elm_time_ind=int(np.argmin(np.abs(time-elm_time)))
+                
+                for key in gpi_results_avg:
+                    if averaging == 'before':
+                        #This separates the before and after times with the before and after Thomson results.
+                         gpi_results_avg[key].append(np.mean(velocity_results[key][elm_time_ind-nwin:elm_time_ind],axis=0))
+                    elif averaging == 'after':
+                         gpi_results_avg[key].append(np.mean(velocity_results[key][elm_time_ind+n_elm:elm_time_ind+nwin],axis=0))
+                        
+                    elif averaging == 'full':
+                        gpi_results_avg[key].append(np.mean(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin],axis=0))                            
+                        
+                    elif averaging == 'elm':
+                        gpi_results_avg[key].append(np.mean(velocity_results[key][elm_time_ind:elm_time_ind+n_elm], axis=0))
+                        
+                    elif averaging == 'no':
+                        gpi_results_avg[key].append(velocity_results[key][elm_time_ind])
+                    
+                    if len(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin].shape) == 2:
+                        
+                        max_ind_0=np.argmax(np.abs(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0]),axis=0)
+                        max_ind_1=np.argmax(np.abs(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1]),axis=0)
+                        gpi_results_max[key].append([velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,0][max_ind_0],
+                                                     velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin,1][max_ind_1]])
+                    else:
+                        max_ind=np.argmax(np.abs(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin]),axis=0)
+                        gpi_results_max[key].append(velocity_results[key][elm_time_ind-nwin:elm_time_ind+nwin][max_ind])
+                grad_keys=['Temperature',
+                           'Density',
+                           'Pressure']
+                if np.sum(np.where(db_dict['shot'] == shot)) != 0:
+                    
+                    while db_dict['shot'][elm_ind-index_correction] != shot:
+                        index_correction+=1
+                        
+                    db_ind=elm_ind-index_correction
+                        
+                    for key in grad_keys:
+                        gradient[key].append(db_dict[key][parameter][db_ind])
+                        
+                        gradient_error[key].append(db_dict[key][parameter][db_ind]*0.)
+                else:
+                    for key in grad_keys:
+                        gradient[key].append(db_dict[key][parameter][0]*np.nan)
+                    
+                        gradient_error[key].append(db_dict[key][parameter][0]*np.nan)
+                        
+        for variable in [gradient, gradient_error, gpi_results_avg, gpi_results_max]:
+            for key in variable:
+                variable[key]=np.asarray(variable[key])
+                
+        pickle.dump((gradient, gradient_error, gpi_results_avg, gpi_results_max), open(scaling_db_file,'wb'))          
+    else:
+        gradient, gradient_error, gpi_results_avg, gpi_results_max = pickle.load(open(scaling_db_file,'rb'))
+
+        
+    if plot:
+        import matplotlib
+        matplotlib.use('QT5Agg')
+        import matplotlib.pyplot as plt
+    else:
+        import matplotlib
+        matplotlib.use('agg')
+        import matplotlib.pyplot as plt
+    
+    from numpy import logical_and as AND
+    non_zero_ind=AND(gradient['Temperature'] != 0.,
+                     AND(gradient['Pressure'] != 0.,
+                         gradient['Density'] != 0.))
+        
+    del AND
+
+    title_redblue='\n (blue: [-'+str(20)+',0]ms before ELM)\n (red: [0,'+str(20)+']ms after ELM)'
+
+    y_variables=[gpi_results_avg,
+                 gpi_results_max]
+    
+    title_addon=['(temporal avg)',
+                 '(range max)']
+    radvert=['radial', 'vertical']
+
+    
+    x_range={}
+    if auto_x_range:
+        for key_grad in ['Temperature','Pressure','Density']:
+            
+            ind_nan=np.logical_not(np.isnan(gradient[key_grad]))
+            
+            x_range[key_grad]=[np.min(gradient[key_grad][ind_nan]),
+                               np.max(gradient[key_grad][ind_nan])]
+                                       
+            
+    
+    if plot_error:
+        result_filename+='_error'
+    for var_ind in range(len(y_variables)):
+        if pdf:
+            filename=result_filename.replace('processed_data', 'plots')+'_'+title_addon[var_ind].replace('(','').replace(')','').replace(' ','_')
+            pdf_pages=PdfPages(filename+'.pdf')
+            file=open(filename+'_linear_dependence.txt', 'wt')
+        for key_gpi in y_variables[var_ind].keys():
+            for key_grad in gradient.keys():
+                for i in range(2):
+                    if len(y_variables[var_ind][key_gpi].shape) == 2:
+                        fig, ax = plt.subplots()
+                        y_var=y_variables[var_ind][key_gpi][:,i][non_zero_ind]
+                        non_zero_ind_y=np.where(y_var != 0.)
+                        
+                        gpi_key_str_addon=' '+radvert[i]
+                    elif len(y_variables[var_ind][key_gpi].shape) == 1:
+                        if i == 1:
+                            continue
+                        fig, ax = plt.subplots()
+                        y_var=y_variables[var_ind][key_gpi][non_zero_ind]
+                        non_zero_ind_y=np.where(y_var != 0.)
+
+                        gpi_key_str_addon=' '
+
+                    color='tab:blue'
+                    fit_color='blue'
+
+                    ind_nan=np.logical_not(np.isnan(gradient[key_grad][non_zero_ind][non_zero_ind_y]))
+                    try:
+                        #Zero error results are neglected
+                        ind_zero_error=np.where(gradient_error[key_grad][non_zero_ind][non_zero_ind_y][ind_nan] != 0)
+                        sigma=(gradient_error[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_zero_error] /
+                               np.sum(gradient_error[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_zero_error]))
+                        
+                        x_adjusted_error=1/sigma
+                        
+                        val,cov=np.polyfit(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_zero_error],
+                                           y_var[non_zero_ind_y][ind_nan][ind_zero_error], 
+                                           1, 
+                                           w=x_adjusted_error,
+                                           cov=True)
+                    except:
+                        val=[np.nan, np.nan]
+                        cov=np.asarray([[np.nan,np.nan],
+                                        [np.nan,np.nan]])
+    
+                    a=val[0]
+                    b=val[1]
+                    delta_a=np.sqrt(cov[0,0])
+                    delta_b=np.sqrt(cov[1,1])
+                    
+                    good_plot=True
+                    if (np.abs(delta_a/a) < dependence_error_threshold and 
+                        np.abs(delta_b/b) < dependence_error_threshold):
+                        file.write(averaging+' result:\n')
+                        file.write(key_gpi+' '+gpi_key_str_addon+' = '+f"{b:.4f}"+' +- '+f"{delta_b:.4f}"+' + ('+f"{a:.4f}"+'+-'+f"{delta_a:.4f}"+') * '+key_grad+' gradient'+'\n')
+                        file.write('Relative error: delta_b/b: '+f"{np.abs(delta_b/b*100):.6f}"+'% , delta_a/a: '+f"{np.abs(delta_a/a*100):.6f}"+'%\n\n')
+                    elif plot_only_good:
+                        good_plot=False
+                        
+                        
+                    if good_plot:
+                        ax.scatter(gradient[key_grad][non_zero_ind][non_zero_ind_y],
+                                   y_var[non_zero_ind_y],
+                                   marker='o',
+                                   color=color)
+                 
+                        if plot_error:
+                            ax.errorbar(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan],
+                                        y_var[non_zero_ind_y][ind_nan],
+                                        xerr=gradient_error[key_grad][non_zero_ind][non_zero_ind_y][ind_nan],
+                                        marker='o', 
+                                        color=color,
+                                        ls='')
+                            
+                        if plot_linear_fit:
+                            ax.plot(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan],
+                                    a*gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan]+b, 
+                                    color=fit_color)
+                            ind_sorted=np.argsort(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan])
+                            ax.fill_between(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted],
+                                            (a-delta_a)*gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted]+(b-delta_b),
+                                            (a+delta_a)*gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted]+(b+delta_b),
+                                            color=color,
+                                            alpha=0.3)
+                            ax.fill_between(gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted],
+                                            (a-delta_a)*gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted]+(b+delta_b),
+                                            (a+delta_a)*gradient[key_grad][non_zero_ind][non_zero_ind_y][ind_nan][ind_sorted]+(b-delta_b),
+                                            color=color,
+                                            alpha=0.3)
+                        
+                    if key_grad == 'Pressure':
+                        dimension='[kPa/m]'
+                    elif key_grad == 'Temperature':
+                        dimension='[keV/m]'
+                    elif key_grad == 'Density':
+                        dimension='[1/m3/m]'
+                    else:
+                        dimension=''
+                        
+                    if not auto_x_range:
+                        if pressure_grad_range is not None and key_grad == 'Pressure':
+                            ax.set_xlim(pressure_grad_range[0],pressure_grad_range[1])
+                        elif temperature_grad_range is not None and key_grad == 'Temperature':
+                            ax.set_xlim(temperature_grad_range[0],temperature_grad_range[1])
+                        elif density_grad_range is not None and key_grad == 'Density':
+                            ax.set_xlim(density_grad_range[0],density_grad_range[1])
+                    else:
+                        ax.set_xlim(x_range[key_grad][0],
+                                    x_range[key_grad][1])
+                    if auto_y_range:
+                        ax.set_ylim([np.min(y_var[non_zero_ind_y]),
+                                     np.max(y_var[non_zero_ind_y])])
+                                         
                         
                     if 'Velocity' in key_gpi:
                         dimension_gpi='[m/s]'

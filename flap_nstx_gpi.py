@@ -123,11 +123,11 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                                 info={'Options':_options},
                                 data_source="NSTX_GPI")
             return d
-        
+
     images=pims.Cine(local_file_folder+file_name)
 
     data_arr=np.flip(np.asarray(images[:], dtype=np.int16),2) #The original data is 80x64, this line converts it to 64x80
-    
+
     data_unit = flap.Unit(name='Signal',unit='Digit')
     
     #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
@@ -494,7 +494,35 @@ def add_coordinate(data_object,
                                dimension_list=[0,1,2]
                                )))
         data_object.coordinates.append(new_coordinates)
-    return data_object
 
+    if ('Image R' in coordinates):
+        pixel_x_coord=data_object.coordinate('Image x')[0][0,:,:]-32
+        pixel_y_coord=data_object.coordinate('Image y')[0][0,:,:]-40
+        pixel_r_coord=np.sqrt(pixel_x_coord**2 + pixel_y_coord**2)
+        
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Image R',
+                               unit='pix',
+                               mode=flap.CoordinateMode(equidistant=False),
+                               values=pixel_r_coord,
+                               shape=pixel_r_coord.shape,
+                               dimension_list=[1,2]
+                               )))
+        data_object.coordinates.append(new_coordinates)
+    if ('Image theta' in coordinates):
+        pixel_x_coord=data_object.coordinate('Image x')[0][0,:,:]-32
+        pixel_y_coord=data_object.coordinate('Image y')[0][0,:,:]-40
+        pixel_theta_coord=copy.deepcopy(pixel_x_coord)
+        pixel_theta_coord=np.arctan(pixel_y_coord/pixel_x_coord)
+        
+        new_coordinates=(copy.deepcopy(flap.Coordinate(name='Image theta',
+                               unit='rad',
+                               mode=flap.CoordinateMode(equidistant=False),
+                               values=pixel_theta_coord,
+                               shape=pixel_theta_coord.shape,
+                               dimension_list=[1,2]
+                               )))
+        data_object.coordinates.append(new_coordinates)
+        
+    return data_object
 def register():
     flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
