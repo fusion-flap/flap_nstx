@@ -11,6 +11,7 @@ Created on Mon Nov 11 11:38:06 2019
 import os
 import copy
 
+
 #Scientific package imports
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -278,7 +279,8 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                save_pdf=False,
                                colormap='gist_ncar',
                                save_for_paraview=False,
-                               colorbar_visibility=True
+                               colorbar_visibility=True,
+                               save_data_for_publication=False
                                ):
     
     if time_range is None and start_time is None:
@@ -304,8 +306,13 @@ def show_nstx_gpi_video_frames(exp_id=None,
         object_name='GPI'
     else:
         raise ValueError('The experiment ID needs to be set.')
+        
+        
     if time_range is None:
         time_range=[start_time,start_time+n_frame*2.5e-6]
+        
+    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']    
+        
     if normalize:
         
         flap.slice_data(object_name, 
@@ -403,6 +410,9 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if n_frame == 20:
         ny=5
         nx=4
+    if n_frame == 9:
+        ny=3
+        nx=3
     gs=GridSpec(nx,ny)
     for index_grid_x in range(nx):
         for index_grid_y in range(ny):
@@ -410,7 +420,8 @@ def show_nstx_gpi_video_frames(exp_id=None,
             plt.subplot(gs[index_grid_x,index_grid_y])
             
             if start_time is not None:
-                slicing={'Sample':start_sample_num+index_grid_x*ny+index_grid_y}
+                sample=start_sample_num+index_grid_x*ny+index_grid_y
+                slicing={'Sample':sample}
             else:
                 time=time_range[0]+(time_range[1]-time_range[0])/(n_frame-1)*(index_grid_x*ny+index_grid_y)
                 slicing={'Time':time}
@@ -452,14 +463,31 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                },
                        plot_options={'levels':255},
                        )
+            if save_data_for_publication:
+                data=flap.get_data_object('GPI_SLICED').data
+                
+                if start_time is not None:
+                    string_add=str(sample)
+                else:
+                    string_add=str(time)
+                filename=wd+'/NSTX_GPI_video_frames_'+str(exp_id)+'_'+string_add+'.txt'
+                file1=open(filename, 'w+')
+                for i in range(len(data[0,:])):
+                    string=''
+                    for j in range(len(data[:,0])):
+                        string+=str(data[j,i])+'\t'
+                    string+='\n'
+                    file1.write(string)
+                file1.close()
+            
             actual_time=d.coordinate('Time')[0][0,0]
             #plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')
             plt.title(f"{actual_time*1000:.3f}"+'ms')
     if save_pdf:
         if time_range is not None:
-            plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
+            plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
         else:
-            plt.savefig('NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
+            plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
             
 def show_nstx_gpi_timetrace(exp_id=None,
                             plot_filtered=False,

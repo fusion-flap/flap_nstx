@@ -371,13 +371,19 @@ def detrend_multidim(data_object=None,
         d=copy.deepcopy(flap.get_data_object(data_object, exp_id=exp_id))
     else:
         d=copy.deepcopy(flap.get_data_object(data_object))
-        
+    
+    # if d.error is not None:
+    #     sigma_matrix=d.error
+    # else:
+    #     sigma_matrix=np.zeros(d.data.shape)
+    #     sigma_matrix[:,:]=1.
+    
     total_dim=len(d.data.shape)
     if total_dim > 4:
         raise TypeError('Dataset over 4 dimensions is not supported.')
     ndim=len(coordinates)    
     if ndim > 3:
-        raise ValueError('Detrend is not supported over 3D.')
+        raise ValueError('Detrend is not supported above 3D.')
     if ndim == 2:
         coord_obj_1=d.get_coordinate_object(coordinates[0])
         coord_obj_2=d.get_coordinate_object(coordinates[1])
@@ -387,9 +393,11 @@ def detrend_multidim(data_object=None,
         
         #[1,j,j2,j3,i,ij,ij2,i2,i2j,i3]
         points=np.asarray([[i**k * j**l for k in range(order+1) for l in range(order-k+1)] for i in range(d.data.shape[dim[0]]) for j in range(d.data.shape[dim[1]])]) #The actual polynomial calculation
+        c_matrix=np.linalg.inv(np.dot(points.T,points))
         if ndim == total_dim:
-            values=np.reshape(d.data,d.data.shape[dim[0]]*d.data.shape[dim[1]]) #Reshapes to the same order as the points are aranged
-            coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
+            b_matrix=d.data
+            b_vector=np.reshape(b_matrix,b_matrix.shape[dim[0]]*b_matrix.shape[dim[1]]) #Reshapes to the same order as the points are aranged
+            coeff=np.dot(np.dot(c_matrix,points.T),b_vector)#This performs the linear regression
             trend=np.dot(points,coeff)
             trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]]])
             d.data=d.data-trend
@@ -500,9 +508,18 @@ def filename(exp_id=None,
 def polyfit_2D(x=None,
                y=None,
                values=None,
+               sigma=None,
                order=None,
                irregular=False,
+               return_covariance=False,
                return_fit=False):
+    
+    if sigma is None:
+        sigma=np.asarray(values.shape)
+        sigma[:]=1.
+    else:
+        if sigma.shape != sigma.shape:
+            raise ValueError('The shape of the errors do not match the shape of the values!')
     
     if not irregular:
         if len(values.shape) != 2:
@@ -515,19 +532,28 @@ def polyfit_2D(x=None,
         if (x is None and y is not None) or (x is not None and y is None):
             raise ValueError('Either both or neither x and y need to be set.')
         if x is None and y is None:
-            polynom=np.asarray([[i**k * j**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+            polynom=np.asarray([[i**k * j**l / sigma[i,j] for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
         else:
-            polynom=np.asarray([[x[i,j]**k * y[i,j]**l for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+            polynom=np.asarray([[x[i,j]**k * y[i,j]**l / sigma[i,j] for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
+            
         original_shape=values.shape
-        values=np.reshape(values, values.shape[0]*values.shape[1])
+        values_reshape=np.reshape(values/sigma, values.shape[0]*values.shape[1])
+        
+        covariance_matrix=np.linalg.inv(np.dot(polynom.T,polynom))
+        
+        coefficients=np.dot(np.dot(covariance_matrix,polynom.T),values_reshape) #This performs the linear regression
+        
         if not return_fit:
-            return np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values) #This performs the linear regression
+            if return_covariance:
+                return (coefficients, covariance_matrix)
+            else:
+                return coefficients 
         else:
-            return np.reshape(np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values)),original_shape)
+            return np.reshape(np.dot(polynom,coefficients),original_shape)
     else:
         if x.shape != y.shape or x.shape != values.shape:
             raise ValueError('The points should be an [n,2] vector.')
-        if len(x.shape) != 1 or len(y.shape) != 1 or len(values.shape) != 1:
+        if len(x.shape) != 1 or len(y.shape) != 1 or len(values_reshape.shape) != 1:
             raise ValueError('x,y,values should be a 1D vector when irregular is set.')
         if order is None:
             raise ValueError('The order is not set.')
@@ -758,6 +784,7 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                                         remove_interlaced_structures=False,     #Filter out the structures which are interlaced. Only the largest structures is preserved, others are removed.
                                         test_result=False,                      #Test the result only (plot the contour and the found structures)
                                         test=False,                             #Test the contours and the structures before any kind of processing
+                                        save_data_for_publication=False,
                                         ):
     
     """
@@ -927,7 +954,7 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
             plt.set_aspect(1.0)
         plt.contourf(x_coord, y_coord, data, levels=levels)
         plt.colorbar()           
-                
+
     #Finding the contour at the half level for each structure and
     #calculating its properties
     if len(structures) > 1:
@@ -1020,7 +1047,8 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
         if len(structures) > 0:
             #Parametric reproduction of the Ellipse
             R=np.arange(0,2*np.pi,0.01)
-            for structure in structures:
+            for i_structure in range(len(structures)):
+                structure=structures[i_structure]
                 if structure['Half path'] is not None:
                     phi=structure['Angle']
                     a,b=structure['Ellipse'].axes_length
@@ -1038,11 +1066,42 @@ def nstx_gpi_one_frame_structure_finder(data_object=None,                       
                                 structure['Centroid'][1], color='yellow')
                     plt.scatter(structure['Center of gravity'][0],
                                 structure['Center of gravity'][1], color='red')
+                    if save_data_for_publication:
+                        exp_id=data_object.exp_id
+                        time=data_object.coordinate('Time')[0][0,0]
+                        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+                        filename=wd+'/'+str(exp_id)+'_'+str(time)+'_half_path_no.'+str(i_structure)+'.txt'
+                        file1=open(filename, 'w+')
+                        for i in range(len(x)):
+                            file1.write(str(x[i])+'\t'+str(y[i])+'\n')
+                        file1.close()
+                        
+                        filename=wd+'/'+str(exp_id)+'_'+str(time)+'_fit_ellipse_no.'+str(i_structure)+'.txt'
+                        file1=open(filename, 'w+')
+                        for i in range(len(xx)):
+                            file1.write(str(xx[i])+'\t'+str(yy[i])+'\n')
+                        file1.close()
+                        
                 plt.xlabel('Image x')
                 plt.ylabel('Image y')
                 plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
                 plt.show()
                 plt.pause(0.1)
+                
+        if save_data_for_publication:
+            exp_id=data_object.exp_id
+            time=data_object.coordinate('Time')[0][0,0]
+            wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+            filename=wd+'/'+str(exp_id)+'_'+str(time)+'_raw_data.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
+                
     return structures
 
 def signal_windowed_avg_err(x,windowsize):

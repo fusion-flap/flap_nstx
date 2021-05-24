@@ -46,6 +46,8 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                      output_name=None,                          #Output name of the generated flap.data_object
                                      test=False,                                #Testing/debugging switch (mainly plotting and printing error messages)
                                      ):
+
+    
     if rotation_frequency is None:
         rotation_frequency=0
     
@@ -74,6 +76,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
         for i_y in range(80):
             r_coordinates[i_x,i_y]=coeff_r[0]*i_x+coeff_r[1]*i_y+coeff_r[2]
             z_coordinates[i_x,i_y]=coeff_z[0]*i_x+coeff_z[1]*i_y+coeff_z[2]
+            
     if gaussian:            
         r0=start_position
         
@@ -135,6 +138,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                             #shape=time_arr.shape,
                                             dimension_list=[0]
                                             )))
+    
     coord[1]=(copy.deepcopy(flap.Coordinate(name='Sample',
                                             unit='n.a.',
                                             mode=flap.CoordinateMode(equidistant=True),
@@ -142,6 +146,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                             step=1,
                                             dimension_list=[0]
                                             )))
+    
     coord[2]=(copy.deepcopy(flap.Coordinate(name='Image x',
                                             unit='Pixel',
                                             mode=flap.CoordinateMode(equidistant=True),
@@ -150,6 +155,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                             shape=[],
                                             dimension_list=[1]
                                             )))
+    
     coord[3]=(copy.deepcopy(flap.Coordinate(name='Image y',
                                             unit='Pixel',
                                             mode=flap.CoordinateMode(equidistant=True),
@@ -158,6 +164,7 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
                                             shape=[],
                                             dimension_list=[2]
                                             )))
+    
     coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
                                             unit='m',
                                             mode=flap.CoordinateMode(equidistant=False),
@@ -195,3 +202,211 @@ def nstx_gpi_generate_synthetic_data(exp_id=None,                               
     
     return d
     
+
+def generate_displaced_gaussian(exp_id=0,
+                                displacement=[0,0],
+                                size=[10,10],
+                                size_velocity=[0,0],
+                                r0=[32,40],
+                                frame_size=[64,80],
+                                sampling_time=2.5e-6,
+                                rotation_frequency=0.,
+                                circular=False,
+                                amplitude=1,
+                                output_name=None,
+                                test=False,
+                                add_background=False,
+                                background_time_range=[0.31,0.32],
+                                cutoff=100,
+                                n_frames=3,
+                                ):
+   
+    data_arr=np.zeros([n_frames,frame_size[0],frame_size[1]])
+    background=np.zeros([frame_size[0],frame_size[1]])
+    if add_background:
+        background=flap.get_data('NSTX_GPI', 
+                                 exp_id=139901, 
+                                 name='', 
+                                 object_name='GPI_RAW')
+        background=background.slice_data(slicing={'Time':flap.Intervals(background_time_range[0],
+                                                                        background_time_range[1])},
+                                         summing={'Time':'Mean'}).data
+        amplitude=amplitude*background.max()
+    size=size/(2*np.sqrt(2*np.log(2))) #Converting the size into sigma for the Gaussian        
+    
+    for i_frames in range(n_frames):
+        rot_arg=2*np.pi*rotation_frequency*i_frames
+        a=(np.cos(rot_arg)/(size[0]+size_velocity[0]*i_frames))**2+\
+          (np.sin(rot_arg)/(size[1]+size_velocity[1]*i_frames))**2
+        b=-0.5*np.sin(2*rot_arg)/(size[0]+size_velocity[0]*i_frames)**2+\
+           0.5*np.sin(2*rot_arg)/(size[1]+size_velocity[1]*i_frames)**2
+        c=(np.sin(rot_arg)/(size[0]+size_velocity[0]*i_frames))**2+\
+          (np.cos(rot_arg)/(size[1]+size_velocity[1]*i_frames))**2
+        x0=r0[0]+displacement[0]*i_frames
+        y0=r0[1]+displacement[1]*i_frames
+        frame=np.zeros([frame_size[0],frame_size[1]])
+        for j_vertical in range(frame_size[1]):
+            for k_radial in range(frame_size[0]):
+                x=k_radial
+                y=j_vertical
+                if (x > x0+size[0]*cutoff or
+                    x < x0-size[0]*cutoff or
+                    y > y0+size[1]*cutoff or
+                    y < y0-size[1]*cutoff):
+                    frame[k_radial,j_vertical]=background[k_radial,j_vertical]
+                else:
+                    frame[k_radial,j_vertical]=(amplitude*np.exp(-0.5*(a*(x-x0)**2 + 
+                                                                     2*b*(x-x0)*(y-y0) + 
+                                                                       c*(y-y0)**2))
+                                                       +background[k_radial,j_vertical])
+        data_arr[i_frames,:,:]+=frame
+    
+    coord = [None]*4
+    coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
+                                            unit='s',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0.,
+                                            step=sampling_time,
+                                            #shape=time_arr.shape,
+                                            dimension_list=[0]
+                                            )))
+    
+    coord[1]=(copy.deepcopy(flap.Coordinate(name='Sample',
+                                            unit='n.a.',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            dimension_list=[0]
+                                            )))
+    
+    coord[2]=(copy.deepcopy(flap.Coordinate(name='Image x',
+                                            unit='Pixel',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            shape=[],
+                                            dimension_list=[1]
+                                            )))
+    
+    coord[3]=(copy.deepcopy(flap.Coordinate(name='Image y',
+                                            unit='Pixel',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            shape=[],
+                                            dimension_list=[2]
+                                            )))
+
+    _options={}
+    _options["Trigger time [s]"]=0.
+    _options["FPS"]=1/sampling_time
+    _options["Sample time [s]"]=sampling_time
+    _options["Exposure time [s]"]=2.1e-6
+    _options["X size"]=frame_size[0]
+    _options["Y size"]=frame_size[1]
+    _options["Bits"]=32
+    
+    d = flap.DataObject(data_array=data_arr,
+                        data_unit=flap.Unit(name='Signal',unit='Digit'),
+                        coordinates=coord,
+                        exp_id=exp_id,
+                        data_title='Simulated signal',
+                        info={'Options':_options},
+                        data_source="NSTX_GPI")
+    
+    if output_name is not None:
+        flap.add_data_object(d,output_name)
+    
+    return d
+    
+
+def generate_displaced_random_noise(exp_id=0,
+                                    displacement=[0,0],
+                                    frame_size=[64,80],
+                                    sampling_time=2.5e-6,
+                                    circular=False,
+                                    amplitude_range=[0,4095],
+                                    output_name=None,
+                                    test=False,
+                                    n_frame=3):
+    
+    data_arr=np.zeros([n_frame,frame_size[0],frame_size[1]])        
+    data_arr[0,:,:]=(np.random.rand(frame_size[0],frame_size[1])*(amplitude_range[1]-amplitude_range[0])+amplitude_range[0]).astype(int)
+    
+    for i in range(1,n_frame):
+
+        data_arr[i,:,:]=(np.random.rand(frame_size[0],frame_size[1])*(amplitude_range[1]-amplitude_range[0])+amplitude_range[0]).astype(int)
+        if circular:
+            data_arr[i,:,:]=np.roll(data_arr[i-1,:,:], displacement[0],axis=1)
+            data_arr[i,:,:]=np.roll(data_arr[i,:,:], displacement[1],axis=2)
+        else:
+            if displacement[0] < 0 and displacement[1] < 0:
+                data_arr[i,:frame_size[0]-abs(displacement[0]),:frame_size[1]-abs(displacement[1])] = data_arr[i-1,abs(displacement[0]):,abs(displacement[1]):]
+                
+            elif displacement[0] >= 0 and displacement[1] < 0:
+                data_arr[i,displacement[0]:,:frame_size[1]-abs(displacement[1])] = data_arr[i-1,:frame_size[0]-displacement[0],abs(displacement[1]):]
+                
+            elif displacement[0] < 0 and displacement[1] >= 0:
+                data_arr[i,:frame_size[0]-abs(displacement[0]),displacement[1]:] = data_arr[i-1,abs(displacement[0]):,:frame_size[1]-displacement[1]]
+                
+            elif displacement[0] >= 0 and displacement[1] >= 0:
+                data_arr[i,displacement[0]:,displacement[1]:] = data_arr[i-1,:frame_size[0]-displacement[0],:frame_size[1]-displacement[1]]
+
+        
+    coord = [None]*4
+    coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
+                                            unit='s',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0.,
+                                            step=sampling_time,
+                                            #shape=time_arr.shape,
+                                            dimension_list=[0]
+                                            )))
+    
+    coord[1]=(copy.deepcopy(flap.Coordinate(name='Sample',
+                                            unit='n.a.',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            dimension_list=[0]
+                                            )))
+    
+    coord[2]=(copy.deepcopy(flap.Coordinate(name='Image x',
+                                            unit='Pixel',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            shape=[],
+                                            dimension_list=[1]
+                                            )))
+    
+    coord[3]=(copy.deepcopy(flap.Coordinate(name='Image y',
+                                            unit='Pixel',
+                                            mode=flap.CoordinateMode(equidistant=True),
+                                            start=0,
+                                            step=1,
+                                            shape=[],
+                                            dimension_list=[2]
+                                            )))
+
+    _options={}
+    _options["Trigger time [s]"]=0.
+    _options["FPS"]=1/sampling_time
+    _options["Sample time [s]"]=sampling_time
+    _options["Exposure time [s]"]=2.1e-6
+    _options["X size"]=64
+    _options["Y size"]=80
+    _options["Bits"]=32
+    
+    d = flap.DataObject(data_array=data_arr,
+                        data_unit=flap.Unit(name='Signal',unit='Digit'),
+                        coordinates=coord,
+                        exp_id=exp_id,
+                        data_title='Simulated signal',
+                        info={'Options':_options},
+                        data_source="NSTX_GPI")
+    
+    if output_name is not None:
+        flap.add_data_object(d,output_name)
+    
+    return d

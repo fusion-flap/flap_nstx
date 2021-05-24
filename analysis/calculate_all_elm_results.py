@@ -16,7 +16,7 @@ import os
 import flap
 import flap_nstx
 
-from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity, calculate_nstx_gpi_angular_velocity
+from flap_nstx.analysis import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_smooth_velocity, calculate_nstx_gpi_angular_velocity
 from flap_nstx.analysis import nstx_gpi_velocity_analysis_spatio_temporal_displacement
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -45,26 +45,26 @@ def calculate_all_nstx_gpi_avg_frame_by_frame_velocity(elm_time_window=0.6e-3):
         if status != 'NO':
             #try:
             if True:
-                calculate_nstx_gpi_avg_frame_velocity(exp_id=shot, 
-                                                      time_range=[elm_time-elm_time_window,elm_time+elm_time_window], 
-                                                      plot=False,
-                                                      subtraction_order_for_velocity=1,
-                                                      skip_structure_calculation=False,
-                                                      correlation_threshold=0.,
-                                                      pdf=True, 
-                                                      nlevel=51, 
-                                                      nocalc=False, 
-                                                      filter_level=5, 
-                                                      normalize_for_size=True,
-                                                      normalize_for_velocity=True,
-                                                      remove_interlaced_structures=False,
-                                                      flap_ccf=True,
-                                                      threshold_coeff=1.,
-                                                      normalize_f_high=1e3, 
-                                                      normalize='roundtrip', 
-                                                      velocity_base='cog', 
-                                                      return_results=False, 
-                                                      plot_gas=True)
+                calculate_nstx_gpi_frame_by_frame_velocity(exp_id=shot, 
+                                                          time_range=[elm_time-elm_time_window,elm_time+elm_time_window], 
+                                                          plot=False,
+                                                          subtraction_order_for_velocity=1,
+                                                          skip_structure_calculation=False,
+                                                          correlation_threshold=0.,
+                                                          pdf=True, 
+                                                          nlevel=51, 
+                                                          nocalc=False, 
+                                                          filter_level=5, 
+                                                          normalize_for_size=True,
+                                                          normalize_for_velocity=True,
+                                                          remove_interlaced_structures=False,
+                                                          flap_ccf=True,
+                                                          threshold_coeff=1.,
+                                                          normalize_f_high=1e3, 
+                                                          normalize='roundtrip', 
+                                                          velocity_base='cog', 
+                                                          return_results=False, 
+                                                          plot_gas=True)
 #            except:
 #                print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
 #                failed_elms.append({'Shot':shot,'Time':elm_time})

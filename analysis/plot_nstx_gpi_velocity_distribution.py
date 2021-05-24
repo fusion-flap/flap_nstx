@@ -73,6 +73,7 @@ else:
     #Classify the ELMs based on the correlation coefficents
 
 def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
+                                        tau_range=[-500e-6,500e-6],
                                         sampling_time=2.5e-6,
                                         pdf=False,
                                         plot=True,
@@ -594,6 +595,13 @@ def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
             pdf_object.savefig()
             pdf_object.close()
         elif plot_for_dependence:
+            tau_ind=np.where(np.logical_and(time_vec >= tau_range[0]*1e3, time_vec <= tau_range[1]*1e3))
+            y_vector_avg[0]['Data']=y_vector_avg[0]['Data'][tau_ind]
+            y_vector_avg[1]['Data']=y_vector_avg[1]['Data'][tau_ind]
+            y_vector_avg[4]['Data']=y_vector_avg[4]['Data'][tau_ind]
+            y_vector_avg[5]['Data']=y_vector_avg[5]['Data'][tau_ind]
+            y_vector_avg[8]['Data']=y_vector_avg[8]['Data'][tau_ind]
+            
             pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians.pdf')
             gs=GridSpec(2,2)
             plt.figure()   
@@ -664,4 +672,76 @@ def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
 
             pdf_object.savefig()
             pdf_object.close()
+                
+            # print(tau_ind)
+            # pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians.pdf')
+            # gs=GridSpec(2,2)
+            # plt.figure()   
+            # ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+            
+            # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg[0]['Data']))))
+            
+            # plt.subplot(gs[0,0])
+            # plt.plot(y_vector_avg[1]['Data'][tau_ind],
+            #          y_vector_avg[0]['Data'][tau_ind],
+            #          lw='0.2')
+            # for ind_a in range(len(tau_ind)):
+            #     color=copy.deepcopy(next(colors))
+            #     plt.scatter(y_vector_avg[1]['Data'][tau_ind[ind_a]], 
+            #                 y_vector_avg[0]['Data'][tau_ind[ind_a]], 
+            #                 color=color,
+            #                 s=1)
+            # plt.xlabel('v pol [km/s]')
+            # plt.ylabel('v rad [km/s]')
+            
+            # plt.title('vrad vs. vpol')
+            
+            # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg[0]['Data'][tau_ind]))))
+            # plt.subplot(gs[0,1])
+            # plt.plot(y_vector_avg[5]['Data'][tau_ind],
+            #          y_vector_avg[4]['Data'][tau_ind],
+            #          lw='0.2')
+            # for ind_a in tau_ind:
+            #     color=copy.deepcopy(next(colors))
+            #     plt.scatter(y_vector_avg[5]['Data'][ind_a], 
+            #                 y_vector_avg[4]['Data'][ind_a], 
+            #                 color=color,
+            #                 s=1)
+            # plt.xlabel('d rad [mm]')
+            # plt.ylabel('d pol [mm]')
+            # plt.title('drad vs. dpol')
+            
+            # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg[0]['Data'][tau_ind]))))
+            # plt.subplot(gs[1,0])
+            # plt.plot(y_vector_avg[8]['Data'][tau_ind],
+            #          y_vector_avg[0]['Data'][tau_ind],
+            #          lw='0.2')
+            # for ind_a in tau_ind:
+            #     color=copy.deepcopy(next(colors))
+            #     plt.scatter(y_vector_avg[8]['Data'][ind_a], 
+            #                 y_vector_avg[0]['Data'][ind_a], 
+            #                 color=color,
+            #                 s=1)
+            
+            # plt.xlabel('r-r_sep [mm]')
+            # plt.ylabel('vrad [km/s]')
+            # plt.title('r-r_sep vs. vrad')
+            
+            # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg[0]['Data'][tau_ind]))))
+            # plt.subplot(gs[1,1])
+            # plt.plot(y_vector_avg[8]['Data'][tau_ind],
+            #          y_vector_avg[1]['Data'][tau_ind],
+            #          lw='0.2')
+            # for ind_a in tau_ind:
+            #     color=copy.deepcopy(next(colors))
+            #     plt.scatter(y_vector_avg[8]['Data'][ind_a], 
+            #                 y_vector_avg[1]['Data'][ind_a], 
+            #                 color=color,
+            #                 s=1)
+            # plt.xlabel('r-r_sep [mm]')
+            # plt.ylabel('vpol [km/s]')
+            # plt.title('r-r_sep vs. vpol')           
+
+            # pdf_object.savefig()
+            # pdf_object.close()
     
