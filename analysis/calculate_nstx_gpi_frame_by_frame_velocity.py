@@ -599,6 +599,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                            [-(y_range[1]-y_range[0]),(y_range[1]-y_range[0])]], 
                                   'Trend removal':None, 
                                   'Normalize':True, 
+                                  'Correct ACF peak':True,
                                   'Interval_n': 1}, 
                          output_name='GPI_FRAME_12_CCF')
     
@@ -625,9 +626,9 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     coeff=flap_nstx.analysis.polyfit_2D(values=ccf_object.data[i_frames,:,:][area_max_index],order=2)
                     index=[0,0]
                     index[0]=(2*coeff[2]*coeff[3]-coeff[1]*coeff[4])/(coeff[4]**2-4*coeff[2]*coeff[5])
-                    index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]
+                    index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]                
                 except:
-                    index=[fitting_range,fitting_range]
+                     index=[fitting_range,fitting_range]
                 if (index[0] < 0 or 
                     index[0] > 2*fitting_range or 
                     index[1] < 0 or 
@@ -757,11 +758,8 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     if not structure_video_save:
                         plt.pause(0.1)
                         if structure_pdf_save:
-                            try:
-                                plt.show()
-                                pdf_structures.savefig()
-                            except:
-                                print('asdf')
+                            plt.show()
+                            pdf_structures.savefig()
                     else:
                         test_structures=False
                         fig = plt.gcf()

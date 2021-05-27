@@ -515,12 +515,11 @@ def polyfit_2D(x=None,
                return_fit=False):
     
     if sigma is None:
-        sigma=np.asarray(values.shape)
+        sigma=np.zeros(values.shape)
         sigma[:]=1.
     else:
-        if sigma.shape != sigma.shape:
+        if sigma.shape != values.shape:
             raise ValueError('The shape of the errors do not match the shape of the values!')
-    
     if not irregular:
         if len(values.shape) != 2:
             raise ValueError('Values are not 2D')

@@ -236,7 +236,8 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
                                        xrange=[0,63],               #Range of the calculation
                                        yrange=[10,70],              #Range of the calculation
                                        filter_data=True,
-                                       f_low=10e3,                  #Highpass filtering of the signal
+                                       f_low=None,                  #Highpass filtering of the signal (Bandpass if f_high is set, as well.)
+                                       f_high=None,                 #Lowpass filtering of the signal (Bandpass if f_low is set, as well.)
                                        taurange=None,               #Range of the CCF time delay calculation
                                        taures=2.5e-6,               #Resoltuion of the CCF calculation
                                        interval_n=1,                #Number of intervals the signal is split to
@@ -307,16 +308,35 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
                     output_name='GPI_SLICED_FULL')
     if filter_data:
         print("*** Filtering the data ***")
-        d=flap.filter_data('GPI_SLICED_FULL',
-                           exp_id=exp_id,
-                           coordinate='Time',
-                           options={'Type':'Highpass',
-                                    'f_low':f_low,
-                                    'Design':'Chebyshev II'},
-                           output_name='GPI_FILTERED')
+        if f_low is not None and f_high is None:
+            d=flap.filter_data('GPI_SLICED_FULL',
+                               exp_id=exp_id,
+                               coordinate='Time',
+                               options={'Type':'Highpass',
+                                        'f_low':f_low,
+                                        'Design':'Chebyshev II'},
+                               output_name='GPI_FILTERED')
+
+        if f_low is None and f_high is not None:
+            d=flap.filter_data('GPI_SLICED_FULL',
+                               exp_id=exp_id,
+                               coordinate='Time',
+                               options={'Type':'Lowpass',
+                                        'f_high':f_high,
+                                        'Design':'Chebyshev II'},
+                               output_name='GPI_FILTERED')
+        if f_low is not None and f_high is not None:
+            d=flap.filter_data('GPI_SLICED_FULL',
+                               exp_id=exp_id,
+                               coordinate='Time',
+                               options={'Type':'Bandpass',
+                                        'f_low':f_low,
+                                        'f_high':f_high,
+                                        'Design':'Chebyshev II'},
+                               output_name='GPI_FILTERED')
+
         d.data=np.asarray(d.data,dtype='float32')
-        #THIS IS WHERE THE CODE STARTS TO BE VERY DIFFERENT FROM THE LAST ONE.
-    
+        
     n_time=int((time_range[1]-time_range[0])/time_res)
     time_window_vector=np.linspace(time_range[0]+time_res/2,time_range[1]-time_res/2,n_time)
     if poloidal:
@@ -367,7 +387,8 @@ def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
                                   'Range':taurange,
                                   'Trend':['Poly',2],
                                   'Interval':interval_n,
-                                  'Normalize':False,
+                                  'Correct ACF peak':True,
+                                  'Normalize':True,
                                   },
                          output_name='GPI_CCF_SLICE')
             time_index=ccf.get_coordinate_object('Time lag').dimension_list[0]
