@@ -72,20 +72,20 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                normalize_f_high=1e3,                 #High pass frequency for the normalizer data
                                                
                                                #Inputs for velocity pre processing
-                                               normalize_for_velocity=False,         #Normalize the signal for velocity processing
+                                               normalize_for_velocity=True,         #Normalize the signal for velocity processing
                                                subtraction_order_for_velocity=1,     #Order of the 2D polynomial for background subtraction
                                                
                                                #Inputs for velocity processing
                                                flap_ccf=True,                        #Calculate the cross-correlation functions with flap instead of CCF
                                                correlation_threshold=0.6,            #Threshold for the maximum of the cross-correlation between the two frames (calculated with the actual maximum, not the fit value)
                                                frame_similarity_threshold=0.0,       #Similarity threshold between the two subsequent frames (CCF at zero lag) DEPRECATED when an ELM is present
+                                               correct_acf_peak=True,
                                                valid_frame_thres=5,                  #The number of consequtive frames to consider the calculation valid.
                                                velocity_threshold=None,              #Velocity threshold for the calculation. Abova values are considered np.nan.
                                                parabola_fit=True,                    #Fit a parabola on top of the cross-correlation function (CCF) peak
                                                interpolation='parabola',             #Can be 'parabola', 'bicubic', and whatever is implemented in the future
                                                bicubic_upsample=4,                   #Interpolation upsample for bicubic interpolation
                                                fitting_range=5,                      #Fitting range of the peak of CCF 
-                                               gpi_plane_calculation=True,
                                                
                                                #Input for size pre-processing
                                                skip_structure_calculation=False,     #Self explanatory
@@ -149,10 +149,14 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     
     #Constants for the calculation
     #Using the spatial calibration to find the actual velocities.
+
+    coeff_r=np.asarray([3.75, 0,    1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    coeff_z=np.asarray([0,    3.75, 70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
     
-    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
-    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
-    
+    # Originally used coordinates for reference. (Vertical, radial geometrical coordinates)
+    # coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    # coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+
     #Input error handling
     if exp_id is None and data_object is None:
         raise ValueError('Either exp_id or data_object needs to be set for the calculation.')
@@ -292,9 +296,9 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                  time_range[1])}
         if data_object is None:
             flap.slice_data('GPI',
-                                    exp_id=exp_id,
-                                    slicing=slicing_for_filtering,
-                                    output_name='GPI_SLICED_FOR_FILTERING')            
+                            exp_id=exp_id,
+                            slicing=slicing_for_filtering,
+                            output_name='GPI_SLICED_FOR_FILTERING')            
         if normalize_for_size is False and normalize_for_velocity is False:
             normalize = None
         if normalize == 'simple':
@@ -599,7 +603,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                            [-(y_range[1]-y_range[0]),(y_range[1]-y_range[0])]], 
                                   'Trend removal':None, 
                                   'Normalize':True, 
-                                  'Correct ACF peak':True,
+                                  'Correct ACF peak':correct_acf_peak,
                                   'Interval_n': 1}, 
                          output_name='GPI_FRAME_12_CCF')
     
@@ -645,6 +649,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                 index[1]+max_index[1]-fitting_range)
 
             else: #if not parabola_fit:
+
                 
                 delta_index=[max_index[0]-ccf_object.data[i_frames,:,:].shape[0]//2,
                              max_index[1]-ccf_object.data[i_frames,:,:].shape[1]//2]
@@ -661,9 +666,11 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                 invalid_correlation_frame_counter+=1
             else:
                 invalid_correlation_frame_counter=0.
+                
             if interpolation == 'bicubic':
                 delta_index=[delta_index[0]/bicubic_upsample,
                              delta_index[1]/bicubic_upsample]
+                
             if return_pixel_displacement:
                 frame_properties['Velocity ccf'][i_frames,0]=delta_index[0]
                 frame_properties['Velocity ccf'][i_frames,1]=delta_index[1]
@@ -693,7 +700,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                             levels=gas_levels,
                                                                             spatial=not structure_pixel_calc,
                                                                             pixel=structure_pixel_calc,
-                                                                            remove_interlaced_structures=True,
+                                                                            remove_interlaced_structures=remove_interlaced_structures,
                                                                             test_result=test_gas_cloud)
                     n_gas_structures=len(gas_cloud_structure)
                     for gas_structure in gas_cloud_structure:
@@ -736,7 +743,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                             nlevel=nlevel,
                                                                             levels=levels,
                                                                             spatial=not structure_pixel_calc,
-                                                                            remove_interlaced_structures=True,
+                                                                            remove_interlaced_structures=remove_interlaced_structures,
                                                                             pixel=structure_pixel_calc,
                                                                             test_result=test_structures)
                     else:
@@ -869,7 +876,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     x_coord=frame2_size.coordinate('Device R')[0]
                     y_coord=frame2_size.coordinate('Device z')[0]
                     frame_properties['Frame COG'][i_frames,:]=np.asarray([np.sum(x_coord*frame2_size.data)/np.sum(frame2_size.data),
-                                                      np.sum(y_coord*frame2_size.data)/np.sum(frame2_size.data)])
+                                                                          np.sum(y_coord*frame2_size.data)/np.sum(frame2_size.data)])
                 else:
                     #Setting np.nan if no structure is available
                     frame_properties['Size avg'][i_frames,:]=[np.nan,np.nan]
@@ -1007,20 +1014,6 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     if time_range is None:
         time_range=[frame_properties['Time'][0],frame_properties['Time'][-1]]
         
-    if gpi_plane_calculation and not return_pixel_displacement:
-        coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
-        coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
-        coeff_r_new=3./800.
-        coeff_z_new=3./800.
-        det=coeff_r[0]*coeff_z[1]-coeff_z[0]*coeff_r[1]
-        
-        for key in ['Velocity ccf','Velocity str max','Velocity str avg','Size max','Size avg']:
-            orig=copy.deepcopy(frame_properties[key])
-            frame_properties[key][:,0]=coeff_r_new/det*(coeff_z[1]*orig[:,0]-coeff_r[1]*orig[:,1])
-            frame_properties[key][:,1]=coeff_z_new/det*(-coeff_z[0]*orig[:,0]+coeff_r[0]*orig[:,1])
-        
-        frame_properties['Elongation max'][:]=(frame_properties['Size max'][:,0]-frame_properties['Size max'][:,1])/(frame_properties['Size max'][:,0]+frame_properties['Size max'][:,1])
-        frame_properties['Elongation avg'][:]=(frame_properties['Size avg'][:,0]-frame_properties['Size avg'][:,1])/(frame_properties['Size avg'][:,0]+frame_properties['Size avg'][:,1])
     
     #Calculating the distance from the separatrix
     frame_properties['Separatrix dist avg']=np.zeros(frame_properties['Position avg'].shape[0])
@@ -1068,9 +1061,11 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                         frame_properties['Separatrix dist '+key][ind_time]*=-1
         except:
             print('Separatrix distance calculation failed.')
+            
     nan_ind=np.where(frame_properties['Correlation max'] < correlation_threshold)
     frame_properties['Velocity ccf'][nan_ind,0] = np.nan
     frame_properties['Velocity ccf'][nan_ind,1] = np.nan
+    
     #Plotting the results
     if plot or pdf:
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
@@ -1473,6 +1468,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             plt.title('Poloidal velocity histogram')
             plt.xlabel('Poloidal velocity [m/s]')
             plt.ylabel('Number of points')
+            
     if plot_for_publication:
         import matplotlib.style as pltstyle
         pltstyle.use('default')
