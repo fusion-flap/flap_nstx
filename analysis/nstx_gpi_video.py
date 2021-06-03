@@ -139,6 +139,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
         
         flap.add_data_object(data_obj, 'GPI_BGSUB')
         object_name='GPI_BGSUB'    
+        
     if ((plot_flux or plot_separatrix) and not flux_coordinates):
         print('Gathering MDSPlus EFIT data.')
         oplot_options={}

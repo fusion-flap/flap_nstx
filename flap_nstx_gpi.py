@@ -127,8 +127,6 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     images=pims.Cine(local_file_folder+file_name)
 
     data_arr=np.flip(np.asarray(images[:], dtype=np.int16),2) #The original data is 80x64, this line converts it to 64x80
-
-    data_unit = flap.Unit(name='Signal',unit='Digit')
     
     #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
     #The frame_rate corresponds with the one from IDL.
@@ -228,7 +226,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
     _options["Bits"]=images.bitmapinfo_dict["bi_bit_count"]
     
     d = flap.DataObject(data_array=data_arr,
-                        data_unit=data_unit,
+                        data_unit=flap.Unit(name='Signal',unit='Digit'),
                         coordinates=coord,
                         exp_id=exp_id,
                         data_title=data_title,
