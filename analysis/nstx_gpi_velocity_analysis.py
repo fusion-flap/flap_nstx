@@ -230,7 +230,7 @@ def calculate_nstx_gpi_avg_velocity(exp_id=None,
         plt.ylabel('v_rad [m/s]')
         plt.title('z vs. v_rad '+str(exp_id)+' @ ['+str(time_range[0])+','+str(time_range[1])+']s')
 
-def calculate_nstx_gpi_smooth_velocity(exp_id=None,                 #Shot number
+def calculate_nstx_gpi_tde_velocity(exp_id=None,                 #Shot number
                                        time_range=None,             #Time range of the calculation
                                        time_res=100e-6,             #Time resolution of the calculation
                                        xrange=[0,63],               #Range of the calculation

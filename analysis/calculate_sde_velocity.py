@@ -859,7 +859,7 @@ def calculate_sde_velocity_distribution(data_object,                            
         for ind_data_obj in range(2):
            
             data_objects[ind_data_obj]=flap.DataObject(data_array=result_dict[return_key][:,:,:,ind_data_obj],
-                                                       data_unit=flap.Unit(name='Signal',unit=unit),
+                                                       data_unit=flap.Unit(name=data_title,unit=unit),
                                                        coordinates=coord,
                                                        exp_id=exp_id,
                                                        data_title=data_title,
