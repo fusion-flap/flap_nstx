@@ -7,6 +7,9 @@ from .calculate_sde_velocity import calculate_sde_velocity, calculate_sde_veloci
 from .calculate_tde_velocity import calculate_tde_velocity
 
 from .nstx_gpi_velocity_analysis import calculate_nstx_gpi_avg_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_filament_velocity
+
+from .nstx_gpi_structure_finder import nstx_gpi_one_frame_structure_finder, nstx_gpi_watershed_structure_finder, Polygon, Gaussian2D, FitEllipse
+
 from .calculate_nstx_gpi_frame_by_frame_velocity import calculate_nstx_gpi_frame_by_frame_velocity
 from .calculate_nstx_gpi_angular_velocity import calculate_nstx_gpi_angular_velocity
 

@@ -31,13 +31,49 @@ wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 import numpy as np
 
 
-def read_flap_hesel_data(output_name=None):
-    f=h5py.File('/Users/mlampert/work/NSTX_workspace/AUG_HESEL_files/n_e__nHESEL_AUG_00000.h5', 'r')
+def read_flap_hesel_data(output_name=None,
+                         read_he_data=False,
+                         read_electric_field=False,
+                         radial=False,
+                         poloidal=False,):
+    if read_he_data:
+        f=h5py.File('/Users/mlampert/work/NSTX_workspace/AUG_HESEL_files/n_He__nHESEL_AUG_00000.h5', 'r')
+        data_field_key='n_He'
+        name='He density'
+        unit='m-3'
+    elif read_electric_field:
+        f=h5py.File('/Users/mlampert/work/NSTX_workspace/AUG_HESEL_files/phi__nHESEL_AUG_00000.h5', 'r')
+        data_field_key='phi'
+        name='Electric field'
+        unit='m-3'
+    else:
+        f=h5py.File('/Users/mlampert/work/NSTX_workspace/AUG_HESEL_files/n_e__nHESEL_AUG_00000.h5', 'r')
+        data_field_key='n_e'
+        name='e- density'
+        unit='m-3'
     
     x_coord=np.asarray(list(f['axes']['x_axis']))
     y_coord=np.asarray(list(f['axes']['x_axis']))
     t_coord=np.asarray(list(f['axes']['t_axis']))
-    data=np.asarray(list(f['fields']['n_e'])) #t, x, y
+    
+    if not read_electric_field:
+        data=np.asarray(list(f['fields'][data_field_key])) #t, x, y
+    else:
+        scalar_field=np.asarray(list(f['fields'][data_field_key]))
+        if radial:
+            index=0
+            name='E_r'
+            divider=x_coord[1]-x_coord[0]
+            
+        if poloidal:
+            index=1
+            name='E_p'
+            divider=y_coord[1]-y_coord[0]
+            
+        data=np.asarray(np.gradient(scalar_field))[index,:,:,:]/divider
+        
+        unit='V/m'
+        
     coord=[]
     coord.append(copy.deepcopy(flap.Coordinate(name='Time',
                                unit='s',
@@ -86,13 +122,16 @@ def read_flap_hesel_data(output_name=None):
                                dimension_list=[2]
                                )))    
     
-    data_unit = flap.Unit(name='Density',unit='m-3')
+    data_unit = flap.Unit(name=name,
+                          unit=unit)
+    
     d = flap.DataObject(data_array=data,
                         error=None,
                         data_unit=data_unit,
                         coordinates=coord, 
                         exp_id=0,
                         data_title='AUG HESEL DATA')
+    
     if output_name is not None:
         flap.add_data_object(d, output_name)
     return d
@@ -126,6 +165,8 @@ def analyze_hesel_data_2D_sde(time_range=[0,1e-3],
         d=flap.get_data_object_ref('HESEL_DATA')
     except:
         d=read_flap_hesel_data(output_name='HESEL_DATA')
+        d_he=read_flap_hesel_data(output_name='HESEL_DATA', read_he_data=True)
+        d.data=d.data*d_he.data
     if not nocalc:
         result=calculate_sde_velocity_distribution(d, 
                                                    time_range=time_range, 
@@ -162,6 +203,7 @@ def analyze_hesel_data_2D_sde(time_range=[0,1e-3],
             else:
                 waittime=1./24.
                 waittime=0.
+                
             d.plot(plot_type='anim-image',
                    axes=['Device R','Device z','Time'],
                    slicing={'Time':flap.Intervals(time_range[0],time_range[1])},
@@ -175,6 +217,7 @@ def analyze_hesel_data_2D_sde(time_range=[0,1e-3],
                             'Video framerate':video_framerate,
                             'Prevent saturation':False,
                             })
+            
             if video_saving_only:
                 import matplotlib
                 matplotlib.use(current_backend)
@@ -203,6 +246,7 @@ def analyze_hesel_data_2D_sde(time_range=[0,1e-3],
             
             plt.figure()
             result[i].plot(axes=['Time', 'Device R'], plot_type='contour', slicing={'Image y':255.5})
+            plt.title(titles[i])
             pdf.savefig()
             
             plt.figure()

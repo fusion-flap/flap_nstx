@@ -15,7 +15,6 @@ import flap_nstx
 flap_nstx.register()
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
-from flap_nstx.analysis import nstx_gpi_one_frame_structure_finder
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
