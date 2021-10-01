@@ -121,9 +121,10 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                                                   output_name='gaussian', 
                                                   n_frames=3)
                     
-                    result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
+                    result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
                                                             data_object='gaussian', 
                                                             normalize=None, 
+                                                            normalize_for_velocity=False,
                                                             normalize_for_size=False,
                                                             interpolation=interpolation,
                                                             skip_structure_calculation=True, 
@@ -145,16 +146,18 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                                                   output_name='gaussian', 
                                                   n_frames=3)
                     
-                    result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
+                    result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
                                                             data_object='gaussian', 
                                                             normalize=None, 
                                                             normalize_for_size=False, 
+                                                            normalize_for_velocity=False,
                                                             skip_structure_calculation=True, 
                                                             interpolation=interpolation,
                                                             plot=False, 
                                                             nocalc=False, 
                                                             return_results=True,
                                                             subtraction_order_for_velocity=subtraction_order)
+                    
                     result_vec_radial[i_rad,j_size]=result['Velocity ccf'][0,0]/(3750/2.5)
             pickle.dump([result_vec_poloidal,pol_disp_vec, result_vec_radial, rad_disp_vec, size_vec], open(pickle_file, 'wb'))
         else:
@@ -255,12 +258,13 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                                                 output_name='gaussian', 
                                                 n_frames=3)
                     try:
-                        result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0,
+                        result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0,
                                                                      x_range=[0,frame_size_vec[j_frame_size]-1],
                                                                      y_range=[0,frame_size_vec[j_frame_size]-1],
                                                                      data_object='gaussian', 
                                                                      normalize=None, 
-                                                                     normalize_for_size=False, 
+                                                                     normalize_for_size=False,
+                                                                     normalize_for_velocity=False,
                                                                      interpolation=interpolation,
                                                                      skip_structure_calculation=True, 
                                                                      plot=False, 
@@ -306,11 +310,11 @@ def test_spatial_displacement_estimation(gaussian=False,                        
             
             if save_data_into_txt:
                 data=result_vec_radial[1:,1:]
-                filename=wd+'/processed_data/figure_poloidal_uncertainty.txt'
+                filename=wd+'/processed_data/figure_5a.txt'
                 file1=open(filename, 'w+')
                 file1.write('#Poloidal displacement vector in pixels\n')
-                for i in range(1, len(pol_disp_vec)):
-                    file1.write(str(pol_disp_vec[i])+'\t')
+                for i in range(1, len(rel_disp_vec[1:])):
+                    file1.write(str(rel_disp_vec[i])+'\t')
                 file1.write('\n#Size vector in pixels\n')
                 for i in range(1, len(size_vec)):
                     file1.write(str(size_vec[i])+'\t')
@@ -351,7 +355,7 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                                                 output_name='gaussian',
                                                 n_frames=3)
                     try:
-                        result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0,
+                        result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0,
                                                                      x_range=[0,frame_size_vec[j_frame_size]-1],
                                                                      y_range=[0,frame_size_vec[j_frame_size]-1],
                                                                      data_object='gaussian', 
@@ -404,14 +408,14 @@ def test_spatial_displacement_estimation(gaussian=False,                        
             
             if save_data_into_txt:
                 data=result_vec_radial[1:,1:]
-                filename=wd+'/processed_data/figure_poloidal_uncertainty.txt'
+                filename=wd+'/processed_data/figure_5b.txt'
                 file1=open(filename, 'w+')
                 file1.write('#Poloidal displacement vector in pixels\n')
                 for i in range(1, len(pol_disp_vec)):
                     file1.write(str(pol_disp_vec[i])+'\t')
-                file1.write('\n#Size vector in pixels\n')
-                for i in range(1, len(size_vec)):
-                    file1.write(str(size_vec[i])+'\t')
+                file1.write('\n#Relative size vector in pixels\n')
+                for i in range(1, len(relative_structure_size_vec)):
+                    file1.write(str(relative_structure_size_vec[i])+'\t')
                 file1.write('\n#Relative uncertainty of the velocity estimation\n')
                 for i in range(1,len(data[0,:])):
                     string=''
@@ -436,39 +440,42 @@ def test_spatial_displacement_estimation(gaussian=False,                        
             for i_pol in range(len(pol_disp_vec)):
                 for j_rand in range(n_rand):
                     generate_displaced_random_noise(exp_id=0,
-                                                displacement=[0,pol_disp_vec[i_pol]],
-                                                frame_size=[64,80],
-                                                sampling_time=2.5e-6,
-                                                circular=False,
-                                                amplitude_range=[0,4095],
-                                                output_name='random',
-                                                test=False,
-                                                n_frame=3
-                                                )
-                    result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
-                                                          data_object='random', 
-                                                          normalize=None, 
-                                                          normalize_for_size=False, 
-                                                          skip_structure_calculation=True, 
-                                                          plot=False, 
-                                                          nocalc=False, 
-                                                          return_results=True, 
-                                                          subtraction_order_for_velocity=1)
+                                                    displacement=[0,pol_disp_vec[i_pol]],
+                                                    frame_size=[64,80],
+                                                    sampling_time=2.5e-6,
+                                                    circular=False,
+                                                    amplitude_range=[0,4095],
+                                                    output_name='random',
+                                                    test=False,
+                                                    n_frame=3
+                                                    )
+                    
+                    result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
+                                                                      data_object='random', 
+                                                                      normalize=None, 
+                                                                      normalize_for_size=False, 
+                                                                      normalize_for_velocity=False,
+                                                                      skip_structure_calculation=True,
+                                                                      plot=False, 
+                                                                      nocalc=False, 
+                                                                      return_results=True, 
+                                                                      subtraction_order_for_velocity=1)
+                    
                     result_vec_poloidal[i_pol,j_rand]=result['Velocity ccf'][0,1]/(3750/2.5)
-                
+
             for i_rad in range(len(rad_disp_vec)):
                 for j_rand in range(n_rand):
                     generate_displaced_random_noise(exp_id=0,
-                                                displacement=[rad_disp_vec[i_rad],0],
-                                                frame_size=[64,80],
-                                                sampling_time=2.5e-6,
-                                                circular=False,
-                                                amplitude_range=[0,4095],
-                                                output_name='random',
-                                                test=False,
-                                                n_frame=3
-                                                )
-                    result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
+                                                    displacement=[rad_disp_vec[i_rad],0],
+                                                    frame_size=[64,80],
+                                                    sampling_time=2.5e-6,
+                                                    circular=False,
+                                                    amplitude_range=[0,4095],
+                                                    output_name='random',
+                                                    test=False,
+                                                    n_frame=3
+                                                    )
+                    result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
                                                           data_object='random', 
                                                           normalize=None, 
                                                           normalize_for_size=False, 
@@ -478,6 +485,7 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                                                           return_results=True, 
                                                           subtraction_order_for_velocity=1)
                     result_vec_radial[i_rad,j_rand]=result['Velocity ccf'][0,0]/(3750/2.5)
+            print(result_vec_radial)
             pickle.dump([result_vec_poloidal,pol_disp_vec, result_vec_radial, rad_disp_vec], open(pickle_file, 'wb'))
         else:
             result_vec_poloidal, pol_disp_vec, result_vec_radial, rad_disp_vec=pickle.load(open(pickle_file, 'rb'))        
@@ -513,22 +521,24 @@ def test_spatial_displacement_estimation(gaussian=False,                        
             pdf.close()
             
         if save_data_into_txt:
-            data=result_vec_radial[1:,1:]
-            filename=wd+'/processed_data/figure_poloidal_uncertainty.txt'
+            filename=wd+'/processed_data/figure_random_radial_uncertainty.txt'
             file1=open(filename, 'w+')
-            file1.write('#Poloidal displacement vector in pixels\n')
+            file1.write('Displacement \t Uncertainty \t Variance \n')
+            for i in range(1, len(rad_disp_vec)):
+                file1.write(str(rad_disp_vec[:])+'\t'+
+                            str(np.mean(result_vec_radial[:,:],axis=1)/rad_disp_vec[:]-1)+'\t'+
+                            str(np.sqrt(np.var(result_vec_radial[:,:]/rad_disp_vec[:,None]-1, axis=1))))
+
+            file1.close()
+            
+            filename=wd+'/processed_data/figure_random_poloidal_uncertainty.txt'
+            file1=open(filename, 'w+')
+            file1.write('Displacement \t Uncertainty \t Variance \n')
             for i in range(1, len(pol_disp_vec)):
-                file1.write(str(pol_disp_vec[i])+'\t')
-            file1.write('\n#Size vector in pixels\n')
-            for i in range(1, len(size_vec)):
-                file1.write(str(size_vec[i])+'\t')
-            file1.write('\n#Relative uncertainty of the velocity estimation\n')
-            for i in range(1,len(data[0,:])):
-                string=''
-                for j in range(1,len(data[:,0])):
-                    string+=str(data[j,i])+'\t'
-                string+='\n'
-                file1.write(string)
+                file1.write(str(pol_disp_vec[:])+'\t'+
+                            str(np.mean(result_vec_poloidal[:,:],axis=1)/pol_disp_vec[:]-1)+'\t'+
+                            str(np.sqrt(np.var(result_vec_poloidal[:,:]/pol_disp_vec[:,None]-1, axis=1))))
+
             file1.close()
     
     if plot_sample_gaussian:
@@ -542,10 +552,11 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                             rotation_frequency=0.,
                             output_name='gaussian',
                             n_frames=3)
-        result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
+        result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
                                       data_object='gaussian', 
                                       normalize=None, 
                                       normalize_for_size=False, 
+                                      normalize_for_velocity=False,
                                       skip_structure_calculation=True, 
                                       plot=False, 
                                       nocalc=False, 
@@ -575,27 +586,34 @@ def test_spatial_displacement_estimation(gaussian=False,                        
                             test=False,
                             n_frame=3
                             )
-        result=calculate_nstx_gpi_avg_frame_velocity(exp_id=0, 
-                                                     data_object='random', 
-                                                     normalize=None, 
-                                                     normalize_for_size=False, 
-                                                     skip_structure_calculation=True, 
-                                                     plot=False, 
-                                                     nocalc=False, 
-                                                     return_results=True, 
-                                                     subtraction_order_for_velocity=1)
+        result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
+                                                          data_object='random', 
+                                                          normalize=None, 
+                                                          normalize_for_size=False, 
+                                                          normalize_for_velocity=False,
+                                                          skip_structure_calculation=True, 
+                                                          plot=False, 
+                                                          nocalc=False, 
+                                                          return_results=True, 
+                                                          subtraction_order_for_velocity=1)
         plt.figure()
         flap.plot('random', plot_type='image', slicing={'Sample':0}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf.savefig()
+        if pdf:
+            pdf.savefig()
         plt.figure()
         flap.plot('random', plot_type='image', slicing={'Sample':1}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf.savefig()
+        if pdf:
+            pdf.savefig()
         plt.figure()
         flap.plot('GPI_FRAME_12_CCF', plot_type='image', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
-        pdf.savefig()
-        pdf.close()
+        if pdf:
+            pdf.savefig()
+            pdf.close()
+        
+        
+        
     if plot_example_event:
-        calculate_nstx_gpi_avg_frame_velocity(exp_id=141319,
+        calculate_nstx_gpi_frame_by_frame_velocity(exp_id=141319,
                                       time_range=[0.552,0.553],  
                                                             normalize='roundtrip', 
                                                             normalize_for_size=True, 

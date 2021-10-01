@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
 
-from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, flap_nstx_thomson_data
+from flap_nstx.analysis import calculate_nstx_gpi_frame_by_frame_velocity, flap_nstx_thomson_data
 from flap_nstx.analysis import calculate_radial_acceleration_diagram, plot_nstx_gpi_velocity_distribution
 from flap_nstx.analysis import nstx_gpi_generate_synthetic_data, test_spatial_displacement_estimation, show_nstx_gpi_video_frames
 
@@ -253,14 +253,14 @@ def plot_results_for_pop_2020_paper(plot_figure=2,
                                    normalize=False,
                                    cache_data=False, 
                                    plot_flux=False, 
-                                   plot_separatrix=True, 
+                                   plot_separatrix=False, 
                                    flux_coordinates=False,
-                                   device_coordinates=True,
+                                   device_coordinates=False,
                                    new_plot=False,
                                    save_pdf=True,
                                    colormap='gist_ncar',
                                    save_for_paraview=False,
-                                   colorbar_visibility=True,
+                                   colorbar_visibility=False,
                                    save_data_for_publication=save_data_into_txt
                                    )
         pdf.savefig()
@@ -274,7 +274,7 @@ def plot_results_for_pop_2020_paper(plot_figure=2,
             flap.add_data_object(d3, 'GPI_SLICED_DENORM_CCF_VEL')
             flap.add_data_object(d4, 'GPI_CCF_F_BY_F')
         except:
-            calculate_nstx_gpi_avg_frame_velocity(exp_id=139901, 
+            calculate_nstx_gpi_frame_by_frame_velocity(exp_id=139901, 
                                                   time_range=[0.325-1e-3,0.325+1e-3], 
                                                   plot=False,
                                                   subtraction_order_for_velocity=1,
@@ -506,7 +506,7 @@ def plot_results_for_pop_2020_paper(plot_figure=2,
         pdf.close()
         
     if plot_figure == 7:
-        calculate_nstx_gpi_avg_frame_velocity(exp_id=139901, 
+        calculate_nstx_gpi_frame_by_frame_velocity(exp_id=139901, 
                                               time_range=[0.32495,0.325], 
                                               plot=False,
                                               subtraction_order_for_velocity=4,
@@ -533,7 +533,7 @@ def plot_results_for_pop_2020_paper(plot_figure=2,
 
 
     if plot_figure == 8:
-        calculate_nstx_gpi_avg_frame_velocity(exp_id=139901, 
+        calculate_nstx_gpi_frame_by_frame_velocity(exp_id=139901, 
                                               time_range=[0.325-2e-3,0.325+2e-3], 
                                               plot_time_range=[0.325-0.5e-3,0.325+0.5e-3],
                                               plot=True,
@@ -646,7 +646,7 @@ def plot_results_for_pop_2020_paper(plot_figure=2,
                                          sinusoidal=True)
         d=flap.get_data_object('test', exp_id=1)
         d.data=d.data-np.mean(d.data,axis=0)
-        calculate_nstx_gpi_avg_frame_velocity(data_object='test',
+        calculate_nstx_gpi_frame_by_frame_velocity(data_object='test',
                                               exp_id=1,
                                               time_range=[0.000000,0.00005],
                                               plot=False,
@@ -685,7 +685,7 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
             flap.add_data_object(d3, 'GPI_SLICED_DENORM_CCF_VEL')
             flap.add_data_object(d4, 'GPI_CCF_F_BY_F')
         except:
-            calculate_nstx_gpi_avg_frame_velocity(exp_id=141319, 
+            calculate_nstx_gpi_frame_by_frame_velocity(exp_id=141319, 
                                                   time_range=[0.552497-500e-6,0.552497+500e-6], 
                                                   plot=False,
                                                   subtraction_order_for_velocity=4,
@@ -878,7 +878,7 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
         
         if save_data_into_txt:
             data=flap.get_data_object('GPI_CCF_F_BY_F').slice_data(slicing={'Sample':20877}).data
-            filename=wd+'/data_accessibility/2021_rsi/figure_6c.txt'
+            filename=wd+'/data_accessibility/2021_rsi/figure_2c.txt'
             file1=open(filename, 'w+')
             for i in range(len(data[0,:])):
                 string=''
@@ -896,34 +896,34 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
         time_range=[0.34725,0.34775]
         #calculate_nstx_gpi_avg_frame_velocity(exp_id=141319,
         #                              time_range=[0.552,0.553],  
-        calculate_nstx_gpi_avg_frame_velocity(exp_id=139901,
-                                      time_range=time_range,  
-                                      normalize='roundtrip', 
-                                      normalize_for_size=True, 
-                                      skip_structure_calculation=True, 
-                                      plot=False, 
-                                      pdf=False,
-                                      nocalc=True,
-                                      plot_scatter=False,
-                                      plot_for_publication=True,
-                                      correlation_threshold=0.0,
-                                      return_results=True,
-                                      subtraction_order_for_velocity=4)
+        calculate_nstx_gpi_frame_by_frame_velocity(exp_id=139901,
+                                                   time_range=time_range,  
+                                                   normalize='roundtrip', 
+                                                   normalize_for_size=True, 
+                                                   skip_structure_calculation=True, 
+                                                   plot=False, 
+                                                   pdf=False,
+                                                   nocalc=True,
+                                                   plot_scatter=False,
+                                                   plot_for_publication=True,
+                                                   correlation_threshold=0.0,
+                                                   return_results=True,
+                                                   subtraction_order_for_velocity=4)
         corr_thres=np.arange(11)/10
         for i_corr in range(11):
-            results=calculate_nstx_gpi_avg_frame_velocity(exp_id=139901,
-                                                          time_range=time_range,  
-                                                          normalize='roundtrip', 
-                                                          normalize_for_size=True, 
-                                                          skip_structure_calculation=False, 
-                                                          plot=False, 
-                                                          pdf=False,
-                                                          nocalc=True,
-                                                          plot_scatter=False,
-                                                          plot_for_publication=True,
-                                                          correlation_threshold=corr_thres[i_corr],
-                                                          return_results=True,
-                                                          subtraction_order_for_velocity=4)
+            results=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=139901,
+                                                               time_range=time_range,  
+                                                               normalize='roundtrip', 
+                                                               normalize_for_size=True, 
+                                                               skip_structure_calculation=False, 
+                                                               plot=False, 
+                                                               pdf=False,
+                                                               nocalc=True,
+                                                               plot_scatter=False,
+                                                               plot_for_publication=True,
+                                                               correlation_threshold=corr_thres[i_corr],
+                                                               return_results=True,
+                                                               subtraction_order_for_velocity=4)
             print(results['Velocity ccf'][:,0].shape)
             time=results['Time']
             if i_corr==0:
@@ -933,6 +933,7 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
             rad_vel[:,i_corr]=results['Velocity ccf'][:,1]
         
         pdf=PdfPages(wd+'/plots/2021_rsi/figure_vel_vs_corr_thres.pdf')
+        
         styled=True
         if styled:
             plt.rc('font', family='serif', serif='Helvetica')
@@ -974,29 +975,125 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
         
         pdf.savefig()
         pdf.close()
+        
+        if save_data_into_txt:
+            filename=wd+'/data_accessibility/2021_rsi/figure_3.txt'
+            file1=open(filename, 'w+')
+            string='Time [s]'
+            for i in range(1,7,1):
+                string+='\t rho='+str((10-i)/10)
+            string+='\n'
+            file1.write(string)
+            for j in range(len(time)):
+                string=str(time[j])
+                for i in range(1,7,1):
+                    string+='\t'+str(pol_vel[j,(10-i)]/1e3-i*10)
+                string+='\n'
+                file1.write(string)
+            file1.close()
+        
     
     if plot_figure == 4:
-        test_spatial_displacement_estimation(plot_example_event_frames=True)    
+         test_spatial_displacement_estimation(plot_sample_gaussian=True, 
+                                             pdf=True,
+                                             save_data_into_txt=save_data_into_txt)
+         
+         if save_data_into_txt:
+            data=flap.get_data_object('gaussian').slice_data(slicing={'Sample':0}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_4a.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
+            
+            data=flap.get_data_object('gaussian').slice_data(slicing={'Sample':1}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_4b.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()    
+            
+            data=flap.get_data_object('GPI_FRAME_12_CCF').slice_data(slicing={'Sample':0}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_4c.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()  
     
     if plot_figure == 5:
+        
         test_spatial_displacement_estimation(gaussian_frame_vs_structure_size=True, 
                                              gaussian_frame_size=True, 
                                              gaussian=True, 
-                                             interpolation='bicubic', 
+                                             interpolation='parabola', 
                                              pdf=True, 
-                                             nocalc=False, 
+                                             nocalc=True, 
                                              frame_size_range=[8,200], 
-                                             frame_size_step=8)
+                                             frame_size_step=8,
+                                             save_data_into_txt=save_data_into_txt)
     if plot_figure == 6:
-        test_spatial_displacement_estimation(plot_sample_random=True, pdf=True)
+        test_spatial_displacement_estimation(plot_sample_random=True, 
+                                             pdf=True,
+                                             save_data_into_txt=save_data_into_txt)
+        
+        if save_data_into_txt:
+            data=flap.get_data_object('random').slice_data(slicing={'Sample':0}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_6a.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
+            
+            data=flap.get_data_object('random').slice_data(slicing={'Sample':1}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_6b.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()    
+            
+            data=flap.get_data_object('GPI_FRAME_12_CCF').slice_data(slicing={'Sample':0}).data
+            filename=wd+'/data_accessibility/2021_rsi/figure_6c.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()  
+    
         
     if plot_figure == 7:
-        test_spatial_displacement_estimation(random=True, pdf=True, nocalc=False)
+        test_spatial_displacement_estimation(random=True, 
+                                             pdf=True, 
+                                             nocalc=False,
+                                             save_data_into_txt=save_data_into_txt)
         
     if plot_figure == 8:
         plt.figure()
         ax,fig=plt.subplots(figsize=(3.35*2,5.5))
         pdf=PdfPages(wd+'/plots/2021_rsi/figure_141319_0.552497_9_frame.pdf')
+        
         show_nstx_gpi_video_frames(exp_id=141319, 
                                    start_time=0.552497-5*2.5e-6,
                                    n_frame=9,
@@ -1020,16 +1117,32 @@ def plot_results_for_rsi_2021_paper(plot_figure=1,
         pdf.close()
     
     if plot_figure == 9:
-        calculate_nstx_gpi_avg_frame_velocity(exp_id=141319,
-                                              time_range=[0.552,0.553],  
-                                              normalize='roundtrip', 
-                                              normalize_for_size=True, 
-                                              skip_structure_calculation=False, 
-                                              plot=True, 
-                                              pdf=True,
-                                              nocalc=True,
-                                              plot_scatter=False,
-                                              plot_for_publication=True,
-                                              
-                                              return_results=True,
-                                              subtraction_order_for_velocity=4)
+        results=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=141319,
+                                                           time_range=[0.552,0.553],  
+                                                           normalize='roundtrip', 
+                                                           normalize_for_size=True, 
+                                                           normalize_for_velocity=False,
+                                                           skip_structure_calculation=False, 
+                                                           plot=True, 
+                                                           pdf=True,
+                                                           nocalc=False,
+                                                           plot_scatter=False,
+                                                           plot_for_publication=True,
+                                                           remove_interlaced_structures=True,
+                                                           return_results=True,
+                                                           subtraction_order_for_velocity=4)
+
+        if save_data_into_txt:
+            time=results['Time']
+            filename=wd+'/data_accessibility/2021_rsi/figure_9.txt'
+            file1=open(filename, 'w+')
+            string='Time [s] \t v_rad_ccf \t v_rad_str \t v_pol_ccf \t v_pol_str \n'
+            file1.write(string)
+            for i in range(len(time)):
+                string=str(time[i])+'\t'+\
+                        str(results['Velocity ccf'][i,0])+'\t'+\
+                        str(results['Velocity str max'][i,0])+'\t'+\
+                        str(results['Velocity ccf'][i,1])+'\t'+\
+                        str(results['Velocity str max'][i,1])+'\n'
+                file1.write(string)
+            file1.close()

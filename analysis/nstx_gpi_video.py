@@ -315,7 +315,6 @@ def show_nstx_gpi_video_frames(exp_id=None,
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']    
         
     if normalize:
-        
         flap.slice_data(object_name, 
                         slicing={'Time':flap.Intervals(time_range[0]-1/1e3*10,
                                                        time_range[1]+1/1e3*10)},
@@ -394,14 +393,15 @@ def show_nstx_gpi_video_frames(exp_id=None,
         d.add_coordinate(coordinates='Flux r',exp_id=exp_id)
         x_axis='Flux r'
         y_axis='Device z'
+        plot_units={'Flux r':'','Device z':'m'}
     elif device_coordinates:
         x_axis='Device R'
         y_axis='Device z'
-    if (not device_coordinates and 
-        not plot_separatrix and 
-        not flux_coordinates):
+        plot_units={'Device R':'m','Device z':'m'}
+    else:
         x_axis='Image x'
-        y_axis='Image y'        
+        y_axis='Image y'
+        plot_units=None
     if start_time is not None:
         start_sample_num=flap.slice_data(object_name, 
                                          slicing={'Time':start_time}).coordinate('Sample')[0][0,0]
@@ -428,14 +428,15 @@ def show_nstx_gpi_video_frames(exp_id=None,
                 slicing={'Time':time}
             d=flap.slice_data(object_name, slicing=slicing, output_name='GPI_SLICED')
             slicing={'Time':d.coordinate('Time')[0][0,0]}
-            if plot_flux:
+            
+            if plot_flux and device_coordinates:
                 flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
                 oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
                                                   'Plot':True,
                                                   'Colormap':None,
                                                   'nlevel':51}}
                 
-            if plot_separatrix:
+            if plot_separatrix and device_coordinates:
                 flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
                 flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
                 oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
@@ -455,14 +456,13 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                'Interpolation': 'Closest value',
                                'Clear':False,
                                'Equal axes':True,
-                               'Plot units':{'Device R':'m',
-                                             'Device z':'m'},
+                               'Plot units':plot_units,
                                'Axes visibility':visibility,
                                'Colormap':colormap,
                                'Colorbar':colorbar_visibility,
                                'Overplot options':oplot_options,
                                },
-                       plot_options={'levels':255},
+                       plot_options={'levels':51},
                        )
             if save_data_for_publication:
                 data=flap.get_data_object('GPI_SLICED').data

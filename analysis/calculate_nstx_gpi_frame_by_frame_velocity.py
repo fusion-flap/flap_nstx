@@ -16,7 +16,7 @@ import flap_nstx
 flap_nstx.register()
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
-from flap_nstx.analysis import nstx_gpi_one_frame_structure_finder, nstx_gpi_watershed_structure_finder
+from flap_nstx.analysis import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"flap_nstx.cfg")
@@ -72,7 +72,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                normalize_f_high=1e3,                 #High pass frequency for the normalizer data
                                                
                                                #Inputs for velocity pre processing
-                                               normalize_for_velocity=True,         #Normalize the signal for velocity processing
+                                               normalize_for_velocity=True,          #Normalize the signal for velocity processing
                                                subtraction_order_for_velocity=1,     #Order of the 2D polynomial for background subtraction
                                                
                                                #Inputs for velocity processing
@@ -111,7 +111,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                #Plot options:
                                                plot=True,                            #Plot the results
                                                pdf=False,                            #Print the results into a PDF
-                                               plot_gas=True,                        #Plot the gas cloud parameters on top of the other results from the structure size calculation
+                                               plot_gas=False,  #NOT WORKING, NEEDS TO BE CHECKED                      #Plot the gas cloud parameters on top of the other results from the structure size calculation
                                                plot_error=False,                     #Plot the errorbars of the velocity calculation based on the line fitting and its RMS error
                                                error_window=4.,                      #Plot the average signal with the error bars calculated from the normalized variance.
                                                overplot_str_vel=True,                #Overplot the velocity calculated from the structure onto the one from CCF
@@ -154,7 +154,6 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     
     #Constants for the calculation
     #Using the spatial calibration to find the actual velocities.
-
     coeff_r=np.asarray([3.75, 0,    1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
     coeff_z=np.asarray([0,    3.75, 70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
     
@@ -216,9 +215,11 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         comment+='_nv'
     if remove_interlaced_structures:
         comment+='_nointer'
-               
+    comment+='_'+str_finding_method
+        
+    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+    
     if filename is None:
-        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         filename=flap_nstx.analysis.filename(exp_id=exp_id,
                                              working_directory=wd+'/processed_data',
                                              time_range=time_range,
@@ -289,7 +290,8 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         object_name_str_vel='GPI_SLICED_FULL'
         
         #Normalize data for size calculation
-        print("**** Calculating the gas cloud ****")
+        if normalize is not None:
+            print("**** Calculating the gas cloud ****")
 
         normalizer_object_name='GPI_LPF_INTERVAL'
 
@@ -305,6 +307,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                             output_name='GPI_SLICED_FOR_FILTERING')            
         if normalize_for_size is False and normalize_for_velocity is False:
             normalize = None
+            
         if normalize == 'simple':
             flap.filter_data('GPI_SLICED_FOR_FILTERING',
                              exp_id=exp_id,
@@ -383,34 +386,34 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             flap.add_data_object(coefficient_dataobject, 'GPI_GAS_CLOUD')
             
         #Global gas levels
+
         if normalize is not None:
             
             gas_min=flap.get_data_object_ref('GPI_GAS_CLOUD', exp_id=exp_id).data.min()
             gas_max=flap.get_data_object_ref('GPI_GAS_CLOUD', exp_id=exp_id).data.max()
             gas_levels=np.arange(nlevel)/(nlevel-1)*(gas_max-gas_min)+gas_min            
             
-        if normalize_for_velocity:
-            
-            data_obj=flap.get_data_object(object_name_ccf_velocity)
-            data_obj.data = data_obj.data/coefficient
-            flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_CCF_VEL')
-            object_name_ccf_velocity='GPI_SLICED_DENORM_CCF_VEL'
-            
-            data_obj=flap.get_data_object(object_name_str_vel)
-            data_obj.data = data_obj.data/coefficient
-            flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_VEL')
-            object_name_str_vel='GPI_SLICED_DENORM_STR_VEL'            
-            
-            
-        if normalize_for_size:
-            
-            data_obj=flap.get_data_object(object_name_str_size)
-            if str_finding_method == 'contour':
+            if normalize_for_velocity:
+                data_obj=flap.get_data_object(object_name_ccf_velocity)
                 data_obj.data = data_obj.data/coefficient
-            elif str_finding_method == 'watershed':
-                data_obj.data = data_obj.data-coefficient
-            flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_SIZE')
-            object_name_str_size='GPI_SLICED_DENORM_STR_SIZE'
+                flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_CCF_VEL')
+                object_name_ccf_velocity='GPI_SLICED_DENORM_CCF_VEL'
+                
+                data_obj=flap.get_data_object(object_name_str_vel)
+                data_obj.data = data_obj.data/coefficient
+                flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_VEL')
+                object_name_str_vel='GPI_SLICED_DENORM_STR_VEL'            
+                
+            if normalize_for_size:
+                
+                data_obj=flap.get_data_object(object_name_str_size)
+                if str_finding_method == 'contour':
+                    data_obj.data = data_obj.data/coefficient
+                elif str_finding_method == 'watershed':
+                    #data_obj.data = data_obj.data-coefficient
+                    data_obj.data = data_obj.data/coefficient
+                flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_SIZE')
+                object_name_str_size='GPI_SLICED_DENORM_STR_SIZE'
             
         #Subtract trend from data
         if subtraction_order_for_velocity is not None:
@@ -449,7 +452,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     #     d.coordinates[i].unit.name == 'Image y'):
                     #     d.coordinates[i].step = 1./bicubic_upsample
                     if (d.coordinates[i].unit.name == 'Device z' or
-                        d.coordinates[i].unit.name == 'Device R'): 
+                        d.coordinates[i].unit.name == 'Device R'):
                         d.coordinates[i].values=scipy.ndimage.zoom(d.coordinates[i].values,
                                                                          bicubic_upsample, 
                                                                          order=1)
@@ -481,9 +484,9 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         elif threshold_method == 'background_average':
             intensity_thres_level_str_vel=threshold_bg_multiplier*np.mean(flap.slice_data(object_name_str_size, 
                                                                                   slicing={'Image x':flap.Intervals(threshold_bg_range['x'][0],
-                                                                                                                    threshold_bg_range['x'][0]),
+                                                                                                                    threshold_bg_range['x'][1]),
                                                                                            'Image y':flap.Intervals(threshold_bg_range['y'][0],
-                                                                                                                    threshold_bg_range['y'][0])}).data)
+                                                                                                                    threshold_bg_range['y'][1])}).data)
         """
             VARIABLE DEFINITION
         """
@@ -495,6 +498,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         sample_time=time[1]-time[0]
         sample_0=flap.get_data_object_ref(object_name_ccf_velocity).coordinate('Sample')[0][0,0,0]
         dalpha=flap.get_data_object_ref('GPI_SLICED_FULL').slice_data(summing={'Image x':'Mean', 'Image y':'Mean'}).data,
+        
         
         frame_properties={'Shot':exp_id,
                           'Time':time[1:-1],
@@ -511,23 +515,50 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                           'GC COG':np.zeros([len(time)-2,2]),
                           
                           'Velocity ccf':np.zeros([len(time)-2,2]),
+                          
                           'Velocity str avg':np.zeros([len(time)-2,2]),
                           'Velocity str max':np.zeros([len(time)-2,2]),
                           
                           'Size avg':np.zeros([len(time)-2,2]),
                           'Size max':np.zeros([len(time)-2,2]),
+                          
                           'Position avg':np.zeros([len(time)-2,2]),
                           'Position max':np.zeros([len(time)-2,2]),
+                          
                           'Area avg':np.zeros(len(time)-2),
                           'Area max':np.zeros(len(time)-2),
+                          
                           'Elongation avg':np.zeros(len(time)-2),
-                          'Elongation max':np.zeros(len(time)-2),                          
+                          'Elongation max':np.zeros(len(time)-2),   
+                          
                           'Angle avg':np.zeros(len(time)-2),
-                          'Angle max':np.zeros(len(time)-2),                          
+                          'Angle max':np.zeros(len(time)-2),     
+                          
                           'Centroid avg':np.zeros([len(time)-2,2]),
-                          'Centroid max':np.zeros([len(time)-2,2]),                          
+                          'Centroid max':np.zeros([len(time)-2,2]),  
+                          
                           'COG avg':np.zeros([len(time)-2,2]),
                           'COG max':np.zeros([len(time)-2,2]),
+                          
+                          'Angle ALI max':np.zeros(len(time)-2),
+                          'Angle ALI avg':np.zeros(len(time)-2),
+                          
+                          'Roundness max':np.zeros(len(time)-2),
+                          'Roundness avg':np.zeros(len(time)-2),
+                          
+                          'Solidity max':np.zeros(len(time)-2),
+                          'Solidity avg':np.zeros(len(time)-2),
+                          
+                          'Convexity max':np.zeros(len(time)-2),
+                          'Convexity avg':np.zeros(len(time)-2),
+                          
+                          'Total curvature max':np.zeros(len(time)-2),
+                          'Total curvature avg':np.zeros(len(time)-2),
+                          
+                          'Total bending energy max':np.zeros(len(time)-2),
+                          'Total bending energy avg':np.zeros(len(time)-2),
+                          
+                          #'Structures':np.zeros(len(time)-2),
 
                           'Frame COG':np.zeros([len(time)-2,2]),
                           'Str number':np.zeros(len(time)-2),
@@ -582,18 +613,22 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         frame2=None
         frame2_vel=None
         frame2_size=None
+        structures2_size=None
         structures2_vel=None
         invalid_correlation_frame_counter=0.
         
         if test or test_structures or test_gas_cloud or structure_pdf_save:
-            plt.figure()
+            my_dpi=80
+            plt.figure(figsize=(800/my_dpi, 600/my_dpi), dpi=my_dpi)
             
         for i_frames in range(0,n_frames-2):
             """
             STRUCTURE VELOCITY CALCULATION BASED ON CCF CALCULATION
             """
-            
-            print(str(i_frames/(n_frames-3)*100.)+"% done from the calculation.")
+            try:            
+                print(str(i_frames/(n_frames-3)*100.)+"% done from the calculation.")
+            except:
+                pass
             
             slicing_frame1={'Sample':sample_0+i_frames}
             slicing_frame2={'Sample':sample_0+i_frames+1}
@@ -713,15 +748,15 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                     exp_id=exp_id,
                                     slicing=slicing_frame2,
                                     output_name='GPI_GAS_CLOUD_SLICED')
-                    gas_cloud_structure=nstx_gpi_one_frame_structure_finder(data_object='GPI_GAS_CLOUD_SLICED',
-                                                                            exp_id=exp_id,
-                                                                            filter_level=filter_level,
-                                                                            nlevel=nlevel,
-                                                                            levels=gas_levels,
-                                                                            spatial=not structure_pixel_calc,
-                                                                            pixel=structure_pixel_calc,
-                                                                            remove_interlaced_structures=remove_interlaced_structures,
-                                                                            test_result=test_gas_cloud)
+                    gas_cloud_structure=nstx_gpi_contour_structure_finder(data_object='GPI_GAS_CLOUD_SLICED',
+                                                                          exp_id=exp_id,
+                                                                          filter_level=filter_level,
+                                                                          nlevel=nlevel,
+                                                                          levels=gas_levels,
+                                                                          spatial=not structure_pixel_calc,
+                                                                          pixel=structure_pixel_calc,
+                                                                          remove_interlaced_structures=remove_interlaced_structures,
+                                                                          test_result=test_gas_cloud)
                     n_gas_structures=len(gas_cloud_structure)
                     for gas_structure in gas_cloud_structure:
                         frame_properties['GC size'][i_frames,:]+=gas_structure['Size'][:]/n_gas_structures
@@ -768,7 +803,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     
                     if str_finding_method == 'contour':
                         if structures2_vel is None:
-                            structures1_vel=nstx_gpi_one_frame_structure_finder(data_object='GPI_FRAME_1_STR_VEL',
+                            structures1_vel=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_1_STR_VEL',
                                                                                 exp_id=exp_id,
                                                                                 filter_level=filter_level,
                                                                                 threshold_level=intensity_thres_level_str_vel,
@@ -777,7 +812,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                                 spatial=not structure_pixel_calc,
                                                                                 remove_interlaced_structures=remove_interlaced_structures,
                                                                                 pixel=structure_pixel_calc,
-                                                                                test_result=test_structures)
+                                                                                test_result=False)
                         else:
                             structures1_vel=copy.deepcopy(structures2_vel)
                             
@@ -785,7 +820,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                             plt.cla()
                             test_structures=True
     
-                        structures2_vel=nstx_gpi_one_frame_structure_finder(data_object='GPI_FRAME_2_STR_VEL',
+                        structures2_vel=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_VEL',
                                                                             exp_id=exp_id,
                                                                             filter_level=filter_level,
                                                                             threshold_level=intensity_thres_level_str_vel,
@@ -794,10 +829,10 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                             spatial=not structure_pixel_calc,
                                                                             remove_interlaced_structures=remove_interlaced_structures,
                                                                             pixel=structure_pixel_calc,
-                                                                            test_result=test_structures)
+                                                                            test_result=False)
                     elif str_finding_method == 'watershed':
                         if structures2_vel is None:
-                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_SIZE',                       #Name of the FLAP.data_object
+                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',                       #Name of the FLAP.data_object
                                                                                 exp_id=exp_id,                             #Shot number (if data_object is not used)
                                                                             
                                                                                 spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
@@ -809,7 +844,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                                                                         #if set, the value is subtracted from the data and contours are found after that. 
                                                                                                                                 #Negative values are substituted with 0.
                                                                                                                             
-                                                                                test_result=False,#test_structures,                      #Test the result only (plot the contour and the found structures)
+                                                                                test_result=False,                      #Test the result only (plot the contour and the found structures)
                                                                                 test=False,                             #Test the contours and the structures before any kind of processing
                                                                                 nlevel=51,                              #Number of contour levels for plotting
                                                                                                                             
@@ -821,7 +856,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                             plt.cla()
                             test_structures=True
     
-                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
+                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_VEL',                       #Name of the FLAP.data_object
                                                                             exp_id=exp_id,                             #Shot number (if data_object is not used)
                                                                             
                                                                             spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
@@ -833,15 +868,72 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                                                                     #if set, the value is subtracted from the data and contours are found after that. 
                                                                                                                         #Negative values are substituted with 0.
                                                                             
-                                                                            test_result=False,#test_structures,                      #Test the result only (plot the contour and the found structures)
+                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
                                                                             test=False,                             #Test the contours and the structures before any kind of processing
                                                                             nlevel=51,                              #Number of contour levels for plotting
                                                                             
                                                                             save_data_for_publication=False,
                                                                             )
+                    elif str_finding_method == 'randomwalker':
+                        if structures2_vel is None:
+                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',                       #Name of the FLAP.data_object
+                                                                                exp_id=exp_id,                             #Shot number (if data_object is not used)
+                                                                            
+                                                                                spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
+                                                                                pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
+                                                                                mfilter_range=5,                        #Range of the median filter
+                                                                                
+                                                                                threshold_method='otsu',
+                                                                                threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
+                                                                                                                        #if set, the value is subtracted from the data and contours are found after that. 
+                                                                                                                                #Negative values are substituted with 0.
+                                                                                                                            
+                                                                                test_result=False,                      #Test the result only (plot the contour and the found structures)
+                                                                                test=False,                             #Test the contours and the structures before any kind of processing
+                                                                                nlevel=51,                              #Number of contour levels for plotting
+                                                                                try_random_walker=True,                                            
+                                                                                save_data_for_publication=False,)
+                        else:
+                            structures1_vel=copy.deepcopy(structures2_vel)
+                            
+                        if structure_video_save or structure_pdf_save:
+                            plt.cla()
+                            test_structures=True
+    
+                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_VEL',                       #Name of the FLAP.data_object
+                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
+                                                                            
+                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
+                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
+                                                                            mfilter_range=5,                        #Range of the median filter
+                                                                            
+                                                                            threshold_method='otsu',
+                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
+                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
+                                                                                                                        #Negative values are substituted with 0.
+                                                                            
+                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
+                                                                            test=False,                             #Test the contours and the structures before any kind of processing
+                                                                            nlevel=51,                              #Number of contour levels for plotting
+                                                                            try_random_walker=True,  
+                                                                            save_data_for_publication=False,
+                                                                            )                        
 
                     if str_finding_method == 'contour':
-                        structures2_size=nstx_gpi_one_frame_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',
+                        if structures2_size is None:
+                            structures1_size=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',
+                                                                             exp_id=exp_id,
+                                                                             filter_level=filter_level,
+                                                                             threshold_level=intensity_thres_level_str_size,
+                                                                             nlevel=nlevel,
+                                                                             levels=levels,
+                                                                             remove_interlaced_structures=remove_interlaced_structures,
+                                                                             spatial=True,
+                                                                             test_result=test_structures,
+                                                                             save_data_for_publication=save_data_for_publication)
+                        else:
+                            structures1_size=copy.deepcopy(structures2_size)
+                        structures2_size=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',
                                                                              exp_id=exp_id,
                                                                              filter_level=filter_level,
                                                                              threshold_level=intensity_thres_level_str_size,
@@ -852,6 +944,27 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                              test_result=test_structures,
                                                                              save_data_for_publication=save_data_for_publication)
                     elif str_finding_method == 'watershed':
+                        if structures2_size is None:
+                            structures1_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
+                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
+                                                                            
+                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
+                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
+                                                                            mfilter_range=5,                        #Range of the median filter
+                                                                            
+                                                                            threshold_method='otsu',
+                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
+                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
+                                                                                                                        #Negative values are substituted with 0.
+                                                                            
+                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
+                                                                            test=False,                             #Test the contours and the structures before any kind of processing
+                                                                            nlevel=51,                              #Number of contour levels for plotting
+                                                                            
+                                                                            save_data_for_publication=False,
+                                                                            )
+                        else:
+                            structures1_size=copy.deepcopy(structures2_size)
                             
                         structures2_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
                                                                             exp_id=exp_id,                             #Shot number (if data_object is not used)
@@ -871,38 +984,66 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                             
                                                                             save_data_for_publication=False,
                                                                             )
-                                        
+                    elif str_finding_method == 'randomwalker':
+                        structures2_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
+                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
+                                                                            
+                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
+                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
+                                                                            mfilter_range=5,                        #Range of the median filter
+                                                                            
+                                                                            threshold_method='otsu',
+                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
+                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
+                                                                                                                        #Negative values are substituted with 0.
+                                                                            
+                                                                            test_result=test_structures,                      #Test the result only (plot the contour and the found structures)
+                                                                            test=False,                             #Test the contours and the structures before any kind of processing
+                                                                            nlevel=51,                              #Number of contour levels for plotting
+                                                                            try_random_walker=True,
+                                                                            save_data_for_publication=False,
+                                                                            )
+
                     if not structure_video_save:
-                        plt.pause(0.1)
+                        plt.pause(0.001)
                         if structure_pdf_save:
                             plt.show()
                             pdf_structures.savefig()
                     else:
                         test_structures=False
                         fig = plt.gcf()
+                        plt.title(str(exp_id)+' @ '+"{:.3f}".format(time[i_frames]*1e3)+'ms')
                         fig.canvas.draw()
                         # Get the RGBA buffer from the figure
                         w,h = fig.canvas.get_width_height()
-                        buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-                        if buf.shape[0] == h*2 * w*2 * 3:
-                            buf.shape = ( h*2, w*2, 3 ) #ON THE MAC'S INTERNAL SCREEN, THIS COULD HAPPEN NEEDS A MORE ELEGANT FIX
-                        else:
-                            buf.shape = ( h, w, 3 )
-                        buf = cv2.cvtColor(buf, cv2.COLOR_RGBA2BGR)
                         try:
-                            video
-                        except NameError:
-                            height = buf.shape[0]
-                            width = buf.shape[1]
-                            video_codec_code='mp4v'
-                            filename='NSTX_GPI_'+str(exp_id)+'fit_structures.mp4'
-                            video = cv2.VideoWriter(filename,  
-                                                    cv2.VideoWriter_fourcc(*video_codec_code), 
-                                                    float(24), 
-                                                    (width,height),
-                                                    isColor=True)
-                        video.write(buf)
-                        
+                            buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+                            if buf.shape[0] == h*2 * w*2 * 3:
+                                buf.shape = ( h*2, w*2, 3 )
+                            else:
+                                buf.shape = ( h, w, 3 )
+                            buf = cv2.cvtColor(buf, cv2.COLOR_RGBA2BGR)
+                            try:
+                                video
+                            except NameError:
+                                height = buf.shape[0]
+                                width = buf.shape[1]
+                                video_codec_code='mp4v'
+                                comment=str_finding_method+'_bgthr_'+str(threshold_bg_multiplier)
+                                filename=flap_nstx.analysis.filename(exp_id=exp_id,
+                                                                     working_directory=wd+'/plots',
+                                                                     time_range=time_range,
+                                                                     purpose='fit structures',
+                                                                     comment=comment)
+                                filename=wd+'/plots/NSTX_GPI_'+str(exp_id)+'_'+"{:.3f}".format(time[0]*1e3)+'_fit_structures_'+str_finding_method+'.mp4'
+                                video = cv2.VideoWriter(filename,  
+                                                        cv2.VideoWriter_fourcc(*video_codec_code), 
+                                                        float(24), 
+                                                        (width,height),
+                                                        isColor=True)
+                            video.write(buf)
+                        except:
+                            print('Video frame cannot be saved. Passing...')
                         
                     if structures1_vel is not None and len(structures1_vel) != 0:
                         valid_structure1_vel=True
@@ -912,16 +1053,20 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                         valid_structure2_vel=True
                     else:
                         valid_structure2_vel=False
-                        
+                    if structures1_size is not None and len(structures1_size) != 0:
+                        valid_structure1_size=True
+                    else:
+                        valid_structure1_size=False                        
                     if structures2_size is not None and len(structures2_size) != 0:
                         valid_structure2_size=True
                     else:
                         valid_structure2_size=False
+
                 else:
                     valid_structure1_vel=False
                     valid_structure2_vel=False
                     valid_structure2_size=False
-                    print('Invalid consequtive number of frames: '+str(invalid_correlation_frame_counter))
+                    print('Invalid consecutive number of frames: '+str(invalid_correlation_frame_counter))
                         
                 """Structure size calculation based on the contours"""    
                 #Crude average size calculation
@@ -953,10 +1098,19 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                         frame_properties['Area avg'][i_frames]+=structures2_size[i_str2]['Area']*weight[i_str2]
                         frame_properties['Centroid avg'][i_frames,:]+=structures2_size[i_str2]['Centroid']*weight[i_str2]
                         frame_properties['COG avg'][i_frames,:]+=structures2_size[i_str2]['Center of gravity']*weight[i_str2]
-    
+                        try:
+                            frame_properties['Angle ALI avg'][i_frames]+=structures2_size[i_str2]['Polygon'].principal_axes_angle*weight[i_str2]
+                            frame_properties['Roundness avg'][i_frames]+=structures2_size[i_str2]['Polygon'].roundness*weight[i_str2]
+                            frame_properties['Solidity avg'][i_frames]+=structures2_size[i_str2]['Polygon'].solidity*weight[i_str2]
+                            frame_properties['Convexity avg'][i_frames]+=structures2_size[i_str2]['Polygon'].convexity*weight[i_str2]
+                            frame_properties['Total curvature avg'][i_frames]+=structures2_size[i_str2]['Polygon'].total_curvature*weight[i_str2]
+                            frame_properties['Total bending energy avg'][i_frames]+=structures2_size[i_str2]['Polygon'].total_bending_energy*weight[i_str2]
+                        except:
+                            pass
+                    
                     #The number of structures in a frame
                     frame_properties['Str number'][i_frames]=n_str2
-                    
+#                    frame_properties['Structures'][i_frames]=structures2_size
                     #Calculating the properties of the structure having the maximum area or intensity
                     if maxing == 'area':
                         ind_max=np.argmax(areas)
@@ -971,8 +1125,16 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     frame_properties['Position max'][i_frames,:]=structures2_size[ind_max]['Center']
                     frame_properties['Centroid max'][i_frames,:]=structures2_size[ind_max]['Centroid']
                     frame_properties['COG max'][i_frames,:]=structures2_size[ind_max]['Center of gravity']
-    
-                    
+                    try:
+                        frame_properties['Angle ALI max'][i_frames]=structures2_size[ind_max]['Polygon'].principal_axes_angle
+                        frame_properties['Roundness max'][i_frames]=structures2_size[ind_max]['Polygon'].roundness
+                        frame_properties['Solidity max'][i_frames]=structures2_size[ind_max]['Polygon'].solidity
+                        frame_properties['Convexity max'][i_frames]=structures2_size[ind_max]['Polygon'].convexity
+                        frame_properties['Total curvature max'][i_frames]=structures2_size[ind_max]['Polygon'].total_curvature
+                        frame_properties['Total bending energy max'][i_frames]=structures2_size[ind_max]['Polygon'].total_bending_energy
+                    except:
+                        pass
+                        
                     #The center of gravity for the entire frame
                     x_coord=frame2_size.coordinate('Device R')[0]
                     y_coord=frame2_size.coordinate('Device z')[0]
@@ -988,6 +1150,13 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     frame_properties['COG avg'][i_frames,:]=[np.nan,np.nan]
                     frame_properties['Centroid avg'][i_frames,:]=[np.nan,np.nan]
                     
+                    frame_properties['Angle ALI avg'][i_frames]=np.nan
+                    frame_properties['Roundness avg'][i_frames]=np.nan
+                    frame_properties['Solidity avg'][i_frames]=np.nan
+                    frame_properties['Convexity avg'][i_frames]=np.nan
+                    frame_properties['Total curvature avg'][i_frames]=np.nan
+                    frame_properties['Total bending energy avg'][i_frames]=np.nan
+                    
                     frame_properties['Size max'][i_frames,:]=[np.nan,np.nan]
                     frame_properties['Area max'][i_frames]=np.nan
                     frame_properties['Angle max'][i_frames]=np.nan
@@ -996,11 +1165,18 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     frame_properties['COG max'][i_frames,:]=[np.nan,np.nan]
                     frame_properties['Centroid max'][i_frames,:]=[np.nan,np.nan]
                     
+                    frame_properties['Angle ALI max'][i_frames]=np.nan
+                    frame_properties['Roundness max'][i_frames]=np.nan
+                    frame_properties['Solidity max'][i_frames]=np.nan
+                    frame_properties['Convexity max'][i_frames]=np.nan
+                    frame_properties['Total curvature max'][i_frames]=np.nan
+                    frame_properties['Total bending energy max'][i_frames]=np.nan
+                    
                     frame_properties['Str number'][i_frames]=0.
                     frame_properties['Frame COG'][i_frames,:]=[np.nan,np.nan]
-                    
-                """Velocity calculation based on the contours"""
-    
+                   # frame_properties['Structures'][i_frames]=None
+                """Velocity calculation based on the contours"""                                                                
+                                
                 if valid_structure1_vel and valid_structure2_vel:          
                     #if multiple structures merge into one, then previous position is their average
                     #if one structure is split up into to, then the previous position is the old's position
@@ -1034,6 +1210,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                 prev_str_area[i_str2,i_str1]=structures1_vel[i_str1]['Area']
                                 prev_str_pos[i_str2,i_str1,:]=structures1_vel[i_str1][vel_base_key]
                                 
+                    for i_str2 in range(n_str2):            
                         if np.sum(prev_str_number[i_str2,:]) > 0:
     
                             current_str_intensity[i_str2]=structures2_vel[i_str2]['Intensity']
@@ -1167,6 +1344,8 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     frame_properties['Velocity ccf'][nan_ind,0] = np.nan
     frame_properties['Velocity ccf'][nan_ind,1] = np.nan
     
+#    for i_frames in range(len(frame_properties['Structures'][i_frames])):
+#        pass
     #Plotting the results
     if plot or pdf:
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
@@ -1307,7 +1486,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Size avg'][:,0][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC size'][:,0],
                       'xlabel':'Time [s]',
@@ -1323,7 +1502,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Size avg'][:,1][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC size'][:,1],
                       'xlabel':'Time [s]',
@@ -1339,7 +1518,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Position avg'][:,0][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC position'][:,0],
                       'xlabel':'Time [s]',
@@ -1355,7 +1534,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Centroid avg'][:,0][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC centroid'][:,0],
                       'xlabel':'Time [s]',
@@ -1371,7 +1550,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['COG avg'][:,0][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC COG'][:,0],
                       'xlabel':'Time [s]',
@@ -1387,7 +1566,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Position avg'][:,1][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC position'][:,1],
                       'xlabel':'Time [s]',
@@ -1403,7 +1582,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Centroid avg'][:,1][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC centroid'][:,1],
                       'xlabel':'Time [s]',
@@ -1419,7 +1598,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['COG avg'][:,1][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],                          
                       'overplot_gas_y':frame_properties['GC COG'][:,1],
                       'xlabel':'Time [s]',
@@ -1449,7 +1628,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Elongation avg'][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],
                       'overplot_gas_y':frame_properties['GC elongation'],
                       'xlabel':'Time [s]',
@@ -1458,14 +1637,14 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'pub_title':'Elongation',},        
                      
                      {'x':frame_properties['Time'][plot_index_structure],
-                      'y':frame_properties['Angle max'][plot_index_structure],
+                      'y':np.unwrap(frame_properties['Angle max'][plot_index_structure])-np.pi,
                       'color':'red',
                       'overplot':'average',
                       'overplot_x':frame_properties['Time'][plot_index_structure],
-                      'overplot_y':frame_properties['Angle avg'][plot_index_structure],
+                      'overplot_y':np.unwrap(frame_properties['Angle avg'][plot_index_structure])-np.pi,
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],
                       'overplot_gas_y':frame_properties['GC angle'],
                       'xlabel':'Time [s]',
@@ -1473,6 +1652,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'title':'Average (blue) and '+maxing+' maximum (red) angle\n of structures of '+str(exp_id),
                       'pub_title':'Angle',},                       
 
+                     
                      {'x':frame_properties['Time'][plot_index_structure],
                       'y':frame_properties['Area max'][plot_index_structure],
                       'color':'red',
@@ -1481,13 +1661,99 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                       'overplot_y':frame_properties['Area avg'][plot_index_structure],
                       'overplot_color':'tab:blue',
                       'linewidth':1.0,
-                      'overplot_gas':True,
+                      'overplot_gas':plot_gas,
                       'overplot_gas_x':frame_properties['Time'],
                       'overplot_gas_y':frame_properties['GC area'],
                       'xlabel':'Time [s]',
                       'ylabel':'Area [m2]',
                       'title':'Average (blue) and '+maxing+' maximum (red) area\n of structures of '+str(exp_id),
-                      'pub_title':'Angle',}, 
+                      'pub_title':'Area',}, 
+                     
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':np.unwrap(frame_properties['Angle ALI max'][plot_index_structure], discont=np.pi/2)-np.pi,
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':np.unwrap(frame_properties['Angle ALI avg'][plot_index_structure], discont=np.pi/2)-np.pi,
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Angle',
+                      'title':'Average (blue) and '+maxing+' maximum (red) angle ALI\n of structures of '+str(exp_id),
+                      'pub_title':'Angle ALI',},    
+                     
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':frame_properties['Roundness max'][plot_index_structure],
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':frame_properties['Roundness avg'][plot_index_structure],
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Roundness',
+                      'title':'Average (blue) and '+maxing+' maximum (red) roundness\n of structures of '+str(exp_id),
+                      'pub_title':'Roundness',},  
+                     
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':frame_properties['Solidity max'][plot_index_structure],
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':frame_properties['Solidity avg'][plot_index_structure],
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Solidity',
+                      'title':'Average (blue) and '+maxing+' maximum (red) solidity\n of structures of '+str(exp_id),
+                      'pub_title':'Solidity',},
+
+
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':frame_properties['Convexity max'][plot_index_structure],
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':frame_properties['Convexity avg'][plot_index_structure],
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Convexity',
+                      'title':'Average (blue) and '+maxing+' maximum (red) convexity\n of structures of '+str(exp_id),
+                      'pub_title':'Convexity',},                     
+                     
+
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':frame_properties['Total curvature max'][plot_index_structure],
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':frame_properties['Total curvature avg'][plot_index_structure],
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Curvature',
+                      'title':'Average (blue) and '+maxing+' maximum (red) total curvature\n of structures of '+str(exp_id),
+                      'pub_title':'Total curvature',},    
+
+                     {'x':frame_properties['Time'][plot_index_structure],
+                      'y':frame_properties['Total bending energy max'][plot_index_structure],
+                      'color':'red',
+                      'overplot':'average',
+                      'overplot_x':frame_properties['Time'][plot_index_structure],
+                      'overplot_y':frame_properties['Total bending energy avg'][plot_index_structure],
+                      'overplot_color':'tab:blue',
+                      'linewidth':1.0,
+                      'overplot_gas':False,
+                      'xlabel':'Time [s]',
+                      'ylabel':'Bending energy',
+                      'title':'Average (blue) and '+maxing+' maximum (red) total bending energy\n of structures of '+str(exp_id),
+                      'pub_title':'Total bending energy',},  
                      
                      {'x':frame_properties['Time'],
                       'y':frame_properties['Str number'],

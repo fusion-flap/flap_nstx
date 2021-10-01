@@ -8,7 +8,10 @@ from .calculate_tde_velocity import calculate_tde_velocity
 
 from .nstx_gpi_velocity_analysis import calculate_nstx_gpi_avg_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_filament_velocity
 
-from .nstx_gpi_structure_finder import nstx_gpi_one_frame_structure_finder, nstx_gpi_watershed_structure_finder, Polygon, Gaussian2D, FitEllipse
+from .plot_nstx_gpi_angular_velocity_distribution import plot_nstx_gpi_angular_velocity_distribution
+from .plot_nstx_gpi_velocity_distribution import plot_nstx_gpi_velocity_distribution
+
+from .nstx_gpi_structure_finder import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, Gaussian2D, FitEllipse
 
 from .calculate_nstx_gpi_frame_by_frame_velocity import calculate_nstx_gpi_frame_by_frame_velocity
 from .calculate_nstx_gpi_angular_velocity import calculate_nstx_gpi_angular_velocity
@@ -29,3 +32,4 @@ from .nstx_gpi_generate_synthetic_data import nstx_gpi_generate_synthetic_data, 
 from .read_flap_hesel_data import read_flap_hesel_data
 
 from .test_spatial_displacement_estimation import test_spatial_displacement_estimation
+from .polygon import Polygon

@@ -99,6 +99,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                           
                                         #Test options
                                         test=False,                                 #Test the results
+                                        test_into_pdf=False,
                                         ):                                          #Sad face right there :D
     
     from skimage.registration import phase_cross_correlation
@@ -176,9 +177,18 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         print('The pickle file cannot be loaded. Recalculating the results.')
         nocalc=False
 
-    if not test:
+    if test_into_pdf:
         import matplotlib
         matplotlib.use('agg')
+        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+        filename=flap_nstx.analysis.filename(exp_id=exp_id,
+                                             working_directory=wd+'/plots',
+                                             time_range=time_range,
+                                             purpose='ccf ang velocity testing',
+                                             comment=comment+'_ct_'+str(correlation_threshold))
+        pdf_filename=filename+'.pdf'
+        pdf_test=PdfPages(pdf_filename)
+            
     import matplotlib.pyplot as plt
            
     if not nocalc:
@@ -378,6 +388,10 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         
         if test:
             plt.figure()
+        if test_into_pdf:
+            import matplotlib
+            matplotlib.use('agg')
+            plt.figure()
             
         for i_frames in range(0,n_frames-2):
             """
@@ -516,7 +530,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
 #                    frame2_polar_fft_object.data=frame2_fft_polar_log-np.mean(frame2_fft_polar_log)
                     frame1_polar_fft_object.data=frame1_fft_polar_log
                     frame2_polar_fft_object.data=frame2_fft_polar_log
-                
+                    
                 ccf_object_polar=flap.ccf('GPI_FRAME_1_FFT_POLAR', 
                                           'GPI_FRAME_2_FFT_POLAR', 
                                           coordinate=['Angle', 'Radius'], 
@@ -527,14 +541,44 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                                    'Normalize':True, 
                                                    'Interval_n': 1}, 
                                                    output_name='GPI_FRAME_12_CCF_POLAR')
-                if test:
+                if test and not test_into_pdf:
                     plt.cla()
 
                     flap.plot('GPI_FRAME_12_CCF_POLAR', plot_type='contour', axes=['Angle lag', 'Radius lag'])
                     plt.pause(0.1)
                     plt.show()
                     #flap.plot('GPI_FRAME_2_FFT_POLAR', plot_type='contour', axes=['Angle', 'Radius'])
-                
+                if test_into_pdf and i_log_or_not == 0:
+                    plt.cla()
+                    flap.plot('GPI_FRAME_2', 
+                              plot_type='contour',
+                              plot_options={'levels':51},
+                              axes=['Image x', 'Image y'])
+                    plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    plt.pause(0.001)
+                    plt.show()
+                    pdf_test.savefig()
+                    
+                    # plt.cla()
+                    # flap.plot('GPI_FRAME_12_CCF_POLAR', 
+                    #           plot_type='contour',
+                    #           plot_options={'levels':51},
+                    #           axes=['Angle lag', 'Radius lag'])
+                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    # plt.pause(0.001)
+                    # plt.show()
+                    # pdf_test.savefig()
+                    
+                    # plt.cla()
+                    # flap.plot('GPI_FRAME_2_FFT_POLAR', 
+                    #           plot_type='contour', 
+                    #           plot_options={'levels':51},
+                    #           axes=['Angle', 'Radius'])
+                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    # plt.pause(0.001)
+                    # plt.show()
+                    # pdf_test.savefig()
+                    
                 max_index=np.asarray(np.unravel_index(ccf_object_polar.data.argmax(), ccf_object_polar.data.shape))
                 
                 #Fit a 2D polinomial on top of the peak
@@ -828,3 +872,6 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             
     if pdf:
         pdf_pages.close()
+    if test_into_pdf:
+        matplotlib.use('qt5agg')
+        pdf_test.close()
