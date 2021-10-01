@@ -23,8 +23,8 @@ import flap
 import flap_nstx
 
 from flap_nstx.analysis import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_tde_velocity
-from flap_nstx.analysis import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
-from flap_nstx.analysis import read_ahmed_fit_parameters, read_ahmed_edge_current, read_ahmed_matlab_file
+from flap_nstx import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
+from .read_ahmed_matlab_file import read_ahmed_fit_parameters, read_ahmed_edge_current, read_ahmed_matlab_file
 from flap_nstx.analysis import thick_wire_estimation_numerical
 
 thisdir = os.path.dirname(os.path.realpath(__file__))

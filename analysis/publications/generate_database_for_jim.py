@@ -18,11 +18,11 @@ import pickle
 import flap
 import flap_nstx
 
-from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
+from flap_nstx.analysis import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_smooth_velocity
 from flap_nstx.analysis import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,'flap_nstx.cfg')
+fn = os.path.join(thisdir,'../flap_nstx.cfg')
 flap.config.read(file_name=fn)
 flap_nstx.register()
 

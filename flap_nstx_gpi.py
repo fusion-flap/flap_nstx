@@ -179,21 +179,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
 #   This part is not producing appropriate results due to the equidistant spacing and double
 #   coefficients. Slicing is only possible for single steps.    
     
-#    coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
-#                                               unit='m',
-#                                               mode=flap.CoordinateMode(equidistant=True),
-#                                               start=coeff_r[2],
-#                                               step=[coeff_r[0],coeff_r[1]],
-#                                               dimension_list=[1,2]
-#                                               )))
-#    
-#    coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
-#                                               unit='m',
-#                                               mode=flap.CoordinateMode(equidistant=True),
-#                                               start=coeff_z[2],
-#                                               step=[coeff_z[0],coeff_z[1]],
-#                                               dimension_list=[1,2]
-#                                               )))
+
     r_coordinates=np.zeros([64,80])
     z_coordinates=np.zeros([64,80])
     for i_x in range(64):
@@ -234,7 +220,7 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                         data_source="NSTX_GPI")
     return d
 
-def add_coordinate(data_object,
+def gpi_add_coordinate(data_object,
                    coordinates,
                    exp_id=None,
                    options=None): 
@@ -522,5 +508,6 @@ def add_coordinate(data_object,
         data_object.coordinates.append(new_coordinates)
         
     return data_object
+
 def register():
-    flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=add_coordinate)
+    flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=gpi_add_coordinate)
