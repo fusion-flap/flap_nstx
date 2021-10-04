@@ -1,34 +1,29 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
-Created on Sat Jul 24 13:22:00 2019
+Created on Mon Oct  4 12:09:09 2021
 
-@author: Lampert
-
-This is the flap module for NSTX GPI diagnostic
-Needs pims package installed
-e.g.: conda install -c conda-forge pims
-
+@author: mlampert
 """
+
 #Core imports
 import os
 import copy
 import subprocess
+
 #CINE reader import
 import pims
+
 #FLAP imports
 import flap
+
 #Scientic package imports
 import matplotlib.pyplot as plt
 from matplotlib import path as pltPath
 import numpy as np
 from scipy import interpolate
 
-if (flap.VERBOSE):
-    print("Importing flap_nstx")
-    
-    
-def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, coordinates=None, data_source=None):
+def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coordinates=None, data_source=None):
     #translate the input variables to the actual directory name on portal
     #copy the file from the portal to PC if it is not already there
     #interpret the .cin file
@@ -179,7 +174,21 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
 #   This part is not producing appropriate results due to the equidistant spacing and double
 #   coefficients. Slicing is only possible for single steps.    
     
-
+#    coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_r[2],
+#                                               step=[coeff_r[0],coeff_r[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
+#    
+#    coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
+#                                               unit='m',
+#                                               mode=flap.CoordinateMode(equidistant=True),
+#                                               start=coeff_z[2],
+#                                               step=[coeff_z[0],coeff_z[1]],
+#                                               dimension_list=[1,2]
+#                                               )))
     r_coordinates=np.zeros([64,80])
     z_coordinates=np.zeros([64,80])
     for i_x in range(64):
@@ -220,10 +229,10 @@ def nstx_gpi_get_data(exp_id=None, data_name=None, no_data=False, options=None, 
                         data_source="NSTX_GPI")
     return d
 
-def gpi_add_coordinate(data_object,
-                   coordinates,
-                   exp_id=None,
-                   options=None): 
+def add_coordinate_gpi(data_object,
+                       coordinates,
+                       exp_id=None,
+                       options=None): 
     #This part of the code provides normalized flux coordinates for the GPI data
     if ('Flux r' in coordinates):
         try:
@@ -508,6 +517,3 @@ def gpi_add_coordinate(data_object,
         data_object.coordinates.append(new_coordinates)
         
     return data_object
-
-def register():
-    flap.register_data_source('NSTX_GPI', get_data_func=nstx_gpi_get_data, add_coord_func=gpi_add_coordinate)

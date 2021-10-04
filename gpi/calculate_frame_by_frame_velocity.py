@@ -13,13 +13,15 @@ import cv2
 
 import flap
 import flap_nstx
-flap_nstx.register()
+flap_nstx.register('NSTX_GPI')
+from flap_nstx.gpi import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder
+from flap_nstx.tools import detrend_multidim
+
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
-from flap_nstx.analysis import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 #Scientific modules
@@ -164,6 +166,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     #Input error handling
     if exp_id is None and data_object is None:
         raise ValueError('Either exp_id or data_object needs to be set for the calculation.')
+        
     if data_object is None:
         if time_range is None and filename is None:
             raise ValueError('It takes too much time to calculate the entire shot, please set a time_range.')
@@ -201,26 +204,31 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
                  'Image x':flap.Intervals(x_range[0],x_range[1]),
                  'Image y':flap.Intervals(y_range[0],y_range[1])}
-
-    if parabola_fit:
-        comment='pfit_o'+str(subtraction_order_for_velocity)+\
-                '_fst_'+str(frame_similarity_threshold)
-    else:
-        comment='max_o'+str(subtraction_order_for_velocity)+\
-                '_fst_'+str(frame_similarity_threshold)
-                
-    if normalize_for_size:
-        comment+='_ns'
-    if normalize_for_velocity:
-        comment+='_nv'
-    if remove_interlaced_structures:
-        comment+='_nointer'
-    comment+='_'+str_finding_method
         
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
     
+    """
+    SETTING UP THE FILENAME FOR DATA SAVING
+    """
+    
     if filename is None:
-        filename=flap_nstx.analysis.filename(exp_id=exp_id,
+        
+        if parabola_fit:
+            comment='pfit_o'+str(subtraction_order_for_velocity)+\
+                    '_fst_'+str(frame_similarity_threshold)
+        else:
+            comment='max_o'+str(subtraction_order_for_velocity)+\
+                    '_fst_'+str(frame_similarity_threshold)
+                    
+        if normalize_for_size:
+            comment+='_ns'
+        if normalize_for_velocity:
+            comment+='_nv'
+        if remove_interlaced_structures:
+            comment+='_nointer'
+        comment+='_'+str_finding_method
+        
+        filename=flap_nstx.tools.filename(exp_id=exp_id,
                                              working_directory=wd+'/processed_data',
                                              time_range=time_range,
                                              purpose='ccf velocity',
@@ -244,17 +252,22 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     if not test and not test_structures and not test_gas_cloud and not structure_pdf_save:
         import matplotlib
         matplotlib.use('agg')
+        
     import matplotlib.pyplot as plt
     
     if structure_pdf_save:
-        filename=flap_nstx.analysis.filename(exp_id=exp_id,
+        filename=flap_nstx.tools.filename(exp_id=exp_id,
                                              working_directory=wd+'/plots',
                                              time_range=time_range,
                                              purpose='found structures',
                                              comment=comment,
                                              extension='pdf')
         pdf_structures=PdfPages(filename)
+        
     if not nocalc:
+        """
+        READING THE DATA
+        """
         #Read data
         if data_object is None:
             print("\n------- Reading NSTX GPI data --------")
@@ -289,10 +302,10 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         object_name_str_size='GPI_SLICED_FULL'
         object_name_str_vel='GPI_SLICED_FULL'
         
-        #Normalize data for size calculation
-        if normalize is not None:
-            print("**** Calculating the gas cloud ****")
-
+        """
+        NORMALIZATION PROCESS
+        """
+        
         normalizer_object_name='GPI_LPF_INTERVAL'
 
         slicing_for_filtering=copy.deepcopy(slicing)
@@ -304,7 +317,9 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             flap.slice_data('GPI',
                             exp_id=exp_id,
                             slicing=slicing_for_filtering,
-                            output_name='GPI_SLICED_FOR_FILTERING')            
+                            output_name='GPI_SLICED_FOR_FILTERING')
+            
+
         if normalize_for_size is False and normalize_for_velocity is False:
             normalize = None
             
@@ -418,27 +433,27 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         #Subtract trend from data
         if subtraction_order_for_velocity is not None:
             print("*** Subtracting the trend of the data ***")
-            d=flap_nstx.analysis.detrend_multidim(object_name_ccf_velocity,
-                                                  exp_id=exp_id,
-                                                  order=subtraction_order_for_velocity, 
-                                                  coordinates=['Image x', 'Image y'], 
-                                                  output_name='GPI_DETREND_CCF_VEL')
+            d=detrend_multidim(object_name_ccf_velocity,
+                               exp_id=exp_id,
+                               order=subtraction_order_for_velocity, 
+                               coordinates=['Image x', 'Image y'], 
+                               output_name='GPI_DETREND_CCF_VEL')
             object_name_ccf_velocity='GPI_DETREND_CCF_VEL'
             
-            d=flap_nstx.analysis.detrend_multidim(object_name_str_vel,
-                                                  exp_id=exp_id,
-                                                  order=subtraction_order_for_velocity, 
-                                                  coordinates=['Image x', 'Image y'], 
-                                                  output_name='GPI_DETREND_STR_VEL')
+            d=detrend_multidim(object_name_str_vel,
+                               exp_id=exp_id,
+                               order=subtraction_order_for_velocity, 
+                               coordinates=['Image x', 'Image y'], 
+                               output_name='GPI_DETREND_STR_VEL')
             object_name_str_vel='GPI_DETREND_STR_VEL'
             
         if subtraction_order_for_size is not None:
             print("*** Subtracting the trend of the data ***")
-            d=flap_nstx.analysis.detrend_multidim(object_name_str_size,
-                                                  exp_id=exp_id,
-                                                  order=subtraction_order_for_size, 
-                                                  coordinates=['Image x', 'Image y'], 
-                                                  output_name='GPI_DETREND_STR_SIZE')
+            d=detrend_multidim(object_name_str_size,
+                               exp_id=exp_id,
+                               order=subtraction_order_for_size, 
+                               coordinates=['Image x', 'Image y'], 
+                               output_name='GPI_DETREND_STR_SIZE')
             object_name_str_size='GPI_DETREND_STR_SIZE'
             
         if interpolation != 'parabola':
@@ -475,6 +490,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                     'Image y':'Mean'},
                                                     output_name='GPI_SLICED_TIMETRACE')
         intensity_thres_level_str_size=np.sqrt(np.var(thres_obj_str_size.data))*threshold_coeff+np.mean(thres_obj_str_size.data)
+        
         thres_obj_str_vel=flap.slice_data(object_name_str_size,
                                            summing={'Image x':'Mean',
                                                     'Image y':'Mean'},
@@ -503,6 +519,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         frame_properties={'Shot':exp_id,
                           'Time':time[1:-1],
                           'GPI Dalpha':dalpha,
+                          
                           'Correlation max':np.zeros(len(time)-2),
                           'Frame similarity':np.zeros(len(time)-2),
 
@@ -563,6 +580,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                           'Frame COG':np.zeros([len(time)-2,2]),
                           'Str number':np.zeros(len(time)-2),
                          }
+        
         ccf_data=np.zeros([n_frames-1,
                            (x_range[1]-x_range[0])*2+1,
                            (y_range[1]-y_range[0])*2+1])
@@ -682,7 +700,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                             max_index[1]+fitting_range+1)])
                 #Finding the peak analytically
                 try:
-                    coeff=flap_nstx.analysis.polyfit_2D(values=ccf_object.data[i_frames,:,:][area_max_index],order=2)
+                    coeff=flap_nstx.tools.polyfit_2D(values=ccf_object.data[i_frames,:,:][area_max_index],order=2)
                     index=[0,0]
                     index[0]=(2*coeff[2]*coeff[3]-coeff[1]*coeff[4])/(coeff[4]**2-4*coeff[2]*coeff[5])
                     index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]                
@@ -710,11 +728,6 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                              max_index[1]-ccf_object.data[i_frames,:,:].shape[1]//2]
             
             frame_properties['Correlation max'][i_frames]=ccf_object.data[i_frames,:,:].max()
-            #Checking the threshold of the correlation     
-#            if ccf_object.data[i_frames,:,:].max() < correlation_threshold and flap_ccf:
-#                print('Correlation threshold '+str(correlation_threshold)+' is not reached.')
-#                delta_index=[np.nan,np.nan]
-                
             frame_properties['Frame similarity'][i_frames]=ccf_object.data[i_frames,:,:][tuple(np.asarray(ccf_object.data[i_frames,:,:].shape)[:]//2)]
                 
             if ccf_object.data[i_frames,:,:].max() < correlation_threshold and flap_ccf:
@@ -798,21 +811,22 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                 exp_id=exp_id,
                                                 slicing=slicing_frame2,
                                                 output_name='GPI_FRAME_2_STR_SIZE')
+                    
                     frame1_size.data=np.asarray(frame1_size.data, dtype='float64')
                     frame2_size.data=np.asarray(frame2_size.data, dtype='float64')
                     
                     if str_finding_method == 'contour':
+                        contour_mutual_settings={                             "exp_id":exp_id,
+                                                                              "filter_level":filter_level,
+                                                                              "nlevel":nlevel,
+                                                                              "levels":levels,
+                                                                              "spatial":not structure_pixel_calc,
+                                                                              "remove_interlaced_structures":remove_interlaced_structures,
+                                                                              "pixel":structure_pixel_calc}
                         if structures2_vel is None:
                             structures1_vel=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_1_STR_VEL',
-                                                                                exp_id=exp_id,
-                                                                                filter_level=filter_level,
-                                                                                threshold_level=intensity_thres_level_str_vel,
-                                                                                nlevel=nlevel,
-                                                                                levels=levels,
-                                                                                spatial=not structure_pixel_calc,
-                                                                                remove_interlaced_structures=remove_interlaced_structures,
-                                                                                pixel=structure_pixel_calc,
-                                                                                test_result=False)
+                                                                              threshold_level=intensity_thres_level_str_vel,
+                                                                              **contour_mutual_settings)
                         else:
                             structures1_vel=copy.deepcopy(structures2_vel)
                             
@@ -821,188 +835,64 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                             test_structures=True
     
                         structures2_vel=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_VEL',
-                                                                            exp_id=exp_id,
-                                                                            filter_level=filter_level,
-                                                                            threshold_level=intensity_thres_level_str_vel,
-                                                                            nlevel=nlevel,
-                                                                            levels=levels,
-                                                                            spatial=not structure_pixel_calc,
-                                                                            remove_interlaced_structures=remove_interlaced_structures,
-                                                                            pixel=structure_pixel_calc,
-                                                                            test_result=False)
-                    elif str_finding_method == 'watershed':
-                        if structures2_vel is None:
-                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',                       #Name of the FLAP.data_object
-                                                                                exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                                spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                                pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                                mfilter_range=5,                        #Range of the median filter
-                                                                                
-                                                                                threshold_method='otsu',
-                                                                                threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                        #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                                #Negative values are substituted with 0.
-                                                                                                                            
-                                                                                test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                                                                test=False,                             #Test the contours and the structures before any kind of processing
-                                                                                nlevel=51,                              #Number of contour levels for plotting
-                                                                                                                            
-                                                                                save_data_for_publication=False,)
-                        else:
-                            structures1_vel=copy.deepcopy(structures2_vel)
-                            
-                        if structure_video_save or structure_pdf_save:
-                            plt.cla()
-                            test_structures=True
-    
-                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_VEL',                       #Name of the FLAP.data_object
-                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                            mfilter_range=5,                        #Range of the median filter
-                                                                            
-                                                                            threshold_method='otsu',
-                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                        #Negative values are substituted with 0.
-                                                                            
-                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                                                            test=False,                             #Test the contours and the structures before any kind of processing
-                                                                            nlevel=51,                              #Number of contour levels for plotting
-                                                                            
-                                                                            save_data_for_publication=False,
-                                                                            )
-                    elif str_finding_method == 'randomwalker':
-                        if structures2_vel is None:
-                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',                       #Name of the FLAP.data_object
-                                                                                exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                                spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                                pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                                mfilter_range=5,                        #Range of the median filter
-                                                                                
-                                                                                threshold_method='otsu',
-                                                                                threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                        #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                                #Negative values are substituted with 0.
-                                                                                                                            
-                                                                                test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                                                                test=False,                             #Test the contours and the structures before any kind of processing
-                                                                                nlevel=51,                              #Number of contour levels for plotting
-                                                                                try_random_walker=True,                                            
-                                                                                save_data_for_publication=False,)
-                        else:
-                            structures1_vel=copy.deepcopy(structures2_vel)
-                            
-                        if structure_video_save or structure_pdf_save:
-                            plt.cla()
-                            test_structures=True
-    
-                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_VEL',                       #Name of the FLAP.data_object
-                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                            mfilter_range=5,                        #Range of the median filter
-                                                                            
-                                                                            threshold_method='otsu',
-                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                        #Negative values are substituted with 0.
-                                                                            
-                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                                                            test=False,                             #Test the contours and the structures before any kind of processing
-                                                                            nlevel=51,                              #Number of contour levels for plotting
-                                                                            try_random_walker=True,  
-                                                                            save_data_for_publication=False,
-                                                                            )                        
-
-                    if str_finding_method == 'contour':
+                                                                          threshold_level=intensity_thres_level_str_vel,
+                                                                          **contour_mutual_settings)
                         if structures2_size is None:
-                            structures1_size=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',
-                                                                             exp_id=exp_id,
-                                                                             filter_level=filter_level,
-                                                                             threshold_level=intensity_thres_level_str_size,
-                                                                             nlevel=nlevel,
-                                                                             levels=levels,
-                                                                             remove_interlaced_structures=remove_interlaced_structures,
-                                                                             spatial=True,
-                                                                             test_result=test_structures,
-                                                                             save_data_for_publication=save_data_for_publication)
+                            structures1_size=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_1_STR_SIZE',
+                                                                               threshold_level=intensity_thres_level_str_size,
+                                                                               test_result=test_structures,
+                                                                               save_data_for_publication=save_data_for_publication,
+                                                                               **contour_mutual_settings)
                         else:
                             structures1_size=copy.deepcopy(structures2_size)
                         structures2_size=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',
-                                                                             exp_id=exp_id,
-                                                                             filter_level=filter_level,
-                                                                             threshold_level=intensity_thres_level_str_size,
-                                                                             nlevel=nlevel,
-                                                                             levels=levels,
-                                                                             remove_interlaced_structures=remove_interlaced_structures,
-                                                                             spatial=True,
-                                                                             test_result=test_structures,
-                                                                             save_data_for_publication=save_data_for_publication)
-                    elif str_finding_method == 'watershed':
-                        if structures2_size is None:
-                            structures1_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
-                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                            mfilter_range=5,                        #Range of the median filter
-                                                                            
-                                                                            threshold_method='otsu',
-                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                        #Negative values are substituted with 0.
-                                                                            
-                                                                            test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                                                            test=False,                             #Test the contours and the structures before any kind of processing
-                                                                            nlevel=51,                              #Number of contour levels for plotting
-                                                                            
-                                                                            save_data_for_publication=False,
+                                                                           threshold_level=intensity_thres_level_str_size,
+                                                                           test_result=test_structures,
+                                                                           save_data_for_publication=save_data_for_publication,
+                                                                           **contour_mutual_settings)
+                        
+                    elif str_finding_method == 'watershed' or str_finding_method == 'randomwalker':
+                        
+                        watershed_mutual_settings={                             "exp_id":exp_id,                             #Shot number (if data_object is not used)
+                                                                                "spatial":not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
+                                                                                "pixel":structure_pixel_calc,                            #Calculate the results in pixel coordinates
+                                                                                "mfilter_range":5,                        #Range of the median filter
+                                                                                "threshold_method":'otsu',
+                                                                                "test":False,                             #Test the contours and the structures before any kind of processing
+                                                                                "nlevel":51,
+                                                                                "try_random_walker": str_finding_method == 'randomwalker',
+                            }
+                        if structures2_vel is None:
+                            structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',
+                                                                                threshold_level=intensity_thres_level_str_vel,                                   
+                                                                                save_data_for_publication=save_data_for_publication,
+                                                                                **watershed_mutual_settings)
+                        else:
+                            structures1_vel=copy.deepcopy(structures2_vel)
+                            
+                        if structure_video_save or structure_pdf_save:
+                            plt.cla()
+                            test_structures=True
+    
+                        structures2_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_VEL',                  
+                                                                            threshold_level=intensity_thres_level_str_vel,      
+                                                                            save_data_for_publication=save_data_for_publication,
+                                                                            **watershed_mutual_settings
                                                                             )
+                        if structures2_size is None:
+                            structures1_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_SIZE',            
+                                                                                 threshold_level=intensity_thres_level_str_size,
+                                                                                 test_result=test_structures,
+                                                                                 **watershed_mutual_settings
+                                                                                 )
                         else:
                             structures1_size=copy.deepcopy(structures2_size)
                             
                         structures2_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
-                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                            mfilter_range=5,                        #Range of the median filter
-                                                                            
-                                                                            threshold_method='otsu',
-                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                        #Negative values are substituted with 0.
-                                                                            
-                                                                            test_result=test_structures,                      #Test the result only (plot the contour and the found structures)
-                                                                            test=False,                             #Test the contours and the structures before any kind of processing
-                                                                            nlevel=51,                              #Number of contour levels for plotting
-                                                                            
-                                                                            save_data_for_publication=False,
-                                                                            )
-                    elif str_finding_method == 'randomwalker':
-                        structures2_size=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_2_STR_SIZE',                       #Name of the FLAP.data_object
-                                                                            exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                            
-                                                                            spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                            pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                            mfilter_range=5,                        #Range of the median filter
-                                                                            
-                                                                            threshold_method='otsu',
-                                                                            threshold_level=intensity_thres_level_str_vel,                   #Threshold level over which it is considered to be a structure
-                                                                                                                    #if set, the value is subtracted from the data and contours are found after that. 
-                                                                                                                        #Negative values are substituted with 0.
-                                                                            
-                                                                            test_result=test_structures,                      #Test the result only (plot the contour and the found structures)
-                                                                            test=False,                             #Test the contours and the structures before any kind of processing
-                                                                            nlevel=51,                              #Number of contour levels for plotting
-                                                                            try_random_walker=True,
-                                                                            save_data_for_publication=False,
-                                                                            )
+                                                                             threshold_level=intensity_thres_level_str_size,                   #Threshold level over which it is considered to be a structure
+                                                                             test_result=test_structures,
+                                                                             **watershed_mutual_settings
+                                                                             )
 
                     if not structure_video_save:
                         plt.pause(0.001)
@@ -1030,11 +920,11 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                 width = buf.shape[1]
                                 video_codec_code='mp4v'
                                 comment=str_finding_method+'_bgthr_'+str(threshold_bg_multiplier)
-                                filename=flap_nstx.analysis.filename(exp_id=exp_id,
-                                                                     working_directory=wd+'/plots',
-                                                                     time_range=time_range,
-                                                                     purpose='fit structures',
-                                                                     comment=comment)
+                                filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                                                  working_directory=wd+'/plots',
+                                                                  time_range=time_range,
+                                                                  purpose='fit structures',
+                                                                  comment=comment)
                                 filename=wd+'/plots/NSTX_GPI_'+str(exp_id)+'_'+"{:.3f}".format(time[0]*1e3)+'_fit_structures_'+str_finding_method+'.mp4'
                                 video = cv2.VideoWriter(filename,  
                                                         cv2.VideoWriter_fourcc(*video_codec_code), 
@@ -1142,40 +1032,24 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                           np.sum(y_coord*frame2_size.data)/np.sum(frame2_size.data)])
                 else:
                     #Setting np.nan if no structure is available
-                    frame_properties['Size avg'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['Area avg'][i_frames]=np.nan
-                    frame_properties['Angle avg'][i_frames]=np.nan
-                    frame_properties['Elongation avg'][i_frames]=np.nan
-                    frame_properties['Position avg'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['COG avg'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['Centroid avg'][i_frames,:]=[np.nan,np.nan]
                     
-                    frame_properties['Angle ALI avg'][i_frames]=np.nan
-                    frame_properties['Roundness avg'][i_frames]=np.nan
-                    frame_properties['Solidity avg'][i_frames]=np.nan
-                    frame_properties['Convexity avg'][i_frames]=np.nan
-                    frame_properties['Total curvature avg'][i_frames]=np.nan
-                    frame_properties['Total bending energy avg'][i_frames]=np.nan
-                    
-                    frame_properties['Size max'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['Area max'][i_frames]=np.nan
-                    frame_properties['Angle max'][i_frames]=np.nan
-                    frame_properties['Elongation max'][i_frames]=np.nan
-                    frame_properties['Position max'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['COG max'][i_frames,:]=[np.nan,np.nan]
-                    frame_properties['Centroid max'][i_frames,:]=[np.nan,np.nan]
-                    
-                    frame_properties['Angle ALI max'][i_frames]=np.nan
-                    frame_properties['Roundness max'][i_frames]=np.nan
-                    frame_properties['Solidity max'][i_frames]=np.nan
-                    frame_properties['Convexity max'][i_frames]=np.nan
-                    frame_properties['Total curvature max'][i_frames]=np.nan
-                    frame_properties['Total bending energy max'][i_frames]=np.nan
+                    vector_keys=['Size', 'Position', 'COG', 'Centroid']
+                    non_vector_keys=['Area', 'Angle', 'Elongation', 'Angle ALI', 'Roundness',
+                                     'Solidity', 'Convexity', 'Total curvature',
+                                     'TOtal bending energy']
+                    for avg_max in [' avg', ' max']:
+                        for key in vector_keys:
+                            frame_properties[key+avg_max]=[np.nan,np.nan]
+                        for key in non_vector_keys:
+                            frame_properties[key+avg_max]=np.nan
                     
                     frame_properties['Str number'][i_frames]=0.
                     frame_properties['Frame COG'][i_frames,:]=[np.nan,np.nan]
                    # frame_properties['Structures'][i_frames]=None
-                """Velocity calculation based on the contours"""                                                                
+                   
+                """
+                Velocity calculation based on the contours
+                """                                                                
                                 
                 if valid_structure1_vel and valid_structure2_vel:          
                     #if multiple structures merge into one, then previous position is their average
@@ -1229,7 +1103,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                             current_str_vel[i_str2,:]=(current_str_pos-prev_str_pos_avg)/sample_time
     
                             
-                    #Criterium for validity of the velocity
+                    #Criterion for validity of the velocity
                     #If the structures are not overlapping, then the velocity cannot be valid.
                     ind_valid=np.where(np.sum(prev_str_number,axis=1) > 0)
                     
@@ -1284,6 +1158,10 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     else:
         print('--- Loading data from the pickle file ---')
         frame_properties=pickle.load(open(pickle_filename, 'rb'))
+
+    """
+    PLOTTING THE RESULTS
+    """
         
     if not filename_was_none and not time_range is None:
         sample_time=frame_properties['Time'][1]-frame_properties['Time'][0]
@@ -1299,7 +1177,6 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     
     if data_object is not None and not skip_structure_calculation:
         try:
-                
             elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
             
             R_sep=flap.get_data('NSTX_MDSPlus',
@@ -1344,8 +1221,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
     frame_properties['Velocity ccf'][nan_ind,0] = np.nan
     frame_properties['Velocity ccf'][nan_ind,1] = np.nan
     
-#    for i_frames in range(len(frame_properties['Structures'][i_frames])):
-#        pass
+
     #Plotting the results
     if plot or pdf:
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
@@ -1374,7 +1250,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         #Plotting the radial velocity
         if pdf:
             wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-            filename=flap_nstx.analysis.filename(exp_id=exp_id,
+            filename=flap_nstx.tools.filename(exp_id=exp_id,
                                                  working_directory=wd+'/plots',
                                                  time_range=time_range,
                                                  purpose='ccf velocity',

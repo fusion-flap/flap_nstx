@@ -28,7 +28,7 @@ import flap_mdsplus
 #Setting up FLAP
 flap_mdsplus.register('NSTX_MDSPlus')    
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
 def calculate_nstx_gpi_correlation_matrix(window_average=0.5e-3,
@@ -75,7 +75,7 @@ def calculate_nstx_gpi_correlation_matrix(window_average=0.5e-3,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -152,7 +152,7 @@ def calculate_nstx_gpi_correlation_matrix(window_average=0.5e-3,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -427,7 +427,7 @@ def plot_all_parameters_vs_all_other(window_average=0.5e-3,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',

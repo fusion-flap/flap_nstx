@@ -12,11 +12,12 @@ import copy
 import flap
 import flap_nstx
 flap_nstx.register()
+
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 #Scientific modules
@@ -156,11 +157,11 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                
     if filename is None:
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-        filename=flap_nstx.analysis.filename(exp_id=exp_id,
-                                             working_directory=wd+'/processed_data',
-                                             time_range=time_range,
-                                             purpose='ccf ang velocity',
-                                             comment=comment)
+        filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                          working_directory=wd+'/processed_data',
+                                          time_range=time_range,
+                                          purpose='ccf ang velocity',
+                                          comment=comment)
         filename_was_none=True
     else:
         filename_was_none=False
@@ -181,11 +182,11 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         import matplotlib
         matplotlib.use('agg')
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-        filename=flap_nstx.analysis.filename(exp_id=exp_id,
-                                             working_directory=wd+'/plots',
-                                             time_range=time_range,
-                                             purpose='ccf ang velocity testing',
-                                             comment=comment+'_ct_'+str(correlation_threshold))
+        filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                          working_directory=wd+'/plots',
+                                          time_range=time_range,
+                                          purpose='ccf ang velocity testing',
+                                          comment=comment+'_ct_'+str(correlation_threshold))
         pdf_filename=filename+'.pdf'
         pdf_test=PdfPages(pdf_filename)
             
@@ -233,12 +234,12 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         #Roundtrip normalization
         
         norm_obj=flap.filter_data('GPI_SLICED_FOR_FILTERING',
-                                     exp_id=exp_id,
-                                     coordinate='Time',
-                                     options={'Type':'Lowpass',
-                                              'f_high':normalize_f_high,
-                                              'Design':normalize_f_kernel},
-                                     output_name=normalizer_object_name)
+                                  exp_id=exp_id,
+                                  coordinate='Time',
+                                  options={'Type':'Lowpass',
+                                           'f_high':normalize_f_high,
+                                           'Design':normalize_f_kernel},
+                                  output_name=normalizer_object_name)
         
         norm_obj.data=np.flip(norm_obj.data,axis=0)
         norm_obj=flap.filter_data(normalizer_object_name,
@@ -247,7 +248,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                   options={'Type':'Lowpass',
                                            'f_high':normalize_f_high,
                                            'Design':normalize_f_kernel},
-                                 output_name=normalizer_object_name)
+                                  output_name=normalizer_object_name)
         
         norm_obj.data=np.flip(norm_obj.data,axis=0)                
         coefficient=flap.slice_data(normalizer_object_name,
@@ -263,11 +264,11 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         #Subtract trend from data
         if subtraction_order_for_velocity is not None:
             print("*** Subtracting the trend of the data ***")
-            d=flap_nstx.analysis.detrend_multidim(object_name_ccf_velocity,
-                                                  exp_id=exp_id,
-                                                  order=subtraction_order_for_velocity, 
-                                                  coordinates=['Image x', 'Image y'], 
-                                                  output_name='GPI_DETREND_VEL')
+            d=flap_nstx.tools.detrend_multidim(object_name_ccf_velocity,
+                                               exp_id=exp_id,
+                                               order=subtraction_order_for_velocity, 
+                                               coordinates=['Image x', 'Image y'], 
+                                               output_name='GPI_DETREND_VEL')
             object_name_ccf_velocity='GPI_DETREND_VEL'
         """
             VARIABLE DEFINITION
@@ -298,6 +299,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                           'Angular velocity ccf log':np.zeros([len(time)-2]),
                           'Expansion velocity ccf':np.zeros([len(time)-2]),
                          }
+        
         ccf_data=np.zeros([n_frames-1,
                            (x_range[1]-x_range[0])*2+1,
                            (y_range[1]-y_range[0])*2+1])
@@ -379,19 +381,20 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         
         #Velocity is calculated between the two subsequent frames, the velocity time is the second frame's time
         delta_index_flap=np.zeros(2)       
-       
-        
         
         #Inicializing for frame handling
         frame2=None
         invalid_correlation_frame_counter=0.
         
+        frame2_fft_polar_log=0.     #These are only defined for error handling.
+        frame2_fft_polar=0.
+        
         if test:
             plt.figure()
+            
         if test_into_pdf:
             import matplotlib
             matplotlib.use('agg')
-            plt.figure()
             
         for i_frames in range(0,n_frames-2):
             """
@@ -444,7 +447,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                         max_index[1]+fitting_range+1)])
             #Finding the peak analytically
             try:
-                coeff=flap_nstx.analysis.polyfit_2D(values=ccf_object.data[i_frames,:,:][area_max_index],order=2)
+                coeff=flap_nstx.tools.polyfit_2D(values=ccf_object.data[i_frames,:,:][area_max_index],order=2)
                 index=[0,0]
                 index[0]=(2*coeff[2]*coeff[3]-coeff[1]*coeff[4])/(coeff[4]**2-4*coeff[2]*coeff[5])
                 index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]
@@ -459,6 +462,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             
             delta_index_flap=[index[0]+max_index[0]-fitting_range-ccf_object.data[i_frames,:,:].shape[0]//2,
                               index[1]+max_index[1]-fitting_range-ccf_object.data[i_frames,:,:].shape[1]//2]
+            
             if test:
                 plt.contourf(ccf_object.data[i_frames,:,:].T, levels=np.arange(0,51)/25-1)
                 plt.scatter(index[0]+max_index[0]-fitting_range,
@@ -507,27 +511,24 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             if i_frames == 0 :
                 frame1_fft_polar_log = warp_polar(frame1_fft, scaling='log',)
             else:
-                frame1_fft_polar_log = copy.deepcopy(frame2_fft_polar_log)      #No error here, in the 2nd step this object exists
+                frame1_fft_polar_log = copy.deepcopy(frame2_fft_polar_log)
             frame2_fft_polar_log = warp_polar(frame2_fft, scaling='log',)
             
             if i_frames == 0 :
                 frame1_fft_polar = warp_polar(frame1_fft, radius=radius)
             else:
-                frame1_fft_polar = copy.deepcopy(frame2_fft_polar)              #No error here, in the 2nd step this object exists
+                frame1_fft_polar = copy.deepcopy(frame2_fft_polar)
             frame2_fft_polar = warp_polar(frame2_fft, radius=radius)
             
             """
-            HIJACKING THE DATA FOR FLAP CALCULATION
+            CALCULATION OF THE CCF WITH FLAP
             """
+            
             for i_log_or_not in range(2):
                 if i_log_or_not == 0:
-#                    frame1_polar_fft_object.data=frame1_fft_polar-np.mean(frame1_fft_polar)
-#                    frame2_polar_fft_object.data=frame2_fft_polar-np.mean(frame2_fft_polar)
                     frame1_polar_fft_object.data=frame1_fft_polar
                     frame2_polar_fft_object.data=frame2_fft_polar
                 else:
-#                    frame1_polar_fft_object.data=frame1_fft_polar_log-np.mean(frame1_fft_polar_log)
-#                    frame2_polar_fft_object.data=frame2_fft_polar_log-np.mean(frame2_fft_polar_log)
                     frame1_polar_fft_object.data=frame1_fft_polar_log
                     frame2_polar_fft_object.data=frame2_fft_polar_log
                     
@@ -549,7 +550,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                     plt.show()
                     #flap.plot('GPI_FRAME_2_FFT_POLAR', plot_type='contour', axes=['Angle', 'Radius'])
                 if test_into_pdf and i_log_or_not == 0:
-                    plt.cla()
+                    plt.figure()
                     flap.plot('GPI_FRAME_2', 
                               plot_type='contour',
                               plot_options={'levels':51},
@@ -558,26 +559,30 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                     plt.pause(0.001)
                     plt.show()
                     pdf_test.savefig()
+                    plt.close()
                     
-                    # plt.cla()
-                    # flap.plot('GPI_FRAME_12_CCF_POLAR', 
-                    #           plot_type='contour',
-                    #           plot_options={'levels':51},
-                    #           axes=['Angle lag', 'Radius lag'])
-                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
-                    # plt.pause(0.001)
-                    # plt.show()
-                    # pdf_test.savefig()
+                    plt.figure()
+                    flap.plot('GPI_FRAME_12_CCF_POLAR', 
+                              plot_type='contour',
+                              plot_options={'levels':51},
+                              axes=['Angle lag', 'Radius lag'])
+                    plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    plt.pause(0.001)
+                    plt.show()
+                    pdf_test.savefig()
+                    plt.close()
                     
-                    # plt.cla()
-                    # flap.plot('GPI_FRAME_2_FFT_POLAR', 
-                    #           plot_type='contour', 
-                    #           plot_options={'levels':51},
-                    #           axes=['Angle', 'Radius'])
-                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
-                    # plt.pause(0.001)
-                    # plt.show()
-                    # pdf_test.savefig()
+                    plt.figure()
+                    plt.cla()
+                    flap.plot('GPI_FRAME_2_FFT_POLAR', 
+                              plot_type='contour', 
+                              plot_options={'levels':51},
+                              axes=['Angle', 'Radius'])
+                    plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    plt.pause(0.001)
+                    plt.show()
+                    pdf_test.savefig()
+                    plt.close()
                     
                 max_index=np.asarray(np.unravel_index(ccf_object_polar.data.argmax(), ccf_object_polar.data.shape))
                 
@@ -590,7 +595,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
 
                 #Finding the peak analytically
                 try:
-                    coeff=flap_nstx.analysis.polyfit_2D(values=ccf_object_polar.data[area_max_index],order=2)
+                    coeff=flap_nstx.tools.polyfit_2D(values=ccf_object_polar.data[area_max_index],order=2)
                     index=[0,0]
                     index[0]=(2*coeff[2]*coeff[3]-coeff[1]*coeff[4])/(coeff[4]**2-4*coeff[2]*coeff[5])
                     index[1]=(-2*coeff[5]*index[0]-coeff[3])/coeff[4]
@@ -609,9 +614,9 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                     shift_scale_log = (np.exp(delta_index_flap[1] / klog))
                     frame_properties['Expansion velocity ccf FLAP'][i_frames]=shift_scale_log-1.
                     frame_properties['Angular velocity ccf FLAP log'][i_frames]=delta_index_flap[0]/180.*np.pi/sample_time #dphi/dt
-                    
+            
             """
-            END OF HIJACKING
+            CALCULATION BASED ON SKIMAGE PHASE CROSS CORRELATION
             """
             
             shift_rot, error, phasediff = phase_cross_correlation(frame1_fft_polar, 
@@ -716,7 +721,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         #Plotting the radial velocity
         if pdf:
             wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-            filename=flap_nstx.analysis.filename(exp_id=exp_id,
+            filename=flap_nstx.tools.filename(exp_id=exp_id,
                                                  working_directory=wd+'/plots',
                                                  time_range=time_range,
                                                  purpose='ccf ang velocity',
@@ -829,11 +834,13 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                  frame_properties['Angular velocity ccf FLAP log'][plot_index],
                  label='Angular velocity ccf FLAP log',
                  color='orange')
+        
         plt.legend()
         ax.set_xlabel('Time [s]')
         ax.set_ylabel('omega[1/s]')
         ax.set_xlim(time_range)
         ax.set_title('Angular velocity of '+str(exp_id))
+        
         if plot_for_publication:
             x1,x2=ax.get_xlim()
             y1,y2=ax.get_ylim()

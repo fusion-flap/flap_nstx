@@ -19,7 +19,7 @@ import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)  
     
 #Scientific library imports
@@ -112,7 +112,7 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
     
     #Normalize the data for the maximum cloud distribution
     if normalize_signal:
-        normalizer=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
+        normalizer=flap_nstx.tools.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
                                                                      f_high=1e2,            # Low pass filter frequency in Hz
                                                                      design='Chebyshev II',    # IIR filter design (from scipy)
                                                                      test=False,               # Testing input
@@ -131,7 +131,7 @@ def calculate_nstx_gpi_crosspower(exp_id=None,
         print('No reference is defined, returning autopower spectra.')
     else:
         calculate_apsd=False
-        reference_signal=flap_nstx.analysis.calculate_nstx_gpi_reference('GPI', exp_id=exp_id,
+        reference_signal=flap_nstx.tools.calculate_nstx_gpi_reference('GPI', exp_id=exp_id,
                                                                          time_range=time_range,
                                                                          reference_pixel=reference_pixel,
                                                                          reference_area=reference_area,
@@ -302,7 +302,7 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
     
     #Normalize the data for the maximum cloud distribution
     if normalize_signal:
-        normalizer=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
+        normalizer=flap_nstx.tools.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,             # Experiment ID
                                                                      f_high=1e2,                # Low pass filter frequency in Hz
                                                                      design=filter_design,      # IIR filter design (from scipy)
                                                                      test=False,                # Testing input
@@ -346,12 +346,12 @@ def calculate_nstx_gpi_crosscorrelation(exp_id=None,
         calculate_acf=False
                 
     if not calculate_acf:
-        flap_nstx.analysis.calculate_nstx_gpi_reference('GPI_SLICED_FILTERED', exp_id=exp_id,
-                                                         reference_pixel=reference_pixel,
-                                                         reference_area=reference_area,
-                                                         reference_position=reference_position,
-                                                         reference_flux=reference_flux,
-                                                         output_name='GPI_REF')
+        flap_nstx.tools.calculate_nstx_gpi_reference('GPI_SLICED_FILTERED', exp_id=exp_id,
+                                                     reference_pixel=reference_pixel,
+                                                     reference_area=reference_area,
+                                                     reference_position=reference_position,
+                                                     reference_flux=reference_flux,
+                                                     output_name='GPI_REF')
         
         flap.ccf('GPI_SLICED_FILTERED',exp_id=exp_id,
                   ref='GPI_REF',

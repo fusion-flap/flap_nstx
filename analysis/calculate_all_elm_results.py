@@ -17,11 +17,11 @@ import flap
 import flap_nstx
 import numpy as np
 
-from flap_nstx.analysis import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_angular_velocity
-from flap_nstx.analysis import nstx_gpi_velocity_analysis_spatio_temporal_displacement
+from flap_nstx.gpi import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_angular_velocity
+from flap_nstx.gpi import nstx_gpi_velocity_analysis_spatio_temporal_displacement
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 flap_nstx.register()
 

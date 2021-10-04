@@ -18,12 +18,12 @@ import pickle
 import flap
 import flap_nstx
 
-
-from matplotlib.backends.backend_pdf import PdfPages
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,'flap_nstx.cfg')
+fn = os.path.join(thisdir,'../flap_nstx.cfg')
 flap.config.read(file_name=fn)
 flap_nstx.register()
+
+from matplotlib.backends.backend_pdf import PdfPages
 
 def get_elm_database_plasma_parameter_ranges():
     database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'

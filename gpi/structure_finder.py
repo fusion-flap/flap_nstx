@@ -15,49 +15,48 @@ import flap_nstx
 flap_nstx.register()
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 #Scientific library imports  
+
+from flap_nstx.tools import Polygon, FitEllipse
 
 import cv2
 
 import imutils
 
 import matplotlib.pyplot as plt
-from matplotlib.path import Path
 
 from scipy import ndimage
 
 import numpy as np
-from numpy.linalg import eig, inv
 #import sys
 #np.set_printoptions(threshold=sys.maxsize)
 import scipy
-import scipy.optimize as optimize
 
 from skimage.feature import peak_local_max
 from skimage.filters import threshold_otsu
 from skimage.segmentation import watershed, random_walker
 
 def nstx_gpi_contour_structure_finder(data_object=None,                       #Name of the FLAP.data_object
-                                        exp_id='*',                             #Shot number (if data_object is not used)
-                                        time=None,                              #Time when the structures need to be evaluated (when exp_id is used)
-                                        sample=None,                            #Sample number where the structures need to be evaluated (when exp_id is used)
-                                        spatial=False,                          #Calculate the results in real spatial coordinates
-                                        pixel=False,                            #Calculate the results in pixel coordinates
-                                        mfilter_range=5,                        #Range of the median filter
-                                        nlevel=80//5,                           #The number of contours to be used for the calculation (default:ysize/mfilter_range=80//5)
-                                        levels=None,                            #Contour levels from an input and not from automatic calculation
-                                        threshold_level=None,                   #Threshold level over which it is considered to be a structure
+                                      exp_id='*',                             #Shot number (if data_object is not used)
+                                      time=None,                              #Time when the structures need to be evaluated (when exp_id is used)
+                                      sample=None,                            #Sample number where the structures need to be evaluated (when exp_id is used)
+                                      spatial=False,                          #Calculate the results in real spatial coordinates
+                                      pixel=False,                            #Calculate the results in pixel coordinates
+                                      mfilter_range=5,                        #Range of the median filter
+                                      nlevel=80//5,                           #The number of contours to be used for the calculation (default:ysize/mfilter_range=80//5)
+                                      levels=None,                            #Contour levels from an input and not from automatic calculation
+                                      threshold_level=None,                   #Threshold level over which it is considered to be a structure
                                                                                     #if set, the value is subtracted from the data and contours are found after that. 
                                                                                     #Negative values are substituted with 0.
-                                        filter_struct=True,                     #Filter out the structures with less than filter_level number of contours
-                                        filter_level=None,                      #The number of contours threshold for structures filtering (default:nlevel//4)
-                                        remove_interlaced_structures=False,     #Filter out the structures which are interlaced. Only the largest structures is preserved, others are removed.
-                                        test_result=False,                      #Test the result only (plot the contour and the found structures)
-                                        test=False,                             #Test the contours and the structures before any kind of processing
-                                        save_data_for_publication=False,
-                                        ):
+                                      filter_struct=True,                     #Filter out the structures with less than filter_level number of contours
+                                      filter_level=None,                      #The number of contours threshold for structures filtering (default:nlevel//4)
+                                      remove_interlaced_structures=False,     #Filter out the structures which are interlaced. Only the largest structures is preserved, others are removed.
+                                      test_result=False,                      #Test the result only (plot the contour and the found structures)
+                                      test=False,                             #Test the contours and the structures before any kind of processing
+                                      save_data_for_publication=False,
+                                      ):
     
     """
     The method calculates the radial and poloidal sizes of the structures
@@ -73,7 +72,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                             'Size':      [size of the ellipse in x and y direction or R,z direction, type: ]numpy.ndarray of two elements,
                             'Angle':      [angle of the ellipse compared to horizontal in radians, type: numpy.float64],
                             'Area':      [area of the polygon at the half level],
-                            ('Ellipse':  [the entire ellipse object, returned if test_result is True, type: flap_nstx.analysis.nstx_gpi_tools.FitEllipse])
+                            ('Ellipse':  [the entire ellipse object, returned if test_result is True, type: flap_nstx.tools.FitEllipse])
                             }
     """
     
@@ -281,8 +280,8 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             polygon=structures[i_str]['Paths'][i_path].to_polygons()
             if polygon != []:
                 polygon=polygon[0]
-                polygon_areas[i_path]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).area
-                polygon_centroids[i_path,:]=flap_nstx.analysis.Polygon(polygon[:,0],polygon[:,1]).centroid
+                polygon_areas[i_path]=flap_nstx.tools.Polygon(polygon[:,0],polygon[:,1]).area
+                polygon_centroids[i_path,:]=flap_nstx.tools.Polygon(polygon[:,0],polygon[:,1]).centroid
             if i_path == 0:
                 polygon_intensities[i_path]=polygon_areas[i_path]*str_levels[i_path]
             else:
@@ -294,7 +293,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         
         half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
         
-        half_polygon=flap_nstx.analysis.Polygon(half_coords[:,0],half_coords[:,1])
+        half_polygon=flap_nstx.tools.Polygon(half_coords[:,0],half_coords[:,1])
         
         structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
         structures[i_str]['Half level']=half_level
@@ -304,7 +303,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         structures[i_str]['Center of gravity']=center_of_gravity
         
         try:
-            ellipse=flap_nstx.analysis.FitEllipse(half_coords[:,0],half_coords[:,1])
+            ellipse=flap_nstx.tools.FitEllipse(half_coords[:,0],half_coords[:,1])
             structures[i_str]['Center']=ellipse.center
             size=ellipse.size
             structures[i_str]['Size']=size
@@ -399,117 +398,6 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
     return structures
 
 
-class FitEllipse:
-    """
-    Wrapper class for fitting an Ellipse and returning its important features.
-    It uses the least square approximation method combined with a Lagrangian
-    minimalization for the Eigenvalues of the problem.
-    Source:
-        http://nicky.vanforeest.com/misc/fitEllipse/fitEllipse.html
-        https://stackoverflow.com/questions/39693869/fitting-an-ellipse-to-a-set-of-data-points-in-python/48002645
-        Fitzgibbon, Pilu and Fischer in Fitzgibbon, A.W., Pilu, M., and Fischer R.B., Direct least squares fitting of ellipsees, 
-        Proc. of the 13th Internation Conference on Pattern Recognition, pp 253–257, Vienna, 1996
-    Rewritten as an object.
-    """
-    def __init__(self,  
-                 x=None,                                                        #The x coordinates of the input data as a numpy array
-                 y=None,                                                        #The y coordinates of the input data as a numpy array
-                 ):
-        """
-        Initializes (fits) the ellipse onto the given x and y data points
-        """
-        if x is None or y is None:
-            raise TypeError('x or y is not set.')
-        if len(x) < 6 or len(y) < 6:
-            raise ValueError('There should be 6 points defining the ellipse.')
-            
-        x = x[:,np.newaxis]
-        y = y[:,np.newaxis]
-        D = np.hstack((x*x, x*y, y*y, x, y, np.ones_like(x)))
-        S = np.dot(D.T,D)
-        C = np.zeros([6,6])
-        C[0,2] = C[2,0] = 2; C[1,1] = -1
-        E, V =  eig(np.dot(inv(S), C))
-        n = np.argmax(np.abs(E))
-        self.x=x
-        self.y=y
-        self.parameters = V[:,n]
-        
-    @property
-    def center(self):
-        """
-        Returns the center of the ellipse.
-        """
-        p=self.parameters
-        b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
-        num = b*b-a*c
-        x0=(c*d-b*f)/num
-        y0=(a*f-b*d)/num
-        return np.array([x0,y0])
-    
-    @property
-    def axes_length(self):
-        """
-        Returns the minor and major axes lengths of the ellipse.
-        """
-        p=self.parameters
-        b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
-        up = 2*(a*f*f + c*d*d + g*b*b - 2*b*d*f - a*c*g)
-        down1=(b*b-a*c)*((c-a)*np.sqrt(1+4*b*b/((a-c)*(a-c)))-(c+a))
-        down2=(b*b-a*c)*((a-c)*np.sqrt(1+4*b*b/((a-c)*(a-c)))-(c+a))
-        res1=np.sqrt(up/down1)
-        res2=np.sqrt(up/down2)
-        return np.array([res1, res2])
-    
-    @property
-    def angle_of_rotation(self):
-        """
-        Returns the angle of rotation compared to horizontal.
-        """
-        p=self.parameters
-        b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
-        if b == 0:
-            return 0.
-        else:
-            return np.arctan(2*b/(a-c))/2
-        #There is a modification online which makes the whole fitting fail due to
-        #a wrong angle of rotation.
-#        if b == 0:
-#            if a > c:
-#                return 0
-#            else:
-#                return np.pi/2
-#        else: 
-#            if a > c:
-#                return np.arctan(2*b/(a-c))/2
-#            else:
-#                return np.pi/2 + np.arctan(2*b/(a-c))/2
-    @property
-    def size(self):
-        """
-        Returns the size of the ellipse in the x and y direction along its center.
-        Not part of the description in the source.
-        a contains the coefficients like this:
-        a[0]*x**2 + a[1]*x*y + a[2]*y**2 + a[3]*x + a[4]*y + a[5] = 0
-        The sizes are calculated as the solution of the 2nd order equation:
-        ysize=np.abs(y1-y2) where y1,y2 = y1,2(x=x0)
-        xsize=np.abs(x1-x2) where x1,x2 = x1,2(y=y0)
-        """
-        a=self.parameters
-        x0,y0=self.center
-        
-        ax=a[0]
-        ay=a[2]
-        bx=a[1]*y0+a[3]
-        by=a[1]*x0+a[4]
-        cx=a[2]*y0**2+a[4]*y0+a[5]
-        cy=a[0]*x0**2+a[3]*x0+a[5]
-        xsize=np.sqrt(bx**2-4*ax*cx)/np.abs(ax)
-        ysize=np.sqrt(by**2-4*ay*cy)/np.abs(ay)
-        if np.imag(xsize) != 0 or np.imag(xsize) !=0:
-            print('size is complex')
-            raise ValueError('')
-        return np.array([xsize,ysize])
 
 
 def nstx_gpi_watershed_structure_finder(data_object=None,                       #Name of the FLAP.data_object
@@ -549,7 +437,7 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                             'Size':      [size of the ellipse in x and y direction or R,z direction, type: ]numpy.ndarray of two elements,
                             'Angle':      [angle of the ellipse compared to horizontal in radians, type: numpy.float64],
                             'Area':      [area of the polygon at the half level],
-                            ('Ellipse':  [the entire ellipse object, returned if test_result is True, type: flap_nstx.analysis.nstx_gpi_tools.FitEllipse])
+                            ('Ellipse':  [the entire ellipse object, returned if test_result is True, type: flap_nstx.tools.FitEllipse])
                             }
     """
 
@@ -678,12 +566,12 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
             max_contour_looped[-1,:]=max_contour[:,0]
             vertices=copy.deepcopy(max_contour_looped)
 
-            full_polygon=flap_nstx.analysis.Polygon(x=vertices[:,0],
-                                                    y=vertices[:,1],
-                                                    x_data=x_coord[indices],
-                                                    y_data=y_coord[indices],
-                                                    data=data[indices],
-                                                    test=test_result)
+            full_polygon=Polygon(x=vertices[:,0],
+                                 y=vertices[:,1],
+                                 x_data=x_coord[indices],
+                                 y_data=y_coord[indices],
+                                 data=data[indices],
+                                 test=test_result)
             
             structures.append({'Polygon':full_polygon,
                                'Vertices':full_polygon.vertices,

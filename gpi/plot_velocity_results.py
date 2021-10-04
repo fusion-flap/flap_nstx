@@ -23,7 +23,7 @@ import flap_mdsplus
 #Setting up FLAP
 flap_mdsplus.register('NSTX_MDSPlus')    
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
 #Plot settings for publications
@@ -136,7 +136,7 @@ def calculate_avg_velocity_results(window_average=500e-6,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -275,7 +275,7 @@ def calculate_avg_velocity_results(window_average=500e-6,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -510,7 +510,7 @@ def plot_kmeans_clustered_elms(ncluster=4,
                 str_add='_ns'
             else:
                 str_add=''
-            filename=flap_nstx.analysis.filename(exp_id=shot,
+            filename=flap_nstx.tools.filename(exp_id=shot,
                                                  working_directory=wd+'/processed_data',
                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -557,7 +557,7 @@ def plot_kmeans_clustered_elms(ncluster=4,
         kmeans = KMeans(n_clusters=ncluster, random_state=0).fit(to_be_clustered)
         klabels=kmeans.labels_
     elif kmeans_from == 'flap':
-        centres, klabels, dist = flap_nstx.analysis.kmeanssample(to_be_clustered, 
+        centres, klabels, dist = flap_nstx.tools.kmeanssample(to_be_clustered, 
                                                                  ncluster, 
                                                                  nsample=len(elm_labels['Shot']),
                                                                  delta=.001, 
@@ -658,7 +658,7 @@ def plot_kmeans_clustered_elms(ncluster=4,
                     str_add='_ns'
                 else:
                     str_add=''
-                filename=flap_nstx.analysis.filename(exp_id=shot,
+                filename=flap_nstx.tools.filename(exp_id=shot,
                                                      working_directory=wd+'/processed_data',
                                                      time_range=[elm_time-2e-3,elm_time+2e-3],
                                                      comment='ccf_velocity_pfit_o'+str(subtraction_order)+'fst_0.0'+str_add+'_nv',
@@ -726,7 +726,7 @@ def plot_kmeans_clustered_elms(ncluster=4,
                     str_add='_ns'
                 else:
                     str_add=''
-                filename=flap_nstx.analysis.filename(exp_id=shot,
+                filename=flap_nstx.tools.filename(exp_id=shot,
                                                      working_directory=wd+'/processed_data',
                                                      time_range=[elm_time-2e-3,elm_time+2e-3],
                                                      comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv',
@@ -1958,11 +1958,11 @@ def calculate_avg_tde_velocity_results():
         status=db.loc[elm_index[index_elm]]['OK/NOT OK']
         elm_time_range=[elm_time-2e-3,elm_time+2e-3]
         if status != 'NO':
-            filename_pol=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.analysis.filename(exp_id=shot, 
+            filename_pol=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.tools.filename(exp_id=shot, 
                                                                                 time_range=elm_time_range,
                                                                                 purpose='TDE poloidal velocity',
                                                                                 extension='pickle')
-            filename_rad=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.analysis.filename(exp_id=shot, 
+            filename_rad=wd+'/ELM_RESULTS_TDE_4ms/'+flap_nstx.tools.filename(exp_id=shot, 
                                                                                 time_range=elm_time_range,
                                                                                 purpose='TDE radial velocity',
                                                                                 extension='pickle')
@@ -2048,14 +2048,14 @@ def calculate_avg_sz_velocity_results(window_average=500e-6,
                 
         
                 comment=''
-                pickle_filename_sz=flap_nstx.analysis.filename(exp_id=shot,
+                pickle_filename_sz=flap_nstx.tools.filename(exp_id=shot,
                                                         working_directory=wd+'/processed_data',
                                                         time_range=[elm_time-1e-3,elm_time+1e-3],
                                                         purpose='sz velocity',
                                                         comment=comment,
                                                         extension='pickle')
                 
-                pickle_filename_ml=flap_nstx.analysis.filename(exp_id=shot,
+                pickle_filename_ml=flap_nstx.tools.filename(exp_id=shot,
                                                         working_directory=wd+'/processed_data',
                                                         time_range=[elm_time-2e-3,elm_time+2e-3],
                                                         comment='ccf_velocity_pfit_o1_fst_0.0_ns_nv',
@@ -2113,13 +2113,13 @@ def calculate_avg_sz_velocity_results(window_average=500e-6,
         
                 wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
                 comment=''
-                pickle_filename_sz=flap_nstx.analysis.filename(exp_id=shot,
+                pickle_filename_sz=flap_nstx.tools.filename(exp_id=shot,
                                                         working_directory=wd+'/processed_data',
                                                         time_range=[elm_time-1e-3,elm_time+1e-3],
                                                         purpose='sz velocity',
                                                         comment=comment,
                                                         extension='pickle')
-                pickle_filename_ml=flap_nstx.analysis.filename(exp_id=shot,
+                pickle_filename_ml=flap_nstx.tools.filename(exp_id=shot,
                                                         working_directory=wd+'/processed_data',
                                                         time_range=[elm_time-2e-3,elm_time+2e-3],
                                                         comment='ccf_velocity_pfit_o1_fst_0.0_ns_nv',
@@ -2375,7 +2375,7 @@ def calculate_avg_angular_velocity_results(elm_time_window=2e-3,                
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
                 
        
-        filename=flap_nstx.analysis.filename(exp_id=shot,
+        filename=flap_nstx.tools.filename(exp_id=shot,
                                              working_directory=wd+'/processed_data',
                                              time_range=[elm_time_file-elm_time_window,elm_time_file+elm_time_window],
                                              purpose='ccf ang velocity',
@@ -2449,7 +2449,7 @@ def calculate_avg_angular_velocity_results(elm_time_window=2e-3,                
         #define ELM time for all the cases
         elm_time=db.loc[elm_index[index_elm]]['Time prec']
 
-        filename=flap_nstx.analysis.filename(exp_id=shot,
+        filename=flap_nstx.tools.filename(exp_id=shot,
                                              working_directory=wd+'/processed_data',
                                              time_range=[elm_time-elm_time_window,elm_time+elm_time_window],
                                              purpose='ccf ang velocity',

@@ -23,7 +23,7 @@ from flap_nstx.analysis import read_ahmed_fit_parameters
 
 from matplotlib.backends.backend_pdf import PdfPages
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,'flap_nstx.cfg')
+fn = os.path.join(thisdir,'../flap_nstx.cfg')
 flap.config.read(file_name=fn)
 flap_nstx.register()
 

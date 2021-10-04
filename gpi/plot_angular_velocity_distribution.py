@@ -31,7 +31,7 @@ import flap_mdsplus
 #Setting up FLAP
 flap_mdsplus.register('NSTX_MDSPlus')    
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
 #Plot settings for publications
@@ -185,11 +185,11 @@ def plot_nstx_gpi_angular_velocity_distribution(window_average=500e-6,
             #define ELM time for all the cases
             elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
             if normalized_velocity:
-                filename=flap_nstx.analysis.filename(exp_id=shot,
-                                                     working_directory=wd+'/processed_data',
-                                                     time_range=[elm_time-2e-3,elm_time+2e-3],
-                                                     comment='ccf_ang_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0',
-                                                     extension='pickle')
+                filename=flap_nstx.tools.filename(exp_id=shot,
+                                                  working_directory=wd+'/processed_data',
+                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                  comment='ccf_ang_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0',
+                                                  extension='pickle')
                 
             else:
                 filename=wd+'/processed_data/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'

@@ -27,7 +27,7 @@ import flap_mdsplus
 #Setting up FLAP
 flap_mdsplus.register('NSTX_MDSPlus')    
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
 
@@ -100,7 +100,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
         d=flap.get_data_object_ref(object_name)
         if normalize in ['Time averaged','Time dependent', 'Simple']:
             if normalize == 'Time averaged':
-                coefficient=flap_nstx.analysis.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,
+                coefficient=flap_nstx.tools.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,
                                                           time_range=normalizer_time_range,
                                                           f_high=1e2,
                                                           design='Chebyshev II',

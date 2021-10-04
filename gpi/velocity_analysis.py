@@ -17,7 +17,7 @@ import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 #Scientific modules
@@ -575,13 +575,13 @@ def calculate_nstx_gpi_tde_velocity(exp_id=None,                 #Shot number
                 plt.title('Radial correlation length of '+str(exp_id)+' @ ['+str(time_range[0])+','+str(time_range[1])+']s')
     if save_data:
         if radial:
-            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+            filename=flap_nstx.tools.filename(exp_id=exp_id, 
                                                  time_range=time_range,
                                                  purpose='TDE radial velocity',
                                                  extension='pickle')
             flap.save(flap.get_data_object_ref('NSTX_GPI_RAD_VELOCITY'), filename=filename)
         if poloidal:
-            filename=flap_nstx.analysis.filename(exp_id=exp_id, 
+            filename=flap_nstx.tools.filename(exp_id=exp_id, 
                                                  time_range=time_range,
                                                  purpose='TDE poloidal velocity',
                                                  extension='pickle')
@@ -667,11 +667,11 @@ def calculate_nstx_gpi_filament_velocity(exp_id=None,                           
         comment+='_max_shift_avg'
     if maximum_shift:
         comment+='_max_shift'
-    pickle_filename=flap_nstx.analysis.filename(exp_id=exp_id, 
-                                                time_range=time_range,
-                                                purpose='filament velocity trace',
-                                                comment=comment,
-                                                extension='pickle')
+    pickle_filename=flap_nstx.tools.filename(exp_id=exp_id, 
+                                             time_range=time_range,
+                                             purpose='filament velocity trace',
+                                             comment=comment,
+                                             extension='pickle')
     if os.path.exists(pickle_filename) and nocalc:
         try:
             pickle.load(open(pickle_filename, 'rb'))

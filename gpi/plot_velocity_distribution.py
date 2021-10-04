@@ -26,7 +26,7 @@ import flap_mdsplus
 #Setting up FLAP
 flap_mdsplus.register('NSTX_MDSPlus')    
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
 #Plot settings for publications
@@ -199,11 +199,11 @@ def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
                     str_add='_ns'
                 else:
                     str_add=''
-                filename=flap_nstx.analysis.filename(exp_id=shot,
-                                                     working_directory=wd+'/processed_data',
-                                                     time_range=[elm_time-2e-3,elm_time+2e-3],
-                                                     comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv'+str_add_find_method,
-                                                     extension='pickle')
+                filename=flap_nstx.tools.filename(exp_id=shot,
+                                                  working_directory=wd+'/processed_data',
+                                                  time_range=[elm_time-2e-3,elm_time+2e-3],
+                                                  comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv'+str_add_find_method,
+                                                  extension='pickle')
             else:
                 filename=wd+'/processed_data/'+db.loc[elm_index[index_elm]]['Filename']+'.pickle'
             status=db.loc[elm_index[index_elm]]['OK/NOT OK']
@@ -831,7 +831,7 @@ def plot_nstx_gpi_watershed_distribution(window_average=500e-6,
                     str_add='_ns'
                 else:
                     str_add=''
-                filename=flap_nstx.analysis.filename(exp_id=shot,
+                filename=flap_nstx.tools.filename(exp_id=shot,
                                                      working_directory=wd+'/processed_data',
                                                      time_range=[elm_time-2e-3,elm_time+2e-3],
                                                      comment='ccf_velocity_pfit_o'+str(subtraction_order)+'_fst_0.0'+str_add+'_nv'+str_add_find_method,

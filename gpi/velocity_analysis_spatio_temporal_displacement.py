@@ -12,12 +12,13 @@ import copy
 import flap
 import flap_nstx
 flap_nstx.register()
+
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
-from flap_nstx.analysis import nstx_gpi_contour_structure_finder
+from flap_nstx.gpi import nstx_gpi_contour_structure_finder
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 #Scientific modules
@@ -78,7 +79,7 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
     if filename is None:
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         comment=''
-        filename=flap_nstx.analysis.filename(exp_id=exp_id,
+        filename=flap_nstx.tools.filename(exp_id=exp_id,
                                              working_directory=wd+'/processed_data',
                                              time_range=time_range,
                                              purpose='sz velocity',

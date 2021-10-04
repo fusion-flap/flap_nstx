@@ -21,7 +21,7 @@ from flap_nstx.analysis import show_nstx_gpi_video_frames
 flap_nstx.register()
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 styled=True
