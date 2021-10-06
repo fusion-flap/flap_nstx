@@ -17,17 +17,17 @@ import time as time_module
 
 import flap
 import flap_nstx
+thisdir = os.path.dirname(os.path.realpath(__file__))
+fn = os.path.join(thisdir,"../flap_nstx.cfg")
+flap.config.read(file_name=fn)
+flap_nstx.register()
 
-from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
-from flap_nstx.analysis import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
+from flap_nstx.gpi import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
+from flap_nstx.thomson import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
 
 from matplotlib import ticker
 from matplotlib.backends.backend_pdf import PdfPages
 
-thisdir = os.path.dirname(os.path.realpath(__file__))
-fn = os.path.join(thisdir,"flap_nstx.cfg")
-flap.config.read(file_name=fn)
-flap_nstx.register()
 
 def calculate_magnetics_spectrogram(exp_id=None,
                                     time_range=None,
