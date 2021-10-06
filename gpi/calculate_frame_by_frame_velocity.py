@@ -14,7 +14,7 @@ import cv2
 import flap
 import flap_nstx
 flap_nstx.register('NSTX_GPI')
-from flap_nstx.gpi import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder
+from flap_nstx.gpi import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, normalize_gpi
 from flap_nstx.tools import detrend_multidim
 
 import flap_mdsplus
@@ -323,82 +323,14 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         if normalize_for_size is False and normalize_for_velocity is False:
             normalize = None
             
-        if normalize == 'simple':
-            flap.filter_data('GPI_SLICED_FOR_FILTERING',
-                             exp_id=exp_id,
-                             coordinate='Time',
-                             options={'Type':'Lowpass',
-                                      'f_high':normalize_f_high,
-                                      'Design':normalize_f_kernel},
-                             output_name=normalizer_object_name)
-            coefficient=flap.slice_data(normalizer_object_name,
-                                        exp_id=exp_id,
-                                        slicing=slicing_time_only,
-                                        output_name='GPI_GAS_CLOUD').data
-            
-        elif normalize == 'roundtrip':
-            norm_obj=flap.filter_data('GPI_SLICED_FOR_FILTERING',
-                                         exp_id=exp_id,
-                                         coordinate='Time',
-                                         options={'Type':'Lowpass',
-                                                  'f_high':normalize_f_high,
-                                                  'Design':normalize_f_kernel},
-                                         output_name=normalizer_object_name)
-            
-            norm_obj.data=np.flip(norm_obj.data,axis=0)
-            norm_obj=flap.filter_data(normalizer_object_name,
-                                         exp_id=exp_id,
-                                         coordinate='Time',
-                                         options={'Type':'Lowpass',
-                                                  'f_high':normalize_f_high,
-                                                  'Design':normalize_f_kernel},
-                                         output_name=normalizer_object_name)
-            
-            norm_obj.data=np.flip(norm_obj.data,axis=0)                
-            coefficient=flap.slice_data(normalizer_object_name,
-                                        exp_id=exp_id,
-                                        slicing=slicing_time_only,
-                                        output_name='GPI_GAS_CLOUD').data
-            
-        elif normalize == 'halved':
-            #Find the peak of the signal (aka ELM time as of GPI data)
-            data_obj=flap.get_data_object_ref(object_name_str_size).slice_data(summing={'Image x':'Mean', 'Image y':'Mean'})
-            ind_peak=np.argmax(data_obj.data)
-            data_obj_reverse=copy.deepcopy(flap.get_data_object('GPI_SLICED_FOR_FILTERING'))
-            data_obj_reverse.data=np.flip(data_obj_reverse.data, axis=0)
-            flap.add_data_object(data_obj_reverse,'GPI_SLICED_FOR_FILTERING_REV')
-            
-            normalizer_object_name_reverse='GPI_LPF_INTERVAL_REV'
-            flap.filter_data('GPI_SLICED_FOR_FILTERING',
-                             exp_id=exp_id,
-                             coordinate='Time',
-                             options={'Type':'Lowpass',
-                                      'f_high':normalize_f_high,
-                                      'Design':normalize_f_kernel},
-                             output_name=normalizer_object_name)
-            coefficient1_sliced=flap.slice_data(normalizer_object_name,
-                                         exp_id=exp_id,
-                                         slicing=slicing_time_only)
-            
-            coefficient2=flap.filter_data('GPI_SLICED_FOR_FILTERING_REV',
-                                         exp_id=exp_id,
-                                         coordinate='Time',
-                                         options={'Type':'Lowpass',
-                                                  'f_high':normalize_f_high,
-                                                  'Design':normalize_f_kernel},
-                                         output_name=normalizer_object_name_reverse)
-            
-            coefficient2.data=np.flip(coefficient2.data, axis=0)
-            coefficient2_sliced=flap.slice_data(normalizer_object_name_reverse,
-                                                exp_id=exp_id,
-                                                slicing=slicing_time_only)
-            
-            coeff1_first_half=coefficient1_sliced.data[:ind_peak-4,:,:]
-            coeff2_second_half=coefficient2_sliced.data[ind_peak-4:,:,:]
-            coefficient=np.append(coeff1_first_half,coeff2_second_half, axis=0)
-            coefficient_dataobject=copy.deepcopy(coefficient1_sliced)
-            coefficient_dataobject.data=coefficient
-            flap.add_data_object(coefficient_dataobject, 'GPI_GAS_CLOUD')
+        coefficient=normalize_gpi('GPI_SLICED_FOR_FILTERING',
+                                  exp_id=exp_id,
+                                  slicing_time=slicing_time_only,
+                                  normalize=normalize,
+                                  normalize_f_high=normalize_f_high,
+                                  normalize_f_kernel=normalize_f_kernel,
+                                  normalizer_object_name=normalizer_object_name,
+                                  output_name='GPI_GAS_CLOUD')
             
         #Global gas levels
 
@@ -420,7 +352,6 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                 object_name_str_vel='GPI_SLICED_DENORM_STR_VEL'            
                 
             if normalize_for_size:
-                
                 data_obj=flap.get_data_object(object_name_str_size)
                 if str_finding_method == 'contour':
                     data_obj.data = data_obj.data/coefficient
@@ -518,68 +449,32 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         
         frame_properties={'Shot':exp_id,
                           'Time':time[1:-1],
-                          'GPI Dalpha':dalpha,
                           
-                          'Correlation max':np.zeros(len(time)-2),
-                          'Frame similarity':np.zeros(len(time)-2),
-
-                          'GC size':np.zeros([len(time)-2,2]),
-                          'GC area':np.zeros(len(time)-2),                                   
-                          'GC angle':np.zeros(len(time)-2),
-                          'GC elongation':np.zeros(len(time)-2),
-                          'GC centroid':np.zeros([len(time)-2,2]),
-                          'GC position':np.zeros([len(time)-2,2]),
-                          'GC COG':np.zeros([len(time)-2,2]),
-                          
-                          'Velocity ccf':np.zeros([len(time)-2,2]),
-                          
-                          'Velocity str avg':np.zeros([len(time)-2,2]),
-                          'Velocity str max':np.zeros([len(time)-2,2]),
-                          
-                          'Size avg':np.zeros([len(time)-2,2]),
-                          'Size max':np.zeros([len(time)-2,2]),
-                          
-                          'Position avg':np.zeros([len(time)-2,2]),
-                          'Position max':np.zeros([len(time)-2,2]),
-                          
-                          'Area avg':np.zeros(len(time)-2),
-                          'Area max':np.zeros(len(time)-2),
-                          
-                          'Elongation avg':np.zeros(len(time)-2),
-                          'Elongation max':np.zeros(len(time)-2),   
-                          
-                          'Angle avg':np.zeros(len(time)-2),
-                          'Angle max':np.zeros(len(time)-2),     
-                          
-                          'Centroid avg':np.zeros([len(time)-2,2]),
-                          'Centroid max':np.zeros([len(time)-2,2]),  
-                          
-                          'COG avg':np.zeros([len(time)-2,2]),
-                          'COG max':np.zeros([len(time)-2,2]),
-                          
-                          'Angle ALI max':np.zeros(len(time)-2),
-                          'Angle ALI avg':np.zeros(len(time)-2),
-                          
-                          'Roundness max':np.zeros(len(time)-2),
-                          'Roundness avg':np.zeros(len(time)-2),
-                          
-                          'Solidity max':np.zeros(len(time)-2),
-                          'Solidity avg':np.zeros(len(time)-2),
-                          
-                          'Convexity max':np.zeros(len(time)-2),
-                          'Convexity avg':np.zeros(len(time)-2),
-                          
-                          'Total curvature max':np.zeros(len(time)-2),
-                          'Total curvature avg':np.zeros(len(time)-2),
-                          
-                          'Total bending energy max':np.zeros(len(time)-2),
-                          'Total bending energy avg':np.zeros(len(time)-2),
-                          
-                          #'Structures':np.zeros(len(time)-2),
-
-                          'Frame COG':np.zeros([len(time)-2,2]),
-                          'Str number':np.zeros(len(time)-2),
-                         }
+                          #NON PROCESSED FRAME PARAMETERS
+                          'GPI Dalpha':dalpha}
+        
+        #GAS CLOUD PARAMETERS       
+        normal_keys=['Correlation max','Frame similarity', 
+                     'GC area', 'GC angle', 'GC elongation', 
+                     'Str number']
+        vector_keys=['Frame COG','GC size', 'GC centroid', 'GC position', 'GC COG', 'Velocity ccf']
+        
+        for key in normal_keys:
+            frame_properties[key]=np.zeros(len(time)-2)
+        for key in vector_keys:
+            frame_properties[key]=np.zeros([len(time)-2,2])
+            
+        str_normal_keys=['Area', 'Elongation', 'Angle', 'Angle ALI', 
+                         'Roundness', 'Solidity', 'Convexity', 
+                         'Total curvature', 'Total bending energy' ]
+        
+        str_vector_keys=['Velocity str', 'Size', 'Position', 'Centroid', 'COG']
+        
+        for avgmax_key in [' avg',' max']:
+            for key in str_vector_keys:
+                frame_properties[key+avgmax_key]=np.zeros([len(time)-2,2])
+            for key in str_normal_keys:
+                frame_properties[key+avgmax_key]=np.zeros([len(time)-2])
         
         ccf_data=np.zeros([n_frames-1,
                            (x_range[1]-x_range[0])*2+1,
@@ -977,7 +872,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                         weight=intensities/np.sum(intensities)
                     elif weighting == 'area':
                         weight=areas/np.sum(areas)
-
+                    print(n_str2, weight, i_frames)
                     for i_str2 in range(n_str2):   
                         #Quantities from Ellipse fitting
                         frame_properties['Size avg'][i_frames,:]+=structures2_size[i_str2]['Size']*weight[i_str2]
@@ -1036,15 +931,17 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     vector_keys=['Size', 'Position', 'COG', 'Centroid']
                     non_vector_keys=['Area', 'Angle', 'Elongation', 'Angle ALI', 'Roundness',
                                      'Solidity', 'Convexity', 'Total curvature',
-                                     'TOtal bending energy']
+                                     'Total bending energy']
                     for avg_max in [' avg', ' max']:
                         for key in vector_keys:
-                            frame_properties[key+avg_max]=[np.nan,np.nan]
+                            key_full=key+avg_max
+                            frame_properties[key_full][i_frames,:]=[np.nan,np.nan]
                         for key in non_vector_keys:
-                            frame_properties[key+avg_max]=np.nan
+                            key_full=key+avg_max
+                            frame_properties[key_full][i_frames]=np.nan
                     
                     frame_properties['Str number'][i_frames]=0.
-                    frame_properties['Frame COG'][i_frames,:]=[np.nan,np.nan]
+                    frame_properties['Frame COG'][i_frames,:]=np.asarray([np.nan,np.nan])
                    # frame_properties['Structures'][i_frames]=None
                    
                 """

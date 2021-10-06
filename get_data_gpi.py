@@ -16,6 +16,8 @@ import pims
 
 #FLAP imports
 import flap
+import flap_mdsplus
+flap_mdsplus.register('NSTX_MDSPlus')
 
 #Scientic package imports
 import matplotlib.pyplot as plt
@@ -232,7 +234,8 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
 def add_coordinate_gpi(data_object,
                        coordinates,
                        exp_id=None,
-                       options=None): 
+                       options=None):
+    
     #This part of the code provides normalized flux coordinates for the GPI data
     if ('Flux r' in coordinates):
         try:

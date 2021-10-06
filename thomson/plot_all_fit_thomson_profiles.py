@@ -22,13 +22,25 @@ fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 flap_nstx.register()
 
-from flap_nstx.analysis import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
-from flap_nstx.analysis import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
+from flap_nstx.thomson import get_elms_with_thomson_profile
+
+from flap_nstx.gpi import calculate_nstx_gpi_frame_by_frame_velocity, calculate_nstx_gpi_smooth_velocity
+from flap_nstx.thomson import get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles, get_elms_with_thomson_profile
 
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-def plot_all_fit_thomson_profiles(): #One time run code, no need to have inputs
+
+
+"""
+NOT WORKING, SHOULD BE DEVELOPED
+"""
+
+    
+    
+    
+
+def plot_all_fit_thomson_profiles(thomson_time_window=None): #One time run code, no need to have inputs
     
     def tanh_fit_function(r, b_height, b_sol, b_pos, b_width):
         def tanh(x):
@@ -36,9 +48,9 @@ def plot_all_fit_thomson_profiles(): #One time run code, no need to have inputs
         return (b_height-b_sol)/2*(tanh((b_pos-r)/(2*b_width))+1)+b_sol
     
     elms_with_thomson_before=get_elms_with_thomson_profile(before=True,
-                                                        time_window=thomson_time_window)
+                                                           time_window=thomson_time_window)
     elms_with_thomson_after=get_elms_with_thomson_profile(after=True,
-                                                    time_window=thomson_time_window)
+                                                          time_window=thomson_time_window)
         
     database_file='/Users/mlampert/work/NSTX_workspace/ELM_findings_mlampert_velocity_good.csv'
     db=pandas.read_csv(database_file, index_col=0)

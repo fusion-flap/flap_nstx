@@ -2,6 +2,8 @@ from .calculate_angular_velocity import calculate_nstx_gpi_angular_velocity
 from .calculate_correlation_matrix import plot_all_parameters_vs_all_other
 from .structure_finder import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, Gaussian2D, FitEllipse
 
+from .normalize_gpi import normalize_gpi
+
 from .calculate_frame_by_frame_velocity import calculate_nstx_gpi_frame_by_frame_velocity
 
 from .generate_synthetic_data import nstx_gpi_generate_synthetic_data, generate_displaced_gaussian, generate_displaced_random_noise

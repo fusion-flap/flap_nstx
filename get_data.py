@@ -24,6 +24,7 @@ import flap
 if (flap.VERBOSE):
     print("Importing flap_nstx")
 from flap_nstx import get_data_gpi, add_coordinate_gpi  
+from flap_nstx import get_data_thomson, add_coordinate_thomson
 
 def register(data_source='NSTX_GPI'):
     if (flap.VERBOSE):
@@ -32,4 +33,4 @@ def register(data_source='NSTX_GPI'):
         flap.register_data_source('NSTX_GPI', get_data_func=get_data_gpi, add_coord_func=add_coordinate_gpi)
     if data_source == 'NSTX_THOMSON':
         pass
-        flap.register_data_source('NSTX_THOMSON', get_data_func=get_data_gpi, add_coord_func=add_coordinate_gpi)
+        flap.register_data_source('NSTX_THOMSON', get_data_func=get_data_thomson, add_coord_func=add_coordinate_thomson)
