@@ -55,14 +55,14 @@ else:
 def calculate_nstx_gpi_angular_velocity(exp_id=None,                                #Shot number
                                         time_range=None,                            #The time range for the calculation
                                         data_object=None,                           #Input data object if available from outside (e.g. generated sythetic signal)
-                                        x_range=[0,63],                             #X range for the calculation
-                                        y_range=[0,79],                             #Y range for the calculation
+                                        x_range=None,                               #X range for the calculation
+                                        y_range=None,                               #Y range for the calculation
                                             
                                         #Normalizer inputs
                                         normalize_f_kernel='Elliptic',              #The kernel for filtering the gas cloud
                                         normalize_f_high=1e3,                       #High pass frequency for the normalizer data
                                                                                   
-                                                                                    #Inputs for velocity pre processing
+                                        normalize=None,                                            #Inputs for velocity pre processing
                                         normalize_for_velocity=False,               #Normalize the signal for velocity processing
                                         subtraction_order_for_velocity=1,           #Order of the 2D polynomial for background subtraction
                                         nlevel=51,
@@ -136,21 +136,23 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                 raise TypeError('time_range is not a list.')
             if filename is None and len(time_range) != 2:
                 raise ValueError('time_range should be a list of two elements.')
-        
-    if (fitting_range*2+1 > np.abs(x_range[1]-x_range[0]) or 
-        fitting_range*2+1 > np.abs(y_range[1]-y_range[0])):
-        raise ValueError('The fitting range for the parabola is too large for the given coordinate range.')
-        
+
    
     if data_object is not None and type(data_object) == str:
         if exp_id is None:
             exp_id='*'
-        d=flap.get_data_object(data_object,exp_id=exp_id)
+        d=flap.get_data_object(data_object, exp_id=exp_id)
         time_range=[d.coordinate('Time')[0][0,0,0],
                     d.coordinate('Time')[0][-1,0,0]]
         exp_id=d.exp_id
         flap.add_data_object(d, 'GPI_SLICED_FULL')
-    
+        if x_range is None or y_range is None:
+            x_range=[0, d.data.shape[1]-1]
+            y_range=[0, d.data.shape[2]-1]
+            
+        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+                 'Image x':flap.Intervals(x_range[0],x_range[1]),
+                 'Image y':flap.Intervals(y_range[0],y_range[1])}
     comment='pfit_o'+str(subtraction_order_for_velocity)+\
             '_fst_'+str(frame_similarity_threshold)
 
@@ -193,9 +195,6 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
     import matplotlib.pyplot as plt
            
     if not nocalc:
-        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-                 'Image x':flap.Intervals(x_range[0],x_range[1]),
-                 'Image y':flap.Intervals(y_range[0],y_range[1])}
         #Read data
         if data_object is None:
             print("\n------- Reading NSTX GPI data --------")
@@ -211,11 +210,21 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                 d=flap.get_data('NSTX_GPI',exp_id=exp_id,
                                 name='',
                                 object_name='GPI')
-          
+            if x_range is None or y_range is None:
+                x_range=[0, d.data.shape[1]-1]
+                y_range=[0, d.data.shape[2]-1]
+                
+            slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+                     'Image x':flap.Intervals(x_range[0],x_range[1]),
+                     'Image y':flap.Intervals(y_range[0],y_range[1])}
+                
+            if (fitting_range*2+1 > np.abs(x_range[1]-x_range[0]) or 
+                fitting_range*2+1 > np.abs(y_range[1]-y_range[0])):
+                raise ValueError('The fitting range for the parabola is too large for the given coordinate range.')
             d=flap.slice_data('GPI',exp_id=exp_id, 
                               slicing=slicing,
                               output_name='GPI_SLICED_FULL')
-            
+
         object_name_ccf_velocity='GPI_SLICED_FULL'
         
         #Normalize data for size calculation
@@ -226,40 +235,45 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         slicing_for_filtering=copy.deepcopy(slicing)
         slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
                                                      time_range[1]+1/normalize_f_high*10)
+
+        
         if data_object is None:
             flap.slice_data('GPI',
                             exp_id=exp_id,
                             slicing=slicing_for_filtering,
                             output_name='GPI_SLICED_FOR_FILTERING')            
-        #Roundtrip normalization
+        # #Roundtrip normalization
         
-        norm_obj=flap.filter_data('GPI_SLICED_FOR_FILTERING',
-                                  exp_id=exp_id,
-                                  coordinate='Time',
-                                  options={'Type':'Lowpass',
-                                           'f_high':normalize_f_high,
-                                           'Design':normalize_f_kernel},
-                                  output_name=normalizer_object_name)
+            norm_obj=flap.filter_data('GPI_SLICED_FOR_FILTERING',
+                                      exp_id=exp_id,
+                                      coordinate='Time',
+                                      options={'Type':'Lowpass',
+                                                'f_high':normalize_f_high,
+                                                'Design':normalize_f_kernel},
+                                      output_name=normalizer_object_name)
+            
+            norm_obj.data=np.flip(norm_obj.data,axis=0)
+            norm_obj=flap.filter_data(normalizer_object_name,
+                                      exp_id=exp_id,
+                                      coordinate='Time',
+                                      options={'Type':'Lowpass',
+                                                'f_high':normalize_f_high,
+                                                'Design':normalize_f_kernel},
+                                      output_name=normalizer_object_name)
+            
+            norm_obj.data=np.flip(norm_obj.data,axis=0)                
+            coefficient=flap.slice_data(normalizer_object_name,
+                                        exp_id=exp_id,
+                                        slicing=slicing,
+                                        output_name='GPI_GAS_CLOUD').data
+    
+            data_obj=flap.get_data_object(object_name_ccf_velocity)
+            data_obj.data = data_obj.data/coefficient
+            flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_CCF_VEL')
+            object_name_ccf_velocity='GPI_SLICED_DENORM_CCF_VEL'
+        else:
+            pass
         
-        norm_obj.data=np.flip(norm_obj.data,axis=0)
-        norm_obj=flap.filter_data(normalizer_object_name,
-                                  exp_id=exp_id,
-                                  coordinate='Time',
-                                  options={'Type':'Lowpass',
-                                           'f_high':normalize_f_high,
-                                           'Design':normalize_f_kernel},
-                                  output_name=normalizer_object_name)
-        
-        norm_obj.data=np.flip(norm_obj.data,axis=0)                
-        coefficient=flap.slice_data(normalizer_object_name,
-                                    exp_id=exp_id,
-                                    slicing=slicing,
-                                    output_name='GPI_GAS_CLOUD').data
-
-        data_obj=flap.get_data_object(object_name_ccf_velocity)
-        data_obj.data = data_obj.data/coefficient
-        flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_CCF_VEL')
-        object_name_ccf_velocity='GPI_SLICED_DENORM_CCF_VEL'
             
         #Subtract trend from data
         if subtraction_order_for_velocity is not None:
@@ -291,12 +305,17 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                           'Velocity ccf FLAP':np.zeros([len(time)-2,2]),
                           'Angular velocity ccf FLAP':np.zeros([len(time)-2]),
                           'Angular velocity ccf FLAP log':np.zeros([len(time)-2]),
+                          'Angle difference FLAP':np.zeros([len(time)-2]),
+                          'Angle difference FLAP log':np.zeros([len(time)-2]),
                           'Expansion velocity ccf FLAP':np.zeros([len(time)-2]),
+                          
                           
                           'Velocity ccf':np.zeros([len(time)-2,2]),
                           'Velocity ccf skim':np.zeros([len(time)-2,2]),
                           'Angular velocity ccf':np.zeros([len(time)-2]),
                           'Angular velocity ccf log':np.zeros([len(time)-2]),
+                          'Angle difference':np.zeros([len(time)-2]),
+                          'Angle difference log':np.zeros([len(time)-2]),
                           'Expansion velocity ccf':np.zeros([len(time)-2]),
                          }
         
@@ -345,8 +364,8 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         
         flap.add_data_object(ccf_object, 'GPI_CCF_F_BY_F')        
         
-        ccf_data_polar=np.zeros([360,64])
-        
+        #ccf_data_polar=np.zeros([360,max(d.data.shape)])
+        ccf_data_polar=np.zeros([360,max(d.data.shape)])
         coord_polar=[]
         
         coord_polar.append(copy.deepcopy(flap.Coordinate(name='Angle',
@@ -484,7 +503,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             STRUCTURE ANGULAR VELOCITY CALCULATION BASED ON FLAP CCF
             """
             
-            radius=min([frame1.data.shape[0],frame1.data.shape[1]])
+            radius=min([frame1.data.shape[0],frame1.data.shape[1]])/2
             if i_frames == 0 :
                 frame1_filtered = difference_of_gaussians(frame1.data, sigma_low, sigma_high)
                 
@@ -545,40 +564,60 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                 if test and not test_into_pdf:
                     plt.cla()
 
-                    flap.plot('GPI_FRAME_12_CCF_POLAR', plot_type='contour', axes=['Angle lag', 'Radius lag'])
+                    flap.plot('GPI_FRAME_12_CCF_POLAR', 
+                              plot_type='contour', 
+                              axes=['Angle lag', 'Radius lag'])
+                    
                     plt.pause(0.1)
                     plt.show()
                     #flap.plot('GPI_FRAME_2_FFT_POLAR', plot_type='contour', axes=['Angle', 'Radius'])
                 if test_into_pdf and i_log_or_not == 0:
-                    plt.figure()
-                    flap.plot('GPI_FRAME_2', 
-                              plot_type='contour',
-                              plot_options={'levels':51},
-                              axes=['Image x', 'Image y'])
-                    plt.title('t='+str(time[i_frames]*1e3)+'ms')
-                    plt.pause(0.001)
-                    plt.show()
-                    pdf_test.savefig()
-                    plt.close()
+                    # plt.figure()
+                    # flap.plot('GPI_FRAME_2', 
+                    #           plot_type='contour',
+                    #           plot_options={'levels':51},
+                    #           axes=['Image x', 'Image y'])
+                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    # plt.pause(0.001)
+                    # plt.show()
+                    # pdf_test.savefig()
+                    # plt.close()
                     
-                    plt.figure()
-                    flap.plot('GPI_FRAME_12_CCF_POLAR', 
-                              plot_type='contour',
-                              plot_options={'levels':51},
-                              axes=['Angle lag', 'Radius lag'])
-                    plt.title('t='+str(time[i_frames]*1e3)+'ms')
-                    plt.pause(0.001)
-                    plt.show()
-                    pdf_test.savefig()
-                    plt.close()
+                    # plt.figure()
+                    # flap.plot('GPI_FRAME_12_CCF_POLAR', 
+                    #           plot_type='contour',
+                    #           plot_options={'levels':51},
+                    #           axes=['Angle lag', 'Radius lag'])
+                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    # plt.pause(0.001)
+                    # plt.show()
+                    # pdf_test.savefig()
+                    # plt.close()
+                    
+                    # plt.figure()
+                    # plt.cla()
+                    # flap.plot('GPI_FRAME_2_FFT_POLAR', 
+                    #           plot_type='contour', 
+                    #           plot_options={'levels':51},
+                    #           axes=['Angle', 'Radius'])
+                    # plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    # plt.pause(0.001)
+                    # plt.show()
+                    # pdf_test.savefig()
+                    # plt.close()
                     
                     plt.figure()
                     plt.cla()
-                    flap.plot('GPI_FRAME_2_FFT_POLAR', 
-                              plot_type='contour', 
-                              plot_options={'levels':51},
-                              axes=['Angle', 'Radius'])
+                    plt.contourf(np.arange(320)-160,
+                                 np.arange(400)-200,
+                                 frame2_fft.transpose(), levels=51)
+                    
+                    plt.xlabel('k_y [pix-1]')
+                    plt.ylabel('k_x [pix-1]')
+                    plt.xlim([-32,32])
+                    plt.ylim([-40,40])
                     plt.title('t='+str(time[i_frames]*1e3)+'ms')
+                    plt.gca().set_aspect('equal', adjustable='box')
                     plt.pause(0.001)
                     plt.show()
                     pdf_test.savefig()
@@ -609,11 +648,14 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                     #plt.pause(0.5)
                 if i_log_or_not == 0:
                     frame_properties['Angular velocity ccf FLAP'][i_frames]=delta_index_flap[0]/180.*np.pi/sample_time #dphi/dt
+                    frame_properties['Angle difference FLAP'][i_frames]=delta_index_flap[0]
+            
                 else:
                     klog = radius / np.log(radius)
                     shift_scale_log = (np.exp(delta_index_flap[1] / klog))
                     frame_properties['Expansion velocity ccf FLAP'][i_frames]=shift_scale_log-1.
                     frame_properties['Angular velocity ccf FLAP log'][i_frames]=delta_index_flap[0]/180.*np.pi/sample_time #dphi/dt
+                    frame_properties['Angle difference FLAP log'][i_frames]=delta_index_flap[0]
             
             """
             CALCULATION BASED ON SKIMAGE PHASE CROSS CORRELATION
@@ -635,7 +677,10 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             
             frame_properties['Angular velocity ccf'][i_frames]=shiftr/180.*np.pi/sample_time #dphi/dt
             frame_properties['Angular velocity ccf log'][i_frames]=shiftr_log/180.*np.pi/sample_time #dphi/dt
+            frame_properties['Angle difference'][i_frames]=shiftr
+            frame_properties['Angle difference log'][i_frames]=shiftr_log
             frame_properties['Expansion velocity ccf'][i_frames]=shift_scale_log-1.
+            
             
             if calculate_retransformation:
                 frame1_retransformed_scaled=rescale(rotate(frame2.data,-shiftr),1/shift_scale_log)
@@ -882,3 +927,6 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
     if test_into_pdf:
         matplotlib.use('qt5agg')
         pdf_test.close()
+        
+    if return_results:
+        return frame_properties

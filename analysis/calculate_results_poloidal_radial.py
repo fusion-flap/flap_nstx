@@ -47,7 +47,7 @@ def calculate_results_poloidal_radial(exp_id=None,
     if nocalc and not recalc:
         if os.path.exists(pickle_filename):
             result=pickle.load(open(pickle_filename, 'rb'))
-         else:
+        else:
             nocalc=False
     #if result is not None:
     #    if (result['X coordinates'].all() != x_coordinates.all()  or

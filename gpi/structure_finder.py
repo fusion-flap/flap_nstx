@@ -27,8 +27,6 @@ import imutils
 
 import matplotlib.pyplot as plt
 
-from scipy import ndimage
-
 import numpy as np
 #import sys
 #np.set_printoptions(threshold=sys.maxsize)
@@ -525,10 +523,11 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                               min_distance=5, 
                               labels=binary)
     
-    markers = ndimage.label(localMax, 
-                            structure=np.ones((3, 3)))[0]
+    markers = scipy.ndimage.label(localMax, 
+                                  structure=np.ones((3, 3)))[0]
     
     labels = watershed(-data_thresholded, markers, mask=binary)
+    
     if try_random_walker:
         labels = random_walker(data_thresholded, markers, beta=10, mode='bf')
         
@@ -585,13 +584,8 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                                'Label':None,
                                })
             
-
+    
     if not test:
-        plt.cla()
-
-    if test:
-        print('Plotting levels')
-    else:
         plt.close()
 
     if test:

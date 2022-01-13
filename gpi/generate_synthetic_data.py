@@ -210,7 +210,9 @@ def generate_displaced_gaussian(exp_id=0,
                                 r0=[32,40],
                                 frame_size=[64,80],
                                 sampling_time=2.5e-6,
-                                rotation_frequency=0.,
+                                rotation_frequency=None,
+                                angular_velocity=None,
+                                angle_per_frame=0.,
                                 circular=False,
                                 amplitude=1,
                                 output_name=None,
@@ -220,7 +222,11 @@ def generate_displaced_gaussian(exp_id=0,
                                 cutoff=100,
                                 n_frames=3,
                                 ):
-   
+    try:
+        if len(displacement) != 2:
+            raise TypeError('The displacement should be a two element vector.')
+    except:
+        raise TypeError('The displacement should be a two element vector.')
     data_arr=np.zeros([n_frames,frame_size[0],frame_size[1]])
     background=np.zeros([frame_size[0],frame_size[1]])
     if add_background:
@@ -234,16 +240,28 @@ def generate_displaced_gaussian(exp_id=0,
         amplitude=amplitude*background.max()
     size=size/(2*np.sqrt(2*np.log(2))) #Converting the size into sigma for the Gaussian        
     
+    if rotation_frequency is not None:
+        angle_per_frame=2*np.pi*rotation_frequency*sampling_time
+    if angular_velocity is not None:
+        angle_per_frame=angular_velocity*sampling_time
+        
     for i_frames in range(n_frames):
-        rot_arg=2*np.pi*rotation_frequency*i_frames
-        a=(np.cos(rot_arg)/(size[0]+size_velocity[0]*i_frames))**2+\
-          (np.sin(rot_arg)/(size[1]+size_velocity[1]*i_frames))**2
-        b=-0.5*np.sin(2*rot_arg)/(size[0]+size_velocity[0]*i_frames)**2+\
-           0.5*np.sin(2*rot_arg)/(size[1]+size_velocity[1]*i_frames)**2
-        c=(np.sin(rot_arg)/(size[0]+size_velocity[0]*i_frames))**2+\
-          (np.cos(rot_arg)/(size[1]+size_velocity[1]*i_frames))**2
+        
+        rot_arg=-angle_per_frame*i_frames/180.*np.pi
+        
+        size_arg_x=size[0]*(1+size_velocity[0]*i_frames)
+        size_arg_y=size[1]*(1+size_velocity[1]*i_frames)
+        
+        a=(np.cos(rot_arg)/size_arg_x)**2+\
+          (np.sin(rot_arg)/size_arg_y)**2
+        b=-0.5*np.sin(2*rot_arg)/size_arg_x**2+\
+           0.5*np.sin(2*rot_arg)/size_arg_y**2
+        c=(np.sin(rot_arg)/size_arg_x)**2+\
+          (np.cos(rot_arg)/size_arg_y)**2
+          
         x0=r0[0]+displacement[0]*i_frames
         y0=r0[1]+displacement[1]*i_frames
+        
         frame=np.zeros([frame_size[0],frame_size[1]])
         for j_vertical in range(frame_size[1]):
             for k_radial in range(frame_size[0]):
