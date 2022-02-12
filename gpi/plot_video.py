@@ -281,7 +281,8 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                colormap='gist_ncar',
                                save_for_paraview=False,
                                colorbar_visibility=True,
-                               save_data_for_publication=False
+                               save_data_for_publication=False,
+                               data_filename=None,
                                ):
     
     if time_range is None and start_time is None:
@@ -471,7 +472,10 @@ def show_nstx_gpi_video_frames(exp_id=None,
                     string_add=str(sample)
                 else:
                     string_add=str(time)
-                filename=wd+'/NSTX_GPI_video_frames_'+str(exp_id)+'_'+string_add+'.txt'
+                if data_filename is None:
+                    filename=wd+'/data_accessibility/NSTX_GPI_video_frames_'+str(exp_id)+'_'+string_add+'.txt'
+                else:
+                    filename=data_filename
                 file1=open(filename, 'w+')
                 for i in range(len(data[0,:])):
                     string=''

@@ -13,6 +13,8 @@ import copy
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import MaxNLocator
+
 import pickle
 import numpy as np
 import matplotlib.cm as cm
@@ -29,38 +31,6 @@ thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
-#Plot settings for publications
-publication=True
-if publication:
-    #figsize=(8.5/2.54, 
-    #         8.5/2.54/1.618*1.1)
-    figsize=(17/2.54,10/2.54)
-    plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=6
-    linewidth=0.5
-    major_ticksize=2
-    plt.rc('text', usetex=False)
-    plt.rcParams['pdf.fonttype'] = 42
-    plt.rcParams['ps.fonttype'] = 42
-    plt.rcParams['lines.linewidth'] = linewidth
-    plt.rcParams['axes.linewidth'] = linewidth
-    plt.rcParams['axes.labelsize'] = labelsize
-    plt.rcParams['axes.titlesize'] = labelsize
-    
-    plt.rcParams['xtick.labelsize'] = labelsize
-    plt.rcParams['xtick.major.size'] = major_ticksize
-    plt.rcParams['xtick.major.width'] = linewidth
-    plt.rcParams['xtick.minor.width'] = linewidth/2
-    plt.rcParams['xtick.minor.size'] = major_ticksize/2
-    
-    plt.rcParams['ytick.labelsize'] = labelsize
-    plt.rcParams['ytick.major.width'] = linewidth
-    plt.rcParams['ytick.major.size'] = major_ticksize
-    plt.rcParams['ytick.minor.width'] = linewidth/2
-    plt.rcParams['ytick.minor.size'] = major_ticksize/2
-    plt.rcParams['legend.fontsize'] = labelsize
-else:
-    figsize=None
 #TODO            
 
     #These are for a different analysis and a different method
@@ -75,32 +45,75 @@ else:
 def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
                                         tau_range=[-500e-6,500e-6],
                                         sampling_time=2.5e-6,
-                                        pdf=False,
-                                        plot=True,
+
                                         return_results=False,
                                         return_error=False,
-                                        plot_variance=True,
-                                        plot_error=False,
                                         normalized_velocity=True,
                                         normalized_structure=True,
+                                        
                                         subtraction_order=4,
-                                        opacity=0.2,
                                         correlation_threshold=0.6,
-                                        plot_max_only=False,
-                                        plot_for_publication=False,
                                         gpi_plane_calculation=True,
-                                        plot_scatter=True,
+                                        
                                         elm_time_base='frame similarity',
                                         n_hist=50,
                                         min_max_range=False,
+                                        
                                         nocalc=False,
+                                        
+                                        plot=True,
+                                        plot_max_only=False,
+                                        plot_for_publication=False,
                                         general_plot=True,
                                         plot_for_velocity=False,
                                         plot_for_structure=False,
                                         plot_for_dependence=False,
+                                        plot_scatter=True,
+                                        plot_variance=True,
+                                        plot_error=False,
+                                        opacity=0.2,
+                                        
+                                        pdf=False,
+                                        pdf_filename=None,
+                                        
                                         structure_finding_method='contour',
                                         interpolation=False,
+                                        figure_size=8.5,
+                                        
                                         ):
+    #Plot settings for publications
+
+    if plot_for_publication:
+        figsize=(figure_size/2.54,figure_size/np.sqrt(2)/2.54)
+        plt.rc('font', family='serif', serif='Helvetica')
+        if figure_size >8.5:
+            labelsize=12
+        else:
+            labelsize=8
+        linewidth=0.4
+        major_ticksize=2
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+    else:
+        figsize=None
     
     if elm_time_base not in ['frame similarity', 'radial velocity']:
         raise ValueError('elm_time_base should be either "frame similarity" or "radial velocity"')
@@ -361,163 +374,212 @@ def plot_nstx_gpi_velocity_distribution(window_average=500e-6,
                'Data':result_histograms['Velocity ccf'][:,:,0],
                'Bins':(result_bins['Velocity ccf'][0:-1,0]+result_bins['Velocity ccf'][1:,0])/2e3,
                'Bar width':(result_bins['Velocity ccf'][1,0]-result_bins['Velocity ccf'][0,0])/1e3,
-               'ylabel':'v_rad [m/s]',
-               },
+               'ylabel':"$v_{rad}$",
+               'unit':'[km/s]',
+               },#0
     
               {'Title':'Poloidal velocity ccf',
                'Data':result_histograms['Velocity ccf'][:,:,1],
                'Bins':(result_bins['Velocity ccf'][0:-1,1]+result_bins['Velocity ccf'][1:,1])/2e3,
                'Bar width':(result_bins['Velocity ccf'][1,1]-result_bins['Velocity ccf'][0,1])/1e3,
-               'ylabel':'v_pol [m/s]',
-               },
+               'ylabel':"$v_{pol}$",
+               'unit':'[km/s]',
+               },#1
                
                {'Title':'Radial velocity str',
                'Data':result_histograms['Velocity str max'][:,:,0],
                'Bins':(result_bins['Velocity str max'][0:-1,0]+result_bins['Velocity str max'][1:,0])/2e3,
                'Bar width':(result_bins['Velocity str max'][1,0]-result_bins['Velocity str max'][0,0])/1e3,
-               'ylabel':'v_rad str [m/s]',
-               },
+               'ylabel':"$v_{rad}$",
+               'unit':'[km/s]',
+               },#2
                               
               {'Title':'Poloidal velocity str',
                'Data':result_histograms['Velocity str max'][:,:,1],
                'Bins':(result_bins['Velocity str max'][0:-1,1]+result_bins['Velocity str max'][1:,1])/2e3,
                'Bar width':(result_bins['Velocity str max'][1,1]-result_bins['Velocity str max'][0,1])/1e3,
-               'ylabel':'v_pol str [m/s]',
-               },
+               'ylabel':"$v_{pol}$",
+               'unit':'[km/s]',
+               },#3
               
               {'Title':'Size max radial',
                'Data':result_histograms['Size max'][:,:,0],
                'Bins':(result_bins['Size max'][0:-1,0]+result_bins['Size max'][1:,0])/2*1e3,
                'Bar width':(result_bins['Size max'][1,0]-result_bins['Size max'][0,0])*1e3,
-               'ylabel':'Radial size [mm]',
-               },
+               'ylabel':'Radial size',
+               'unit':'[mm]'
+               },#4
                
               {'Title':'Size max poloidal',
                'Data':result_histograms['Size max'][:,:,1],
                'Bins':(result_bins['Size max'][0:-1,1]+result_bins['Size max'][1:,1])/2*1e3,
                'Bar width':(result_bins['Size max'][1,1]-result_bins['Size max'][0,1])*1e3,
-               'ylabel':'Poloidal size [mm]',
-               },               
+               'ylabel':'Poloidal size',
+               'unit':'[mm]'
+               },#75   
               
               {'Title':'Elongation max',
                'Data':result_histograms['Elongation max'],
                'Bins':(result_bins['Elongation max'][0:-1]+result_bins['Elongation max'][1:])/2,
                'Bar width':(result_bins['Elongation max'][1]-result_bins['Elongation max'][0]),
-               'ylabel':'Elongation [a.u.]',
-               },
+               'ylabel':'Elongation',
+               'unit':'',
+               },#6
                
                {'Title':'Str number',
                'Data':result_histograms['Str number'],
                'Bins':(result_bins['Str number'][0:-1]+result_bins['Str number'][1:])/2,
                'Bar width':1,
                'ylabel':'Str number',
-               },
+               'unit':'',
+               },#7
                 
                {'Title':'Distance',
                 'Data':result_histograms['Separatrix dist max'],
                 'Bins':(result_bins['Separatrix dist max'][0:-1]+result_bins['Separatrix dist max'][1:])/2*1e3,
                 'Bar width':(result_bins['Separatrix dist max'][1]-result_bins['Separatrix dist max'][0])*1e3,
-                'ylabel':'Distance [mm]',
-               },
+                'ylabel':'$r-r_{sep}$',
+                'unit':'[mm]',
+               },#8
               ]
 
     y_vector_avg=[{'Title':'Radial velocity ccf',
                    'Data':moment_results['median']['Velocity ccf'][:,0]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf'][:,0]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf'][:,0]/1e3,
-                   'ylabel':'v_rad [m/s]',
-                   },
+                   'ylabel':"$v_{rad}$",
+                   'unit':'[km/s]',
+                   }, #0
         
                   {'Title':'Poloidal velocity ccf',
                    'Data':moment_results['median']['Velocity ccf'][:,1]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf'][:,1]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf'][:,1]/1e3,
-                   'ylabel':'v_pol [m/s]',
-                   },
+                   'ylabel':"$v_{pol}$",
+                   'unit':'[km/s]',
+                   }, #1
                    
                    {'Title':'Radial velocity str',
                     'Data':moment_results['median']['Velocity str max'][:,0]/1e3,
                     '10th':moment_results['10percentile']['Velocity str max'][:,0]/1e3,
                     '90th':moment_results['90percentile']['Velocity str max'][:,0]/1e3,
-                    'ylabel':'v_rad str [m/s]',
-                   },
+                    'ylabel':"$v_{rad}$",
+                    'unit':'[km/s]',
+                   }, #2
                                   
                   {'Title':'Poloidal velocity str',
                    'Data':moment_results['median']['Velocity str max'][:,1]/1e3,
                    '10th':moment_results['10percentile']['Velocity str max'][:,1]/1e3,
                    '90th':moment_results['90percentile']['Velocity str max'][:,1]/1e3,
-                   'ylabel':'v_pol str [m/s]',
-                   },
+                   'ylabel':"$v_{rad}$",
+                   'unit':'[km/s]',
+                   }, #3
                   
                   {'Title':'Size max radial',
                    'Data':moment_results['median']['Size max'][:,0]*1e3,
                    '10th':moment_results['10percentile']['Size max'][:,0]*1e3,
                    '90th':moment_results['90percentile']['Size max'][:,0]*1e3,
-                   'ylabel':'Radial size [mm]',
-                   },
+                   'ylabel':'Radial size',
+                   'unit':'[mm]',
+                   }, #4
                    
                   {'Title':'Size max poloidal',
                    'Data':moment_results['median']['Size max'][:,1]*1e3,
                    '10th':moment_results['10percentile']['Size max'][:,1]*1e3,
                    '90th':moment_results['90percentile']['Size max'][:,1]*1e3,
-                   'ylabel':'Poloidal size [mm]',
-                   },               
+                   'ylabel':'Poloidal size',
+                   'unit':'[mm]',
+                   }, #5 
                   
                   {'Title':'Elongation max',
                    'Data':moment_results['median']['Elongation max'],
                    '10th':moment_results['10percentile']['Elongation max'],
                    '90th':moment_results['90percentile']['Elongation max'],
-                   'ylabel':'Elongation [a.u.]',
-                   },
+                   'ylabel':'Elongation',
+                   'unit':'',
+                   },  #6
                   {'Title':'Str number',
                    'Data':moment_results['median']['Str number'],
                    '10th':moment_results['10percentile']['Str number'],
                    '90th':moment_results['90percentile']['Str number'],
                    'ylabel':'Str number',
-                   },
+                   'unit':'',
+                   },  #7
                   {'Title':'Separatrix dist.',
                    'Data':moment_results['median']['Separatrix dist max']*1e3,
                    '10th':moment_results['10percentile']['Separatrix dist max']*1e3,
                    '90th':moment_results['90percentile']['Separatrix dist max']*1e3,
-                   'ylabel':'Dist. [mm]'} 
+                   'ylabel':'$r-r_{sep}$',
+                   'unit':'[mm]',
+                   },  #8 
                   ]
     if general_plot:
-        pdf_object=PdfPages(wd+'/plots/all_velocity_results_histograms.pdf')
-        
+        if pdf:
+            if pdf_filename is None:
+                pdf_filename=wd+'/plots/all_velocity_results_histograms.pdf'
+            pdf_object=PdfPages(pdf_filename)
+            
+        if not plot:
+            import matplotlib
+            matplotlib.use('agg')
+            
+        def fmt(x, pos):
+            a = '{:3.2f}'.format(x)
+            return a
+            
         for i in range(len(y_vector)):
             plt.figure()
-            
-            plt.contourf(time_vec,
-                        y_vector[i]['Bins'],
-                        y_vector[i]['Data'].transpose(),
-                        levels=n_hist,
-                        )
-            plt.plot(time_vec,
+            fig,ax=plt.subplots(figsize=figsize)
+            im=ax.contourf(time_vec*1e3,
+                           y_vector[i]['Bins'],
+                           y_vector[i]['Data'].transpose(),
+                           levels=n_hist,
+                           )
+            ax.plot(time_vec*1e3,
                      y_vector_avg[i]['Data'],
                      color='red')
-            plt.plot(time_vec,
+            ax.plot(time_vec*1e3,
                      y_vector_avg[i]['10th'],
-                     color='magenta')
-            plt.plot(time_vec,
+                     color='white',
+                     lw=0.2)
+            ax.plot(time_vec*1e3,
                      y_vector_avg[i]['90th'],
-                     color='magenta')
-            plt.title('Relative frequency of '+y_vector[i]['ylabel'])
-            plt.xlabel('Time [ms]')
-            plt.ylabel(y_vector[i]['ylabel'])
-            plt.colorbar()
-            pdf_object.savefig()
+                     color='white',
+                     lw=0.2)
+            
+            ax.set_title('Relative frequency of '+y_vector[i]['ylabel'])
+            ax.set_xlabel('Time [$\mu$s]')
+            ax.set_ylabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
+            ax.xaxis.set_major_locator(MaxNLocator(5)) 
+            ax.yaxis.set_major_locator(MaxNLocator(5)) 
+            import matplotlib.ticker as ticker
+            cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt))
+            cbar.ax.tick_params(labelsize=6)
+            
+            plt.tight_layout(pad=0.1)
+            if pdf:
+                pdf_object.savefig()
             
         for i in range(len(y_vector)):
             plt.figure()
+            fig,ax=plt.subplots(figsize=figsize)
     #        plt.plot(y_vector[i]['Bins'], np.mean(y_vector[i]['Data'][nwin-2:nwin+3,:], axis=0))
-            plt.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
-            plt.xlabel(y_vector[i]['ylabel'])
-            plt.ylabel('f(x)')
-            plt.title('Probablity distibution of '+y_vector[i]['ylabel'])
-            pdf_object.savefig()
-        
-            
-        pdf_object.close()
+            ax.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
+            ax.set_xlabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
+            ax.set_ylabel('f(x)')
+            ax.set_title('PDF of '+y_vector[i]['ylabel'])
+            ax.xaxis.set_major_locator(MaxNLocator(5)) 
+            ax.yaxis.set_major_locator(MaxNLocator(5)) 
+            ax.axvline(x=y_vector_avg[i]['Data'][nwin], ymin=0.0,ymax=1.0, color='red')
+            ax.axvline(x=y_vector_avg[i]['10th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+            ax.axvline(x=y_vector_avg[i]['90th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+            plt.tight_layout(pad=0.1)
+            if pdf:
+                pdf_object.savefig()
+        if not plot:
+            matplotlib.use('qt5agg')
+        if pdf:
+            pdf_object.close()
         
     else:
         if plot_for_structure:
@@ -1119,7 +1181,7 @@ def plot_nstx_gpi_watershed_distribution(window_average=500e-6,
         for i in range(len(y_vector)):
             plt.figure()
             
-            plt.contourf(time_vec,
+            plt.contourf(time_vec*1e3,
                         y_vector[i]['Bins'],
                         y_vector[i]['Data'].transpose(),
                         levels=n_hist,
@@ -1133,10 +1195,12 @@ def plot_nstx_gpi_watershed_distribution(window_average=500e-6,
             plt.plot(time_vec,
                      y_vector_avg[i]['90th'],
                      color='magenta')
+            
             plt.title('Relative frequency of '+y_vector[i]['ylabel'])
-            plt.xlabel('Time [ms]')
+            plt.xlabel('Time [us]')
             plt.ylabel(y_vector[i]['ylabel'])
             plt.colorbar()
+            
             pdf_object.savefig()
             
         for i in range(len(y_vector)):

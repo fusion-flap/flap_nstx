@@ -508,16 +508,16 @@ def test_angular_displacement_estimation(gaussian=False,                        
         calculate_nstx_gpi_angular_velocity(exp_id=141319,
                                             time_range=[0.552,0.553],  
                                             normalize='roundtrip', 
-                                       normalize_for_size=True, 
-                                       skip_structure_calculation=False, 
-                                       plot=True, 
-                                       pdf=True,
-                                       nocalc=True,
-                                       plot_scatter=False,
-                                       plot_for_publication=True,
-                                   
-                                       return_results=True,
-                                       subtraction_order_for_velocity=4)
+                                            normalize_for_size=True, 
+                                            skip_structure_calculation=False, 
+                                            plot=True, 
+                                            pdf=True,
+                                            nocalc=True,
+                                            plot_scatter=False,
+                                            plot_for_publication=True,
+                                            
+                                            return_results=True,
+                                            subtraction_order_for_velocity=4)
         
     if plot_example_event_frames:
         plt.figure()

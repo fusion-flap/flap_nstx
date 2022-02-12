@@ -32,9 +32,9 @@ if publication:
     #         8.5/2.54/1.618*1.1)
     figsize=(17/2.54,10/2.54)
     plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=6
+    labelsize=12
     linewidth=0.5
-    major_ticksize=2
+    major_ticksize=4
     plt.rc('text', usetex=False)
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
@@ -83,7 +83,10 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
                                                 general_plot=True,
                                                 plot_for_velocity=False,
                                                 plot_for_structure=False,
-                                                plot_for_dependence=False,):
+                                                plot_for_dependence=False,
+                                                plot_for_pop_paper=False,
+                                                figure_filename=None):
+    
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
     
     time_vec, y_vector_rot, y_vector_avg_rot = plot_nstx_gpi_angular_velocity_distribution(return_results=True)
@@ -93,214 +96,302 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
     tau_ind=np.where(np.logical_and(time_vec >= tau_range[0]*1e3, time_vec <= tau_range[1]*1e3))
     y_vector_avg_tra[0]['Data']=y_vector_avg_tra[0]['Data'][tau_ind]  #vrad
     y_vector_avg_tra[1]['Data']=y_vector_avg_tra[1]['Data'][tau_ind]  #vpol
+    y_vector_avg_tra[2]['Data']=y_vector_avg_rot[3]['Data'][tau_ind]  #vrad skim
+    y_vector_avg_tra[3]['Data']=y_vector_avg_rot[4]['Data'][tau_ind]  #vpol skim
+    
     y_vector_avg_tra[4]['Data']=y_vector_avg_tra[4]['Data'][tau_ind]  #dpol
     y_vector_avg_tra[5]['Data']=y_vector_avg_tra[5]['Data'][tau_ind]  #drad
     y_vector_avg_tra[8]['Data']=y_vector_avg_tra[8]['Data'][tau_ind]  #r-r_sep
     
-    y_vector_avg_rot[6]['Data']=y_vector_avg_rot[6]['Data'][tau_ind] # ang vel skim
-    y_vector_avg_rot[7]['Data']=y_vector_avg_rot[7]['Data'][tau_ind] # ang vel flap
-    y_vector_avg_rot[8]['Data']=y_vector_avg_rot[8]['Data'][tau_ind] # exp vel skim
-    y_vector_avg_rot[9]['Data']=y_vector_avg_rot[9]['Data'][tau_ind] # exp vel flap
+    y_vector_avg_rot[4]['Data']=y_vector_avg_rot[4]['Data'][tau_ind] # ang vel skim
+    y_vector_avg_rot[5]['Data']=y_vector_avg_rot[5]['Data'][tau_ind] # ang vel flap
+    y_vector_avg_rot[6]['Data']=y_vector_avg_rot[6]['Data'][tau_ind] # exp vel skim
+    y_vector_avg_rot[7]['Data']=y_vector_avg_rot[7]['Data'][tau_ind] # exp vel flap
     
-    pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians_angular.pdf')
-    gs=GridSpec(2,2)
-    plt.figure()   
-    ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+    if not plot_for_pop_paper or figure_filename is None:
+        pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians_angular.pdf')
+    else:
+        pdf_object=PdfPages(figure_filename)
+        
+    if not plot_for_pop_paper:
+        gs=GridSpec(2,2)
+        plt.figure()   
+        ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        
+        plt.subplot(gs[0,0])
+        plt.plot(y_vector_avg_tra[3]['Data'],
+                 y_vector_avg_tra[2]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[3]['Data'][ind_a], 
+                        y_vector_avg_tra[2]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('v pol [km/s]')
+        plt.ylabel('v rad [km/s]')
+        plt.title('vrad vs. vpol')
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,1])
+        plt.plot(y_vector_avg_tra[5]['Data'],
+                 y_vector_avg_tra[4]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[5]['Data'][ind_a], 
+                        y_vector_avg_tra[4]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('d rad [mm]')
+        plt.ylabel('d pol [mm]')
+        plt.title('drad vs. dpol')
+        
+        # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        # plt.subplot(gs[1,0])
+        # plt.plot(y_vector_avg_tra[8]['Data'],
+        #          y_vector_avg_tra[0]['Data'],
+        #          lw='0.2')
+        # for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        #     color=copy.deepcopy(next(colors))
+        #     plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+        #                 y_vector_avg_tra[0]['Data'][ind_a], 
+        #                 color=color,
+        #                 s=1)
+        
+        # plt.xlabel('r-r_sep [mm]')
+        # plt.ylabel('vrad [km/s]')
+        # plt.title('r-r_sep vs. vrad')
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        plt.subplot(gs[1,0])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_tra[2]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_tra[2]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('vrad skim [km/s]')
+        plt.title('r-r_sep vs. vrad')
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        plt.subplot(gs[1,1])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_tra[3]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_tra[3]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('vpol skim [km/s]')
+        plt.title('r-r_sep vs. vpol')           
     
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        pdf_object.savefig()
+        
+        
+        #r-rsep vs angular results
+        
+        gs=GridSpec(2,2)
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,0])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[6]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[6]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('omega [1/s]')
+        plt.title('r-r_sep vs. omega skim')  
     
-    plt.subplot(gs[0,0])
-    plt.plot(y_vector_avg_tra[1]['Data'],
-             y_vector_avg_tra[0]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[1]['Data'][ind_a], 
-                    y_vector_avg_tra[0]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('v pol [km/s]')
-    plt.ylabel('v rad [km/s]')
-    plt.title('vrad vs. vpol')
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,1])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[7]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[7]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('omega [1/s]')
+        plt.title('r-r_sep vs. omega FLAP')  
     
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[0,1])
-    plt.plot(y_vector_avg_tra[5]['Data'],
-             y_vector_avg_tra[4]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[5]['Data'][ind_a], 
-                    y_vector_avg_tra[4]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('d rad [mm]')
-    plt.ylabel('d pol [mm]')
-    plt.title('drad vs. dpol')
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[1,0])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[8]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[8]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('exp vel [1/s]')
+        plt.title('r-r_sep vs. exp vel skim')  
     
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,0])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_tra[0]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_tra[0]['Data'][ind_a], 
-                    color=color,
-                    s=1)
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[1,1])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[9]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[9]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('exp vel [1/s]')
+        plt.title('r-r_sep vs. exp vel FLAP')      
+        
+        pdf_object.savefig()
+        
+        #v_rad vs angular results
+        
+        gs=GridSpec(2,2)
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,0])
+        plt.plot(y_vector_avg_tra[0]['Data'],
+                 y_vector_avg_rot[6]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
+                        y_vector_avg_rot[6]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('vrad [km/s]')
+        plt.ylabel('omega [1/s]')
+        plt.title('vrad vs. ang vel skim')   
     
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('vrad [km/s]')
-    plt.title('r-r_sep vs. vrad')
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,1])
+        plt.plot(y_vector_avg_tra[0]['Data'],
+                 y_vector_avg_rot[7]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
+                        y_vector_avg_rot[7]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('vrad [km/s]')
+        plt.ylabel('omega [1/s]')
+        plt.title('vrad vs. ang vel FLAP')   
     
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,1])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_tra[1]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_tra[1]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('vpol [km/s]')
-    plt.title('r-r_sep vs. vpol')           
-
-    pdf_object.savefig()
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        plt.subplot(gs[1,0])
+        plt.plot(y_vector_avg_tra[1]['Data'],
+                 y_vector_avg_rot[6]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[3]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[1]['Data'][ind_a], 
+                        y_vector_avg_rot[6]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('vpol skim [km/s]')
+        plt.ylabel('ang vel [1/s]')
+        plt.title('vpol skim vs. ang vel skim')   
     
-    
-    #r-rsep vs angular results
-    
-    gs=GridSpec(2,2)
-    
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[0,0])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_rot[6]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_rot[6]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('omega [1/s]')
-    plt.title('r-r_sep vs. omega skim')  
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[0,1])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_rot[7]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_rot[7]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('omega [1/s]')
-    plt.title('r-r_sep vs. omega FLAP')  
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,0])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_rot[8]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_rot[8]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('exp vel [1/s]')
-    plt.title('r-r_sep vs. exp vel skim')  
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,1])
-    plt.plot(y_vector_avg_tra[8]['Data'],
-             y_vector_avg_rot[9]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                    y_vector_avg_rot[9]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('r-r_sep [mm]')
-    plt.ylabel('exp vel [1/s]')
-    plt.title('r-r_sep vs. exp vel FLAP')      
-    
-    pdf_object.savefig()
-    
-    #v_rad vs angular results
-    
-    gs=GridSpec(2,2)
-    
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[0,0])
-    plt.plot(y_vector_avg_tra[0]['Data'],
-             y_vector_avg_rot[6]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                    y_vector_avg_rot[6]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('vrad [km/s]')
-    plt.ylabel('omega [1/s]')
-    plt.title('vrad vs. ang vel skim')   
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[0,1])
-    plt.plot(y_vector_avg_tra[0]['Data'],
-             y_vector_avg_rot[7]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                    y_vector_avg_rot[7]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('vrad [km/s]')
-    plt.ylabel('omega [1/s]')
-    plt.title('vrad vs. ang vel FLAP')   
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,0])
-    plt.plot(y_vector_avg_tra[0]['Data'],
-             y_vector_avg_rot[8]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                    y_vector_avg_rot[8]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('vrad [km/s]')
-    plt.ylabel('exp vel [1/s]')
-    plt.title('vrad vs. exp vel sim')   
-
-    colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
-    plt.subplot(gs[1,1])
-    plt.plot(y_vector_avg_tra[0]['Data'],
-             y_vector_avg_rot[9]['Data'],
-             lw='0.2')
-    for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
-        color=copy.deepcopy(next(colors))
-        plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                    y_vector_avg_rot[9]['Data'][ind_a], 
-                    color=color,
-                    s=1)
-    plt.xlabel('vrad [km/s]')
-    plt.ylabel('exp vel [1/s]')
-    plt.title('vrad vs. exp vel FLAP')          
-    pdf_object.savefig()
-    
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        plt.subplot(gs[1,1])
+        plt.plot(y_vector_avg_tra[1]['Data'],
+                 y_vector_avg_rot[7]['Data'],
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[3]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[1]['Data'][ind_a], 
+                        y_vector_avg_rot[7]['Data'][ind_a], 
+                        color=color,
+                        s=1)
+        plt.xlabel('vpol skim [km/s]')
+        plt.ylabel('ang vel [1/s]')
+        plt.title('vpol skim vs. ang vel FLAP')          
+        pdf_object.savefig()
+    else:
+        gs=GridSpec(2,2)
+        plt.figure()   
+        ax,fig=plt.subplots(figsize=(17/2.54,14/2.54))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        
+        plt.subplot(gs[0,0])
+        plt.plot(y_vector_avg_tra[0]['Data'],
+                 y_vector_avg_rot[7]['Data']/1e3,
+                 lw='0.2')
+        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
+                        y_vector_avg_rot[7]['Data'][ind_a]/1e3, 
+                        color=color,
+                        s=4)
+        plt.xlabel('v rad [km/s]')
+        plt.ylabel('omega [krad/s]')
+        plt.title('vrad vs. omega')
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[0,1])
+        plt.plot(y_vector_avg_tra[0]['Data'],
+                 y_vector_avg_rot[9]['Data'],
+                 lw='0.5')
+        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
+                        y_vector_avg_rot[9]['Data'][ind_a], 
+                        color=color,
+                        s=4)
+        plt.xlabel('vrad [km/s]')
+        plt.ylabel('exp vel')
+        plt.title('vrad vs. exp vel')
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        
+        plt.subplot(gs[1,0])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[7]['Data']/1e3,
+                 lw='0.5')
+        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[7]['Data'][ind_a]/1e3, 
+                        color=color,
+                        s=4)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('omega [krad/s]')
+        plt.title('r-r_sep vs. omega')
+        
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        plt.subplot(gs[1,1])
+        plt.plot(y_vector_avg_tra[8]['Data'],
+                 y_vector_avg_rot[9]['Data'],
+                 lw='0.5')
+        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+            color=copy.deepcopy(next(colors))
+            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
+                        y_vector_avg_rot[9]['Data'][ind_a], 
+                        color=color,
+                        s=4)
+        plt.xlabel('r-r_sep [mm]')
+        plt.ylabel('exp vel')
+        plt.title('r-r_sep vs. exp vel')
+        plt.tight_layout()
+        pdf_object.savefig()
     pdf_object.close()

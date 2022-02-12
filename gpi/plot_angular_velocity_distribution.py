@@ -19,6 +19,8 @@ import copy
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MaxNLocator
+
 import pickle
 import numpy as np
 
@@ -34,38 +36,6 @@ thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn) 
 
-#Plot settings for publications
-publication=True
-if publication:
-    #figsize=(8.5/2.54, 
-    #         8.5/2.54/1.618*1.1)
-    figsize=(17/2.54,10/2.54)
-    plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=6
-    linewidth=0.5
-    major_ticksize=2
-    plt.rc('text', usetex=False)
-    plt.rcParams['pdf.fonttype'] = 42
-    plt.rcParams['ps.fonttype'] = 42
-    plt.rcParams['lines.linewidth'] = linewidth
-    plt.rcParams['axes.linewidth'] = linewidth
-    plt.rcParams['axes.labelsize'] = labelsize
-    plt.rcParams['axes.titlesize'] = labelsize
-    
-    plt.rcParams['xtick.labelsize'] = labelsize
-    plt.rcParams['xtick.major.size'] = major_ticksize
-    plt.rcParams['xtick.major.width'] = linewidth
-    plt.rcParams['xtick.minor.width'] = linewidth/2
-    plt.rcParams['xtick.minor.size'] = major_ticksize/2
-    
-    plt.rcParams['ytick.labelsize'] = labelsize
-    plt.rcParams['ytick.major.width'] = linewidth
-    plt.rcParams['ytick.major.size'] = major_ticksize
-    plt.rcParams['ytick.minor.width'] = linewidth/2
-    plt.rcParams['ytick.minor.size'] = major_ticksize/2
-    plt.rcParams['legend.fontsize'] = labelsize
-else:
-    figsize=None
 #TODO            
 
     #These are for a different analysis and a different method
@@ -103,8 +73,46 @@ def plot_nstx_gpi_angular_velocity_distribution(window_average=500e-6,
                                                 plot_for_velocity=False,
                                                 plot_for_structure=False,
                                                 plot_for_dependence=False,
+                                                pdf_filename=None,
+                                                figure_size=8.5,
                                                 ):
-    
+    #Plot settings for publications
+
+    if plot_for_publication:
+        #figsize=(8.5/2.54, 
+        #         8.5/2.54/1.618*1.1)
+        figsize=(figure_size/2.54,figure_size/np.sqrt(2)/2.54)
+        plt.rc('font', family='serif', serif='Helvetica')
+        if figure_size > 8.5:
+            labelsize=12
+        else:
+            labelsize=8
+        linewidth=0.4
+        major_ticksize=2
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+    else:
+        figsize=None
+        
     if elm_time_base not in ['frame similarity', 'radial velocity']:
         raise ValueError('elm_time_base should be either "frame similarity" or "radial velocity"')
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
@@ -153,14 +161,14 @@ def plot_nstx_gpi_angular_velocity_distribution(window_average=500e-6,
                        }
     
     average_results={'Velocity ccf FLAP':np.zeros([2*nwin,2]),
-                       'Angular velocity ccf FLAP':np.zeros([2*nwin]),
-                       'Expansion velocity ccf FLAP':np.zeros([2*nwin]),
+                     'Angular velocity ccf FLAP':np.zeros([2*nwin]),
+                     'Expansion velocity ccf FLAP':np.zeros([2*nwin]),
                           
-                       'Velocity ccf':np.zeros([2*nwin,2]),
-                       'Velocity ccf skim':np.zeros([2*nwin,2]),
-                       'Angular velocity ccf':np.zeros([2*nwin]),
-                       'Expansion velocity ccf':np.zeros([2*nwin]), 
-                       }
+                     'Velocity ccf':np.zeros([2*nwin,2]),
+                     'Velocity ccf skim':np.zeros([2*nwin,2]),
+                     'Angular velocity ccf':np.zeros([2*nwin]),
+                     'Expansion velocity ccf':np.zeros([2*nwin]), 
+                     }
     
     moment_results={'average':copy.deepcopy(average_results),
                     'median':copy.deepcopy(average_results),
@@ -288,178 +296,201 @@ def plot_nstx_gpi_angular_velocity_distribution(window_average=500e-6,
                'Data':result_histograms['Velocity ccf FLAP'][:,:,0],
                'Bins':(result_bins['Velocity ccf FLAP'][0:-1,0]+result_bins['Velocity ccf FLAP'][1:,0])/2e3,
                'Bar width':(result_bins['Velocity ccf FLAP'][1,0]-result_bins['Velocity ccf FLAP'][0,0])/1e3,
-               'ylabel':'v_rad FLAP[m/s]',
-               },
+               'ylabel':'$v_{rad}$',
+               'unit':'[km/s]',
+               },#0
     
               {'Title':'Poloidal velocity ccf FLAP',
                'Data':result_histograms['Velocity ccf FLAP'][:,:,1],
                'Bins':(result_bins['Velocity ccf FLAP'][0:-1,1]+result_bins['Velocity ccf FLAP'][1:,1])/2e3,
                'Bar width':(result_bins['Velocity ccf FLAP'][1,1]-result_bins['Velocity ccf FLAP'][0,1])/1e3,
-               'ylabel':'v_pol FLAP [m/s]',
-               },
-              
-              {'Title':'Radial velocity ccf',
-               'Data':result_histograms['Velocity ccf'][:,:,0],
-               'Bins':(result_bins['Velocity ccf'][0:-1,0]+result_bins['Velocity ccf'][1:,0])/2e3,
-               'Bar width':(result_bins['Velocity ccf'][1,0]-result_bins['Velocity ccf'][0,0])/1e3,
-               'ylabel':'v_rad [m/s]',
-               },
-    
-              {'Title':'Poloidal velocity ccf',
-               'Data':result_histograms['Velocity ccf'][:,:,1],
-               'Bins':(result_bins['Velocity ccf'][0:-1,1]+result_bins['Velocity ccf'][1:,1])/2e3,
-               'Bar width':(result_bins['Velocity ccf'][1,1]-result_bins['Velocity ccf'][0,1])/1e3,
-               'ylabel':'v_pol [m/s]',
-               },
+               'ylabel':'$v_{pol}$',
+               'unit':'[km/s]',
+               },#1
               
               {'Title':'Radial velocity ccf skim',
                'Data':result_histograms['Velocity ccf skim'][:,:,0],
                'Bins':(result_bins['Velocity ccf skim'][0:-1,0]+result_bins['Velocity ccf skim'][1:,0])/2e3,
                'Bar width':(result_bins['Velocity ccf skim'][1,0]-result_bins['Velocity ccf skim'][0,0])/1e3,
-               'ylabel':'v_rad skim [m/s]',
-               },
+               'ylabel':'$v_{rad}$',
+               'unit':'[km/s]',
+               },#2
     
               {'Title':'Poloidal velocity ccf skim',
                'Data':result_histograms['Velocity ccf skim'][:,:,1],
                'Bins':(result_bins['Velocity ccf skim'][0:-1,1]+result_bins['Velocity ccf skim'][1:,1])/2e3,
                'Bar width':(result_bins['Velocity ccf skim'][1,1]-result_bins['Velocity ccf skim'][0,1])/1e3,
-               'ylabel':'v_pol skim[m/s]',
-               },            
+               'ylabel':'$v_{pol}$',
+               'unit':'[km/s]',
+               },#3          
               
               {'Title':'Angular velocity ccf',
                'Data':result_histograms['Angular velocity ccf'],
-               'Bins':(result_bins['Angular velocity ccf'][0:-1]+result_bins['Angular velocity ccf'][1:])/2,
-               'Bar width':(result_bins['Angular velocity ccf'][1]-result_bins['Angular velocity ccf'][0]),
-               'ylabel':'Angular velocity ccf',
-               },
+               'Bins':(result_bins['Angular velocity ccf'][0:-1]+result_bins['Angular velocity ccf'][1:])/2e3,
+               'Bar width':(result_bins['Angular velocity ccf'][1]-result_bins['Angular velocity ccf'][0])/1e3,
+               'ylabel':'$\omega$',
+               'unit':'[krad/s]',
+               },#4
                             
                {'Title':'Angular velocity ccf FLAP',
                'Data':result_histograms['Angular velocity ccf FLAP'],
-               'Bins':(result_bins['Angular velocity ccf FLAP'][0:-1]+result_bins['Angular velocity ccf FLAP'][1:])/2,
-               'Bar width':(result_bins['Angular velocity ccf FLAP'][1]-result_bins['Angular velocity ccf FLAP'][0]),
-               'ylabel':'Angular velocity ccf FLAP',
-               },
+               'Bins':(result_bins['Angular velocity ccf FLAP'][0:-1]+result_bins['Angular velocity ccf FLAP'][1:])/2e3,
+               'Bar width':(result_bins['Angular velocity ccf FLAP'][1]-result_bins['Angular velocity ccf FLAP'][0])/1e3,
+               'ylabel':'$\omega$',
+               'unit':'[krad/s]',
+               },#5
                                           
                {'Title':'Expansion velocity ccf',
                'Data':result_histograms['Expansion velocity ccf'],
                'Bins':(result_bins['Expansion velocity ccf'][0:-1]+result_bins['Expansion velocity ccf'][1:])/2,
                'Bar width':(result_bins['Expansion velocity ccf'][1]-result_bins['Expansion velocity ccf'][0]),
-               'ylabel':'Expansion velocity ccf',
-               },
+               'ylabel':'exp. vel.',
+               'unit':'',
+               },#6
+               
                {'Title':'Expansion velocity ccf FLAP',
                'Data':result_histograms['Expansion velocity ccf FLAP'],
                'Bins':(result_bins['Expansion velocity ccf FLAP'][0:-1]+result_bins['Expansion velocity ccf FLAP'][1:])/2,
                'Bar width':(result_bins['Expansion velocity ccf FLAP'][1]-result_bins['Expansion velocity ccf FLAP'][0]),
-               'ylabel':'Expansion velocity ccf FLAP',
-               },
+               'ylabel':'exp. vel.',
+               'unit':'',
+               },#7
               ]
 
     y_vector_avg=[{'Title':'Radial velocity ccf FLAP',
                    'Data':moment_results['median']['Velocity ccf FLAP'][:,0]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf FLAP'][:,0]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf FLAP'][:,0]/1e3,
-                   'ylabel':'v_rad FLAP[m/s]',
-                   },
+                   'ylabel':'$v_{rad}$',
+                   'unit':'km/s'
+                   }, #0
         
                   {'Title':'Poloidal velocity ccf FLAP',
                    'Data':moment_results['median']['Velocity ccf FLAP'][:,1]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf FLAP'][:,1]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf FLAP'][:,1]/1e3,
-                   'ylabel':'v_pol FLAP[m/s]',
-                   },
-                  
-                  {'Title':'Radial velocity ccf',
-                   'Data':moment_results['median']['Velocity ccf'][:,0]/1e3,
-                   '10th':moment_results['10percentile']['Velocity ccf'][:,0]/1e3,
-                   '90th':moment_results['90percentile']['Velocity ccf'][:,0]/1e3,
-                   'ylabel':'v_rad ccf[m/s]',
-                   },
-        
-                  {'Title':'Poloidal velocity ccf',
-                   'Data':moment_results['median']['Velocity ccf'][:,1]/1e3,
-                   '10th':moment_results['10percentile']['Velocity ccf'][:,1]/1e3,
-                   '90th':moment_results['90percentile']['Velocity ccf'][:,1]/1e3,
-                   'ylabel':'v_pol ccf[m/s]',
-                   },
+                   'ylabel':'$v_{pol}$',
+                   'unit':'km/s'
+                   }, #1
                   
                   {'Title':'Radial velocity ccf skim',
                    'Data':moment_results['median']['Velocity ccf skim'][:,0]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf skim'][:,0]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf skim'][:,0]/1e3,
-                   'ylabel':'v_rad skim [m/s]',
-                   },
+                   'ylabel':'$v_{rad}$',
+                   'unit':'km/s'
+                   }, #2
         
                   {'Title':'Poloidal velocity ccf skim',
                    'Data':moment_results['median']['Velocity ccf skim'][:,1]/1e3,
                    '10th':moment_results['10percentile']['Velocity ccf skim'][:,1]/1e3,
                    '90th':moment_results['90percentile']['Velocity ccf skim'][:,1]/1e3,
-                   'ylabel':'v_pol skim[m/s]',
-                   },
+                   'ylabel':'$v_{pol}$',
+                   'unit':'km/s'
+                   }, #3
                   
-                  {'Title':'Angular velocity ccf',
-                   'Data':moment_results['median']['Angular velocity ccf'],
-                   '10th':moment_results['10percentile']['Angular velocity ccf'],
-                   '90th':moment_results['90percentile']['Angular velocity ccf'],
-                   'ylabel':'Angular velocity ccf',
-                   },
+                  {'Title':'Angular velocity ccf skim',
+                   'Data':moment_results['median']['Angular velocity ccf']/1e3,
+                   '10th':moment_results['10percentile']['Angular velocity ccf']/1e3,
+                   '90th':moment_results['90percentile']['Angular velocity ccf']/1e3,
+                   'ylabel':'$\omega$',
+                   'unit':'[krad/s]',
+                   }, #4
+                  
                   {'Title':'Angular velocity ccf FLAP',
-                   'Data':moment_results['median']['Angular velocity ccf FLAP'],
-                   '10th':moment_results['10percentile']['Angular velocity ccf FLAP'],
-                   '90th':moment_results['90percentile']['Angular velocity ccf FLAP'],
-                   'ylabel':'Angular velocity ccf FLAP',
-                   },
+                   'Data':moment_results['median']['Angular velocity ccf FLAP']/1e3,
+                   '10th':moment_results['10percentile']['Angular velocity ccf FLAP']/1e3,
+                   '90th':moment_results['90percentile']['Angular velocity ccf FLAP']/1e3,
+                   'ylabel':'$\omega$',
+                   'unit':'[krad/s]',
+                   }, #5
 
-                  {'Title':'Expansion velocity ccf',
+                  {'Title':'Expansion velocity ccf skim',
                    'Data':moment_results['median']['Expansion velocity ccf'],
                    '10th':moment_results['10percentile']['Expansion velocity ccf'],
                    '90th':moment_results['90percentile']['Expansion velocity ccf'],
-                   'ylabel':'Expansion velocity ccf',
-                   },   
+                   'ylabel':'exp. vel.',
+                   'unit':'',
+                   }, #6
+                  
                   {'Title':'Expansion velocity ccf FLAP',
                    'Data':moment_results['median']['Expansion velocity ccf FLAP'],
                    '10th':moment_results['10percentile']['Expansion velocity ccf FLAP'],
                    '90th':moment_results['90percentile']['Expansion velocity ccf FLAP'],
-                   'ylabel':'Expansion velocity ccf FLAP',
-                   },                  
+                   'ylabel':'exp. vel.',
+                   'unit':'',
+                   }, #7
                   ]
-
-    pdf_object=PdfPages(wd+'/plots/all_angular_velocity_results_histograms.pdf')
-    
-    for i in range(len(y_vector)):
-        plt.figure()
+    if pdf:
+        if pdf_filename is None:
+            pdf_filename=wd+'/plots/all_angular_velocity_results_histograms.pdf'
+        pdf_object=PdfPages(pdf_filename)
         
-        plt.contourf(time_vec,
+    if not plot:
+        import matplotlib
+        matplotlib.use('agg')
+        
+    def fmt(x, pos):
+        a = '{:3.2f}'.format(x)
+        return a    
+        
+    for i in range(len(y_vector)):
+        
+        plt.figure()
+        fig,ax=plt.subplots(figsize=figsize)
+        im=ax.contourf(time_vec*1e3,
                     y_vector[i]['Bins'],
                     y_vector[i]['Data'].transpose(),
                     levels=n_hist,
                     )
-        plt.plot(time_vec,
+        ax.plot(time_vec*1e3,
                  y_vector_avg[i]['Data'],
                  color='red')
-        plt.plot(time_vec,
+        ax.plot(time_vec*1e3,
                  y_vector_avg[i]['10th'],
-                 color='magenta')
-        plt.plot(time_vec,
+                 color='white',
+                 lw=linewidth/2)
+        ax.plot(time_vec*1e3,
                  y_vector_avg[i]['90th'],
-                 color='magenta')
-        plt.title('Relative frequency of '+y_vector[i]['ylabel'])
-        plt.xlabel('Time [ms]')
-        plt.ylabel(y_vector[i]['ylabel'])
-        plt.colorbar()
-        pdf_object.savefig()
+                 color='white',
+                 lw=linewidth/2)
+        ax.set_ylim(np.min(y_vector_avg[i]['10th']),np.max(y_vector_avg[i]['90th']))
+        ax.set_title(y_vector[i]['Title'].replace(" FLAP", ""))
+        ax.set_xlabel('Time [$\mu$s]')
+        ax.set_ylabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5)) 
+        
+        import matplotlib.ticker as ticker
+        cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt))
+        cbar.ax.tick_params(labelsize=6)
+        plt.tight_layout(pad=0.1)
+        if pdf:
+            pdf_object.savefig()
         
     for i in range(len(y_vector)):
         plt.figure()
-#        plt.plot(y_vector[i]['Bins'], np.mean(y_vector[i]['Data'][nwin-2:nwin+3,:], axis=0))
-        plt.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
-        plt.xlabel(y_vector[i]['ylabel'])
-        plt.ylabel('f(x)')
-        plt.title('Probablity distibution of '+y_vector[i]['ylabel'])
-        pdf_object.savefig()
-    
+        fig,ax=plt.subplots(figsize=figsize)
+        ax.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
+        plt.axvline(x=y_vector_avg[i]['Data'][nwin], ymin=0.0,ymax=1.0, color='red')
+        plt.axvline(x=y_vector_avg[i]['10th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+        plt.axvline(x=y_vector_avg[i]['90th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+        ax.set_xlabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
+        ax.set_ylabel('f(x)')
+        ax.set_title(y_vector[i]['Title'].replace(" FLAP", ""))
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5)) 
+        plt.tight_layout(pad=0.1)
         
-    pdf_object.close()
+        if pdf:
+            pdf_object.savefig()
     
+    if pdf:
+        pdf_object.close()
+        
+    if not plot:
+        matplotlib.use('qt5agg')
+        
     if return_results:
         return time_vec, y_vector, y_vector_avg
     
