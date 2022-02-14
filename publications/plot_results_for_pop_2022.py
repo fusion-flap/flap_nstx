@@ -10,6 +10,7 @@ import os
 import copy
 import pickle
 
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -111,7 +112,7 @@ def plot_results_for_pop_2022(plot_figure=2,
     Flowchart of the Fourier Mellin based method
     """
     if plot_figure == 5:
-        print('This is the flowchart figure, no need for calculation.')
+        print('This is the flowchart figure, no need to plot.')
         
         
     """
@@ -486,7 +487,7 @@ def plot_results_for_pop_2022(plot_figure=2,
     Dependence on plasma parameters
     """
     if plot_figure == 11:
-        pass
+        raise NoobError('The idiot should have already finished this...')
    
     """
     Form factors vs. experimental observations

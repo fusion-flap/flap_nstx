@@ -723,7 +723,8 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                     plt.cla()
                     plt.clf()
                     
-                max_index=np.asarray(np.unravel_index(ccf_object_polar.data.argmax(), ccf_object_polar.data.shape))
+                max_index=np.asarray(np.unravel_index(ccf_object_polar.data.argmax(), 
+                                                      ccf_object_polar.data.shape))
                 
                 #Fit a 2D polinomial on top of the peak
     

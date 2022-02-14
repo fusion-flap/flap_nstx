@@ -37,6 +37,7 @@ def get_data_thomson(exp_id=None,
                        'Density': False,
                        'Pressure': False,
                        'test': False,
+                       
                        'output_name': None,
                        'add_flux_coordinates': False,
                        'spline_data': False,

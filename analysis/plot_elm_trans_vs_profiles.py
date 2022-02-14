@@ -16,10 +16,8 @@ import pickle
 
 import flap
 import flap_nstx
-
-from flap_nstx.gpi import calculate_nstx_gpi_avg_frame_velocity, calculate_nstx_gpi_smooth_velocity
-from flap_nstx.thomson import flap_nstx_thomson_data, get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
-from flap_nstx.publications import read_ahmed_fit_parameters
+from flap_nstx.thomson import get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
+from flap_nstx.analysis import read_ahmed_fit_parameters
 
 from matplotlib.backends.backend_pdf import PdfPages
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -42,7 +40,13 @@ def get_all_thomson_data_for_elms():
         previous_shot=shot
         start_time=time.time()
         try:
-            a=flap_nstx_thomson_data(shot, force_mdsplus=True)
+            thomson=flap.get_data('NSTX_THOMSON', 
+                                  exp_id=shot,
+                                  object_name='THOMSON_FOR_GRADIENT', 
+                                  options={'pressure':True,
+                                           'temperature':False,
+                                           'density':False,
+                                           'force_mdsplus':True})
         except:
             failed_shot.append({'Shot':shot})
             n_fail_shots+=1.
@@ -218,6 +222,7 @@ def plot_elm_properties_vs_gradient(elm_duration=100e-6,
         import matplotlib
         matplotlib.use('agg')
         import matplotlib.pyplot as plt
+        
     if plot_preliminary:
         y_variables=[gpi_results_avg,gpi_results_max]
         title_addon=['(temporal avg)','(range max)']
@@ -637,9 +642,11 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
             gradient={'Pressure':[],
                       'Density':[],
                       'Temperature':[]}
+            
             gradient_error={'Pressure':[],
                             'Density':[],
                             'Temperature':[]}
+            
             gpi_results_avg={'Velocity ccf':[],
                              'Velocity str avg':[],
                              'Velocity str max':[],
@@ -1102,6 +1109,7 @@ def plot_elm_parameters_vs_ahmed_fitting(averaging='before',
         gradient_error={'Pressure':[],
                         'Density':[],
                         'Temperature':[]}
+        
         gpi_results_avg={'Velocity ccf':[],
                          'Velocity str avg':[],
                          'Velocity str max':[],
