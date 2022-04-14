@@ -33,9 +33,9 @@ def get_data_thomson(exp_id=None,
                      coordinates=None, 
                      data_source=None):
         
-    default_options = {'Temperature': False,
-                       'Density': False,
-                       'Pressure': False,
+    default_options = {'temperature': False,
+                       'density': False,
+                       'pressure': False,
                        'test': False,
                        
                        'output_name': None,
@@ -46,9 +46,9 @@ def get_data_thomson(exp_id=None,
     
     _options = flap.config.merge_options(default_options,options,data_source=data_source)
     
-    temperature=_options['Temperature']
-    density=_options['Density']
-    pressure=_options['Pressure']
+    temperature=_options['temperature']
+    density=_options['density']
+    pressure=_options['pressure']
     test=_options['test']
     output_name=_options['output_name']
     add_flux_coordinates=_options['add_flux_coordinates']
@@ -93,7 +93,7 @@ def get_data_thomson(exp_id=None,
 
         thomson={}
         for name in mdsnames:
-            thomson[name]=conn.get('\TS_BEST:'+name).data()
+            thomson[name]=conn.get('\\TS_BEST:'+name).data()
             if name == 'ts_times' and type(thomson[name]) is str:
                 raise ValueError('No Thomson data available.')
         
@@ -114,8 +114,10 @@ def get_data_thomson(exp_id=None,
     else:
         thomson=pickle.load(open(filename, 'rb'))
     
-    thomson_time=thomson['ts_times']
-    
+    try:
+        thomson_time=thomson['TS_TIMES']
+    except:
+        thomson_time=thomson['ts_times']
     coord = []
 
     coord.append(copy.deepcopy(flap.Coordinate(name='Time',

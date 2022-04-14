@@ -57,6 +57,7 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
         raise ValueError('When flux or device coordinates are set, only flux or radial range can be set! Returning...')
     d=flap.get_data('NSTX_THOMSON', 
                     exp_id=exp_id,
+                    name='',
                     object_name='THOMSON_DATA', 
                     options={'pressure':pressure,
                              'temperature':temperature,
@@ -74,20 +75,31 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
                      'Data':d.data,
                      'Device R':d.coordinate('Device R')[0],
                      'Flux r':d.coordinate('Flux r')[0],
+                     'a':np.zeros(time.shape),
+                     
                      'Height':np.zeros(time.shape),
                      'Width':np.zeros(time.shape),
-                     'a':np.zeros(time.shape),
-                     'Slope':np.zeros(time.shape),
+                     'Global gradient':np.zeros(time.shape),
                      'Position':np.zeros(time.shape),
+                     'Position r':np.zeros(time.shape),
                      'SOL offset':np.zeros(time.shape),
                      'Max gradient':np.zeros(time.shape),
                      'Value at max':np.zeros(time.shape),
+                     
                      'Error':{'Height':np.zeros(time.shape),
                               'SOL offset':np.zeros(time.shape),
                               'Position':np.zeros(time.shape),
+                              'Position r':np.zeros(time.shape),
                               'Width':np.zeros(time.shape),
-                              'Max gradient':np.zeros(time.shape)}
+                              'Global gradient':np.zeros(time.shape),
+                              'Max gradient':np.zeros(time.shape),
+                              'Value at max':np.zeros(time.shape),
+                              },
                      }
+    if modified_tanh:
+        thomson_profile['Slope']=np.zeros(time.shape)
+        thomson_profile['Error']['Slope']=np.zeros(time.shape)
+        
     if test:
         plt.figure()
     if flux_range is not None:
@@ -118,20 +130,19 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
             
         if np.sum(np.isinf(x_data)) != 0:
             continue
+
+        ind_coord=np.where(np.logical_and(x_data > x_range[0],
+                                          x_data <= x_range[1]))
+        x_data=x_data[ind_coord]
+        y_data=y_data[ind_coord]
+        y_data_error=y_data_error[ind_coord]
         try:
-            ind_coord=np.where(np.logical_and(x_data > x_range[0],
-                                              x_data <= x_range[1]))
-            x_data=x_data[ind_coord]
-            y_data=y_data[ind_coord]
-            y_data_error=y_data_error[ind_coord]
-    #        print(x_data)
-    #        print(ind_coord)
             if not modified_tanh:
                 p0=[y_data[0],                                      #b_height
                     y_data[-1],                                     #b_sol
                     x_data[0],                                      #b_pos
                     (x_data[-1]-x_data[0])/2.,                      #b_width
-                    #(y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]), #b_slope this is supposed to be some kind of liear modification to the 
+                    #(y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]), #b_slope this is supposed to be some kind of linear modification to the 
                                                                     #tanh function called mtanh. It messes up the fitting quite a bit and it's not useful at all.
                     ]
     
@@ -140,80 +151,101 @@ def get_fit_nstx_thomson_profiles(exp_id=None,                                  
                     y_data[-1],                                     #b_sol
                     x_data[0],                                      #b_pos
                     (x_data[-1]-x_data[0])/2.,                      #b_width
-                    (y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]),
-                    ]
+                    (y_data[0]-y_data[-1])/(x_data[0]-x_data[-1]),  #b_slope this is supposed to be some kind of linear modification to the 
+                                                                    #tanh function called mtanh. It messes up the fitting quite a bit and it's not useful at all.
                     
-        
+                    ]
+        except:
+            print('Missing TS data for shot '+str(exp_id)+', time: '+ str(time[i_time]))
+        try:
             popt, pcov = curve_fit(tanh_fit_function, 
                                    x_data, 
                                    y_data, 
                                    sigma=y_data_error,
                                    p0=p0)
-            
             perr = np.sqrt(np.diag(pcov))
-            if test or (plot_time is not None and np.abs(plot_time-time[i_time]) < 1e-3):
-                plt.cla()
-                plt.scatter(x_data,
-                            y_data,
-                            color='tab:blue')
-                plt.errorbar(x_data,
-                             y_data,
-                             yerr=y_data_error,
-                             marker='o', 
-                             color='tab:blue',
-                             ls='')
-                plt.plot(x_data,tanh_fit_function(x_data,*popt))
-                
-                if flux_coordinates:
-                    xlabel='PSI_norm'
-                else:
-                    xlabel='Device R [m]'
-                    
-                if temperature:
-                    profile_string='temperature'
-                    ylabel='Temperature [keV]'
-                
-                elif density:
-                    profile_string='density'
-                    ylabel='Density [1/m3]'
-                elif pressure:
-                    profile_string='pressure'
-                    ylabel='Pressure [kPa]'
-                    
-                time_string=' @ '+str(time[i_time])
-                plt.title('Fit '+profile_string+' profile of '+str(exp_id)+time_string)
-                plt.xlabel(xlabel)
-                plt.ylabel(ylabel)
-                plt.pause(1.0)
-
-                if pdf_object is not None:
-                    pdf_object.savefig()
-            else:
-                pass
-    #            plt.plot(x_data,mtanh_fit_function(x_data,*p0))
-                
-            thomson_profile['Height'][i_time]=popt[0]
-            thomson_profile['SOL offset'][i_time]=popt[1]
-            thomson_profile['Position'][i_time]=popt[2]
-            thomson_profile['Width'][i_time]=popt[3]
-            if modified_tanh:
-                thomson_profile['Slope'][i_time]=popt[4]
-                
-            thomson_profile['Max gradient'][i_time]=(popt[1]-popt[0])/(4*popt[3]*np.cosh(0)**2)
-            thomson_profile['Value at max'][i_time]=(popt[0]+popt[1])/2
-            
-            thomson_profile['Error']['Height'][i_time]=perr[0]
-            thomson_profile['Error']['SOL offset'][i_time]=perr[1]
-            thomson_profile['Error']['Position'][i_time]=perr[2]
-            thomson_profile['Error']['Width'][i_time]=perr[3]
-            if modified_tanh:
-                thomson_profile['Slope'][i_time]=perr[4]
-            thomson_profile['Error']['Max gradient'][i_time]=(np.abs(1/(4*popt[3]*np.cosh(0)**2)*perr[1])+
-                                                              np.abs(1/(4*popt[3]*np.cosh(0)**2)*perr[0]))
- 
-            #thomson_profile_parameters['Slope'][i_time]=popt[4]
         except:
-            popt=[np.nan,np.nan,np.nan,np.nan]
+            if modified_tanh:
+                popt=[np.nan,np.nan,np.nan,np.nan,np.nan]
+                perr=[np.nan,np.nan,np.nan,np.nan,np.nan]
+            else:
+                popt=[np.nan,np.nan,np.nan,np.nan]
+                perr=[np.nan,np.nan,np.nan,np.nan]
+        
+        if test or (plot_time is not None and np.abs(plot_time-time[i_time]) < 1e-3):
+            plt.cla()
+            plt.scatter(x_data,
+                        y_data,
+                        color='tab:blue')
+            plt.errorbar(x_data,
+                         y_data,
+                         yerr=y_data_error,
+                         marker='o', 
+                         color='tab:blue',
+                         ls='')
+            plt.plot(x_data,tanh_fit_function(x_data,*popt))
+            
+            if flux_coordinates:
+                xlabel='PSI_norm'
+            else:
+                xlabel='Device R [m]'
+                
+            if temperature:
+                profile_string='temperature'
+                ylabel='Temperature [keV]'
+            
+            elif density:
+                profile_string='density'
+                ylabel='Density [1/m3]'
+            elif pressure:
+                profile_string='pressure'
+                ylabel='Pressure [kPa]'
+                
+            time_string=' @ '+str(time[i_time])
+            plt.title('Fit '+profile_string+' profile of '+str(exp_id)+time_string)
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            plt.pause(1.0)
+
+            if pdf_object is not None:
+                pdf_object.savefig()
+        else:
+            pass
+            
+        thomson_profile['Height'][i_time]=popt[0]
+        thomson_profile['SOL offset'][i_time]=popt[1]
+        thomson_profile['Position'][i_time]=popt[2]
+        #try:
+        if True:
+            thomson_profile['Position r'][i_time]=np.interp(popt[2],
+                                                            d.coordinate('Flux r')[0][np.argmin(d.coordinate('Flux r')[0][:,i_time]):,i_time],
+                                                            d.coordinate('Device R')[0][np.argmin(d.coordinate('Flux r')[0][:,i_time]):,i_time])
+        #except:
+        #    print('Interpolation failed.')
+        #    thomson_profile['Position r'][i_time]=np.nan
+        thomson_profile['Width'][i_time]=popt[3]
+        thomson_profile['Max gradient']=(thomson_profile['SOL offset']-thomson_profile['Height']/(4*thomson_profile['Width']))
+        thomson_profile['Value at max']=(thomson_profile['SOL offset']+thomson_profile['Height'])/2.
+        thomson_profile['Global gradient']=(thomson_profile['SOL offset']-thomson_profile['Height']/(4*thomson_profile['Width']))
+        
+        if modified_tanh:
+            thomson_profile['Slope'][i_time]=popt[4]
+
+        thomson_profile['Error']['Height'][i_time]=perr[0]
+        thomson_profile['Error']['SOL offset'][i_time]=perr[1]
+        thomson_profile['Error']['Position'][i_time]=perr[2]
+        thomson_profile['Error']['Width'][i_time]=perr[3]
+        thomson_profile['Error']['Value at max'][i_time]=(perr[0]+perr[1])/2
+        thomson_profile['Error']['Global gradient'][i_time]=(perr[0]/popt[3]+
+                                                     perr[1]/popt[3]+
+                                                     np.abs((-popt[1]+popt[0])/popt[3]**2)*perr[3])
+        thomson_profile['Error']['Max gradient'][i_time]=(np.abs(1/(4*popt[3])*perr[1])+
+                                                          np.abs(1/(4*popt[3])*perr[0]))
+        
+        if modified_tanh:
+            thomson_profile['Error']['Slope'][i_time]=perr[4]
+            
+
     coord = []
     
     coord.append(copy.deepcopy(flap.Coordinate(name='Time',

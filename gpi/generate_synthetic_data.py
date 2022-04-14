@@ -15,6 +15,11 @@ flap_nstx.register()
 import numpy as np
 import scipy
 
+from skimage.util import img_as_float
+from skimage.transform import warp_polar, rotate, rescale, warp
+
+from imageio import imread
+
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
@@ -221,6 +226,8 @@ def generate_displaced_gaussian(exp_id=0,
                                 background_time_range=[0.31,0.32],
                                 cutoff=100,
                                 n_frames=3,
+                                use_image_instead=False,
+                                convert_to_ellipse=False,
                                 ):
     try:
         if len(displacement) != 2:
@@ -238,19 +245,17 @@ def generate_displaced_gaussian(exp_id=0,
                                                                         background_time_range[1])},
                                          summing={'Time':'Mean'}).data
         amplitude=amplitude*background.max()
-    size=size/(2*np.sqrt(2*np.log(2))) #Converting the size into sigma for the Gaussian        
     
     if rotation_frequency is not None:
         angle_per_frame=2*np.pi*rotation_frequency*sampling_time
     if angular_velocity is not None:
         angle_per_frame=angular_velocity*sampling_time
-        
+    size_arg_x=size[0]/(2*np.sqrt(2*np.log(2))) 
+    size_arg_y=size[1]/(2*np.sqrt(2*np.log(2)))
     for i_frames in range(n_frames):
         
         rot_arg=-angle_per_frame*i_frames/180.*np.pi
         
-        size_arg_x=size[0]*(1+size_velocity[0]*i_frames)
-        size_arg_y=size[1]*(1+size_velocity[1]*i_frames)
         
         a=(np.cos(rot_arg)/size_arg_x)**2+\
           (np.sin(rot_arg)/size_arg_y)**2
@@ -277,8 +282,37 @@ def generate_displaced_gaussian(exp_id=0,
                                                                      2*b*(x-x0)*(y-y0) + 
                                                                        c*(y-y0)**2))
                                                        +background[k_radial,j_vertical])
+        size_arg_x *= (1+size_velocity[0])
+        size_arg_y *= (1+size_velocity[1])
+#        frame = rescale(frame, (1+size_velocity[1])**i_frames)[0:frame.shape[0],0:frame.shape[1]]
+ #       frame = img_as_float(frame)
+        if convert_to_ellipse:
+            half_int=(np.max(frame)+np.min(frame))/2
+            ind=np.where(frame>half_int)
+            frame[ind]=255.
+            ind=np.where(frame<=half_int)
+            frame[ind]=0.
+            
         data_arr[i_frames,:,:]+=frame
-    
+        
+    if use_image_instead:
+        image_path='/Users/mlampert/work/NSTX_workspace/horse.png'
+        image = imread(image_path)[:,:,0]
+        image = img_as_float(image)
+        frame_size=[image.shape[0],image.shape[1]]
+        data_arr=np.zeros([n_frames,frame_size[0],frame_size[1]])
+        
+        rotate_1 = rescale(rotate(image, angle_per_frame), 1+size_velocity[0])[0:image.shape[0],0:image.shape[1]]
+        rotate_1 = img_as_float(rotate_1)
+        
+        rotate_2 = rescale(rotate(rotate_1, angle_per_frame), 1+size_velocity[0])[0:image.shape[0],0:image.shape[1]]
+        rotate_2 = img_as_float(rotate_2)
+        
+        data_arr[0,:,:]=image
+        data_arr[1,:,:]=rotate_1
+        data_arr[2,:,:]=rotate_2
+        
+        
     coord = [None]*4
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
                                             unit='s',

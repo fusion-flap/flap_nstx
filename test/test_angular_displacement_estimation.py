@@ -7,6 +7,7 @@ Created on Thu Oct  7 11:51:52 2021
 """
 
 import os
+import time
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -58,12 +59,19 @@ else:
 def test_angular_displacement_estimation(gaussian=False,                        #Test the inaccuracy with Gaussian-structures
                                          gaussian_frame_size=False,             #Test the frame size vs. inaccuracy
                                          gaussian_frame_vs_structure_size=False,#Test the frame size and structure size vs. inaccuracy
-                                         random=False,                          #Test the inaccuracy with random displaced frames
-                                         subtraction_order=1,
+                                         scaling_factor_analysis=False,
+                                         
+                                         calc_flap=True,
+                                         warp_polar_order=1,
+                                         subtraction_order=2,
+                                         zero_padding_scale=1,
+                                         calculate_half_fft=False,
                                          interpolation='parabola',              #Parabola or bicubic
                                          #Gaussian analysis settings
-                                         n_angle=90,                              #Used for both Gaussian,frame and random, number of poloidal displacements
-                                         
+                                         n_angle=90,                            #Used for both Gaussian,frame and random, number of poloidal displacements
+                                         angle_range=[0.,90.],
+                                         n_scale=40,
+                                         scale_range=[0.01,0.2],
                                          res_split=4,                           #Gaussian: pixel displacement are split with this, sub-pixel result, Random: number of displacements is n_pol/res_split
                                          n_size=13,                             #Number of structure sizes in Gaussian and the mixed calculation
                                          size_mult=3,                           #Pixel size multiplier, equals the optical resolution of GPI
@@ -88,12 +96,15 @@ def test_angular_displacement_estimation(gaussian=False,                        
                                          nocalc=False,
                                          plot=True,
                                          pdf=False,
+                                         gaussian_blur=False,
                                          publication=False,
                                          plot_sample_gaussian=False,
                                          plot_sample_random=False,
                                          plot_example_event=False,
                                          plot_example_event_frames=False,
                                          save_data_into_txt=False,
+                                         hann_window=False,
+                                         scale_correction_factor=1.0
                                          ):
     
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
@@ -101,7 +112,7 @@ def test_angular_displacement_estimation(gaussian=False,                        
     """
     ANALYSIS OF THE GAUSSIAN DISPLACED STRUCTURES
     """   
-      
+    
     if gaussian:
         pickle_file=wd+'/processed_data/gaussian_angle_results.pickle'  
         if not nocalc:
@@ -113,6 +124,7 @@ def test_angular_displacement_estimation(gaussian=False,                        
             sampling_time=2.5e-6
             for i_angle in range(n_angle):
                 for j_size in range(n_size):
+                    start_time=time.time()
                     generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]], 
                                                 angle_per_frame=angle_rot_vec[i_angle], 
                                                 size=[size_vec[j_size],size_vec[j_size]*2], 
@@ -124,13 +136,21 @@ def test_angular_displacement_estimation(gaussian=False,                        
                     result=calculate_nstx_gpi_angular_velocity(exp_id=0, 
                                                                data_object='gaussian', 
                                                                normalize_for_velocity=False,
-                                                               plot=False, 
+                                                               zero_padding_scale=zero_padding_scale,
+                                                               sigma_low=3,
+                                                               plot=False,
+                                                               pdf=False,
+                                                               gaussian_blur=True,
                                                                nocalc=False, 
                                                                return_results=True,
+                                                               log_polar_data_shape=(360,320),
                                                                subtraction_order_for_velocity=subtraction_order)
 
                     result_vec_angle[i_angle,j_size]=result['Angle difference FLAP']
                     
+                finish_time=time.time()
+                rem_time=(finish_time-start_time)*(n_angle-i_angle)
+                print('Remaining time from the calculation: '+str(int(np.mod(rem_time,60)))+'min.')
             plt.figure()
             plt.contourf(angle_rot_vec, size_vec, result_vec_angle.transpose(),)
 
@@ -187,6 +207,146 @@ def test_angular_displacement_estimation(gaussian=False,                        
                     string+='\n'
                     file1.write(string)
                 file1.close()
+                
+    if scaling_factor_analysis:
+        pickle_file=wd+'/processed_data/gaussian_scaling_factor_results.pickle'  
+        if not nocalc:
+            
+
+            scaling_factor_vec=np.arange(n_scale)/n_scale*(scale_range[1]-scale_range[0])+scale_range[0]
+            angle_rot_vec=np.arange(n_angle)/n_angle*(angle_range[1]-angle_range[0])+angle_range[0]
+            result_vec_angle=np.zeros([n_angle,n_scale])
+            result_vec_scale=np.zeros([n_angle,n_scale])
+            sampling_time=2.5e-6
+            for i_angle in range(n_angle):
+                for j_scale in range(n_scale):
+                    start_time=time.time()
+                    generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]], 
+                                                angle_per_frame=angle_rot_vec[i_angle], 
+                                                size=[10,15], 
+                                                size_velocity=[scaling_factor_vec[j_scale],
+                                                               scaling_factor_vec[j_scale]],
+                                                sampling_time=sampling_time,
+                                                output_name='gaussian', 
+                                                #use_image_instead=True,
+                                                n_frames=3)
+                    
+                    result=calculate_nstx_gpi_angular_velocity(exp_id=0, 
+                                                               data_object='gaussian', 
+                                                               normalize_for_velocity=False,
+                                                               plot=False,
+                                                               pdf=False,
+                                                               upsample_factor=16,
+                                                               fitting_range=5,
+                                                               zero_padding_scale=zero_padding_scale,
+                                                               gaussian_blur=gaussian_blur,
+                                                               sigma_low=1,
+                                                               sigma_high=None,
+                                                               nocalc=False,
+                                                               warp_polar_order=warp_polar_order,
+                                                               return_results=True,
+                                                               hann_window=hann_window,
+                                                               #log_polar_data_shape=(360,320),
+                                                               subtraction_order_for_velocity=subtraction_order,
+                                                               calculate_half_fft=calculate_half_fft)
+                    if calc_flap:
+                        print(scaling_factor_vec[j_scale],
+                              result['Expansion velocity ccf FLAP'],
+                              scaling_factor_vec[j_scale]/result['Expansion velocity ccf FLAP'])
+                        print(angle_rot_vec[i_angle],result['Angle difference FLAP log'], 
+                              angle_rot_vec[i_angle]/result['Angle difference FLAP log'])
+                        
+                        result_vec_scale[i_angle,j_scale]=result['Expansion velocity ccf FLAP']
+                        result_vec_angle[i_angle,j_scale]=result['Angle difference FLAP log']
+                    else:
+                        print(scaling_factor_vec[j_scale],
+                              result['Expansion velocity ccf'],
+                              scaling_factor_vec[j_scale]/result['Expansion velocity ccf'])
+                        print(angle_rot_vec[i_angle],result['Angle difference log'], 
+                              angle_rot_vec[i_angle]/result['Angle difference log'])
+                        
+                        result_vec_scale[i_angle,j_scale]=result['Expansion velocity ccf']
+                        result_vec_angle[i_angle,j_scale]=result['Angle difference log']
+                    #raise ValueError('asdf')
+                finish_time=time.time()
+                rem_time=(finish_time-start_time)*(n_angle-i_angle)
+                print('Remaining time from the calculation: '+str(int(np.mod(rem_time,60)))+'min.')
+            # plt.figure()
+            # plt.contourf(angle_rot_vec, 
+            #              scaling_factor_vec, 
+            #              result_vec_scale.transpose(),
+            #              levels=51)
+
+            pickle.dump([result_vec_scale, angle_rot_vec, scaling_factor_vec], open(pickle_file, 'wb'))
+        else:
+            result_vec_scale, angle_rot_vec, scaling_factor_vec = pickle.load(open(pickle_file, 'rb'))        
+            
+
+        if pdf:
+            pdf_pages=PdfPages(wd+'/plots/synthetic_angle_estimate_scale_dep_gauss_'+interpolation+'.pdf')
+
+        if plot:
+            plt.figure()
+            plt.contourf(angle_rot_vec[1:], 
+                         scaling_factor_vec[1:], 
+                         (scaling_factor_vec[1:,None])/(result_vec_scale[1:,1:].transpose()),
+                         levels=51,
+                         cmap='jet')
+            plt.colorbar()
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('Scaling factor')
+            plt.title('Inaccuracy of scale rotation estimation')
+            if pdf:
+                pdf_pages.savefig()
+
+
+            plt.figure()
+            for i in range(1,n_angle):
+                plt.plot(scaling_factor_vec[1:], 
+                         (scaling_factor_vec[1:])/(result_vec_scale[i,1:].transpose()), 
+                         label=str(angle_rot_vec[i]))
+                
+            plt.xlabel('Scaling factor setting')
+            plt.ylabel('est/set ratio')
+            plt.title('Inaccuracy of scale estimation')    
+            plt.legend()
+            if pdf:
+                pdf_pages.savefig()
+
+
+            plt.figure()
+            for i in range(1,n_scale):
+                plt.plot(angle_rot_vec[1:], 
+                         result_vec_angle[1:,i]/angle_rot_vec[1:], 
+                         label=str(scaling_factor_vec[i]))
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('est/set ratio')
+            plt.title('Inaccuracy of angle estimation')    
+            plt.legend()
+            
+            if pdf:
+                pdf_pages.savefig()
+                pdf_pages.close()
+            
+            if save_data_into_txt:
+                data=result_vec_angle[1:,1:]
+                filename=wd+'/processed_data/figure_angular_uncertainty.txt'
+                file1=open(filename, 'w+')
+                file1.write('#Angle rotation vector in pixels\n')
+                for i in range(1, len(angle_rot_vec)):
+                    file1.write(str(angle_rot_vec[i])+'\t')
+                file1.write('\n#Size vector in pixels\n')
+                for i in range(1, len(size_vec)):
+                    file1.write(str(size_vec[i])+'\t')
+                file1.write('\n#Relative uncertainty of the angular rotation estimation\n')
+                for i in range(1,len(data[0,:])):
+                    string=''
+                    for j in range(1,len(data[:,0])):
+                        string+=str(data[j,i])+'\t'
+                    string+='\n'
+                    file1.write(string)
+                file1.close()                
+                
                 
     """
     **************************************************
@@ -316,122 +476,6 @@ def test_angular_displacement_estimation(gaussian=False,                        
                     file1.write(string)
                 file1.close()
                 
-                
-    # """
-    # ANALYSIS OF RANDOM FRAMES DISPLACED
-    # """                
-                
-    # if random:
-    #     pickle_file=wd+'/processed_data/random_results.pickle' 
-    #     if not nocalc:
-    #         pol_disp_vec=np.arange(random_poloidal_range[0], random_poloidal_range[1]+1, step=random_step)
-    #         rad_disp_vec=np.arange(random_radial_range[0], random_radial_range[1]+1, step=random_step)
-            
-    #         result_vec_poloidal=np.zeros([len(pol_disp_vec),n_rand])
-    #         result_vec_radial=np.zeros([len(rad_disp_vec),n_rand])
-    #         for i_pol in range(len(pol_disp_vec)):
-    #             for j_rand in range(n_rand):
-    #                 generate_displaced_random_noise(exp_id=0,
-    #                                                 displacement=[0,pol_disp_vec[i_pol]],
-    #                                                 frame_size=[64,80],
-    #                                                 sampling_time=2.5e-6,
-    #                                                 circular=False,
-    #                                                 amplitude_range=[0,4095],
-    #                                                 output_name='random',
-    #                                                 test=False,
-    #                                                 n_frame=3
-    #                                                 )
-                    
-    #                 result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
-    #                                                                   data_object='random', 
-    #                                                                   normalize=None, 
-    #                                                                   normalize_for_size=False, 
-    #                                                                   normalize_for_velocity=False,
-    #                                                                   skip_structure_calculation=True,
-    #                                                                   plot=False, 
-    #                                                                   nocalc=False, 
-    #                                                                   return_results=True, 
-    #                                                                   subtraction_order_for_velocity=1)
-                    
-    #                 result_vec_poloidal[i_pol,j_rand]=result['Velocity ccf'][0,1]/(3750/2.5)
-
-    #         for i_rad in range(len(rad_disp_vec)):
-    #             for j_rand in range(n_rand):
-    #                 generate_displaced_random_noise(exp_id=0,
-    #                                                 displacement=[rad_disp_vec[i_rad],0],
-    #                                                 frame_size=[64,80],
-    #                                                 sampling_time=2.5e-6,
-    #                                                 circular=False,
-    #                                                 amplitude_range=[0,4095],
-    #                                                 output_name='random',
-    #                                                 test=False,
-    #                                                 n_frame=3
-    #                                                 )
-    #                 result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
-    #                                                       data_object='random', 
-    #                                                       normalize=None, 
-    #                                                       normalize_for_size=False, 
-    #                                                       skip_structure_calculation=True, 
-    #                                                       plot=False, 
-    #                                                       nocalc=False, 
-    #                                                       return_results=True, 
-    #                                                       subtraction_order_for_velocity=1)
-    #                 result_vec_radial[i_rad,j_rand]=result['Velocity ccf'][0,0]/(3750/2.5)
-    #         print(result_vec_radial)
-    #         pickle.dump([result_vec_poloidal,pol_disp_vec, result_vec_radial, rad_disp_vec], open(pickle_file, 'wb'))
-    #     else:
-    #         result_vec_poloidal, pol_disp_vec, result_vec_radial, rad_disp_vec=pickle.load(open(pickle_file, 'rb'))        
-        
-    #     if pdf:
-    #         pdf=PdfPages(wd+'/plots/synthetic_rad_pol_size_dependence_random.pdf')
-    #     if plot:
-    #         plt.figure()
-    #         plt.plot(pol_disp_vec[:], np.mean(result_vec_poloidal[:,:],axis=1)/pol_disp_vec[:]-1)
-    #         plt.fill_between(pol_disp_vec[:],
-    #                          np.mean(result_vec_poloidal[:,:],axis=1)/pol_disp_vec[:]-1-np.sqrt(np.var(result_vec_poloidal[:,:]/pol_disp_vec[:,None]-1, axis=1)),
-    #                          np.mean(result_vec_poloidal[:,:],axis=1)/pol_disp_vec[:]-1+np.sqrt(np.var(result_vec_poloidal[:,:]/pol_disp_vec[:,None]-1, axis=1)),
-    #                          alpha=0.3)
-    #         plt.xlim([1,20])
-    #         plt.xticks(np.arange(1, 20, 2.0))
-    #         plt.xlabel('Poloidal displacement [pix]')
-    #         plt.ylabel('Relative uncertainty')
-    #         plt.title('Uncertainty of poloidal velocity estimation')
-    #         pdf.savefig()
-            
-    #         plt.figure()
-    #         plt.plot(rad_disp_vec[:], np.mean(result_vec_radial[:,:],axis=1)/rad_disp_vec[:]-1)
-    #         plt.fill_between(rad_disp_vec[:],
-    #                          np.mean(result_vec_radial[:,:],axis=1)/rad_disp_vec[:]-1-np.sqrt(np.var(result_vec_radial[:,:]/rad_disp_vec[:,None]-1, axis=1)),
-    #                          np.mean(result_vec_radial[:,:],axis=1)/rad_disp_vec[:]-1+np.sqrt(np.var(result_vec_radial[:,:]/rad_disp_vec[:,None]-1, axis=1)),
-    #                          alpha=0.3)
-    #         plt.xlim([1,16])
-    #         plt.xticks(np.arange(1, 16, 2.0))
-    #         plt.xlabel('Radial displacement [pix]')
-    #         plt.ylabel('Relative uncertainty')
-    #         plt.title('Uncertainty of radial velocity estimation')
-    #         pdf.savefig()
-    #         pdf.close()
-            
-    #     if save_data_into_txt:
-    #         filename=wd+'/processed_data/figure_random_radial_uncertainty.txt'
-    #         file1=open(filename, 'w+')
-    #         file1.write('Displacement \t Uncertainty \t Variance \n')
-    #         for i in range(1, len(rad_disp_vec)):
-    #             file1.write(str(rad_disp_vec[:])+'\t'+
-    #                         str(np.mean(result_vec_radial[:,:],axis=1)/rad_disp_vec[:]-1)+'\t'+
-    #                         str(np.sqrt(np.var(result_vec_radial[:,:]/rad_disp_vec[:,None]-1, axis=1))))
-
-    #         file1.close()
-            
-    #         filename=wd+'/processed_data/figure_random_poloidal_uncertainty.txt'
-    #         file1=open(filename, 'w+')
-    #         file1.write('Displacement \t Uncertainty \t Variance \n')
-    #         for i in range(1, len(pol_disp_vec)):
-    #             file1.write(str(pol_disp_vec[:])+'\t'+
-    #                         str(np.mean(result_vec_poloidal[:,:],axis=1)/pol_disp_vec[:]-1)+'\t'+
-    #                         str(np.sqrt(np.var(result_vec_poloidal[:,:]/pol_disp_vec[:,None]-1, axis=1))))
-
-    #         file1.close()
     
     if plot_sample_gaussian:
         if pdf:
@@ -464,45 +508,7 @@ def test_angular_displacement_estimation(gaussian=False,                        
         flap.plot('GPI_FRAME_12_CCF', plot_type='contour', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
         pdf.savefig()
         pdf.close()
-        
-    # if plot_sample_random:
-    #     if pdf:
-    #         pdf=PdfPages(wd+'/plots/synthetic_random_sample_and_ccf.pdf')
-    #     generate_displaced_random_noise(exp_id=0,
-    #                         displacement=[20,0],
-    #                         frame_size=[64,80],
-    #                         sampling_time=2.5e-6,
-    #                         circular=False,
-    #                         amplitude_range=[0,4095],
-    #                         output_name='random',
-    #                         test=False,
-    #                         n_frame=3
-    #                         )
-    #     result=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=0, 
-    #                                                       data_object='random', 
-    #                                                       normalize=None, 
-    #                                                       normalize_for_size=False, 
-    #                                                       normalize_for_velocity=False,
-    #                                                       skip_structure_calculation=True, 
-    #                                                       plot=False, 
-    #                                                       nocalc=False, 
-    #                                                       return_results=True, 
-    #                                                       subtraction_order_for_velocity=1)
-    #     plt.figure()
-    #     flap.plot('random', plot_type='image', slicing={'Sample':0}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-    #     if pdf:
-    #         pdf.savefig()
-    #     plt.figure()
-    #     flap.plot('random', plot_type='image', slicing={'Sample':1}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-    #     if pdf:
-    #         pdf.savefig()
-    #     plt.figure()
-    #     flap.plot('GPI_FRAME_12_CCF', plot_type='image', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
-    #     if pdf:
-    #         pdf.savefig()
-    #         pdf.close()
-        
-        
+
         
     if plot_example_event:
         calculate_nstx_gpi_angular_velocity(exp_id=141319,

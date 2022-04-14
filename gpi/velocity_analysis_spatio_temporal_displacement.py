@@ -33,8 +33,8 @@ import pickle
 def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,                          #Shot number
                                                             time_range=None,                      #The time range for the calculation
                                                             data_object=None,                     #Input data object if available from outside (e.g. generated sythetic signal)
-                                                            x_range=[0,63],                       #X range for the calculation
-                                                            y_range=[0,79],                       #Y range for the calculation
+                                                            x_range=[10,53],                       #X range for the calculation
+                                                            y_range=[10,69],                       #Y range for the calculation
                                                             x_search=10,
                                                             y_search=10,
                                                             
@@ -47,12 +47,18 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
                                                             filename=None,                        #Filename for restoring data
                                                             nocalc=True,                          #Restore the results from the .pickle file from filename+.pickle
                                                             return_results=False,
+                                                            verbose=False,
                                                             ):
-        
+    
+    #THE RESULT IS NON CAUSAL, BUT THERE IS NO PHASE SHIFT IN IT. CARE SHOULD BE TAKEN
+    #WHEN THE RESULT IS USED FOR CROSS-CORRELATION ANALYSIS. FALSE CORRELATION VALUES
+    #CAN RESULT FROM THE CALCULATION.    
+    
+    
     #Constants for the calculation
     #Using the spatial calibration to find the actual velocities.
-    coeff_r=np.asarray([3.7183594,-0.77821046,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
-    coeff_z=np.asarray([0.18090118,3.0657776,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
+    coeff_r=np.asarray([3.75,0,1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
+    coeff_z=np.asarray([0,3.75,70.544312])/1000.  #The coordinates are in meters, the coefficients are in mm
     
     #Input error handling
     if exp_id is None and data_object is None:
@@ -80,10 +86,10 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
         wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         comment=''
         filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                             working_directory=wd+'/processed_data',
-                                             time_range=time_range,
-                                             purpose='sz velocity',
-                                             comment=comment)
+                                          working_directory=wd+'/processed_data/',
+                                          time_range=time_range,
+                                          purpose='sz velocity',
+                                          comment=comment)
         
     pickle_filename=filename+'.pickle'
     if not os.path.exists(pickle_filename) and nocalc:
@@ -91,7 +97,8 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
         nocalc=False
 
     if nocalc is False:
-        slicing={'Time':flap.Intervals(time_range[0],time_range[1])}
+        slicing={'Time':flap.Intervals(time_range[0],
+                                       time_range[1])}
         #Read data
         if data_object is None:
             print("\n------- Reading NSTX GPI data --------")
@@ -116,6 +123,7 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
         cmax_p = np.zeros([x_range[1]-x_range[0]+1,y_range[1]-y_range[0]+1,count])
         
         sample_time=d.coordinate('Time')[0][1,0,0]-d.coordinate('Time')[0][0,0,0]
+        
         ccorr_n=np.zeros([x_range[1]-x_range[0]+1,
                           y_range[1]-y_range[0]+1,
                           x_range[1]-x_range[0]+2*x_search+1,
@@ -125,7 +133,9 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
                           y_range[1]-y_range[0]+1,
                           x_range[1]-x_range[0]+2*x_search+1,
                           y_range[1]-y_range[0]+2*y_search+1])
-        
+        #Moving average frames should be created first for the entire frame so it could be used during the cross-correlation
+        #moving_average_data = np.convolve(d.data, np.ones(fbin*2), 'valid') / fbin*2
+        #offset_subtracted_data=
         for t0 in range(fbin+1,count-fbin-1):
             #Zero lag Autocorrelation calculation for the reference, +sample_time, -sample_time data
             n_data=d.data[t0-fbin-1:t0+fbin-1,
@@ -143,27 +153,30 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
                             y_range[0]:y_range[1]+1]
             acorr_pix_ref=np.sqrt(np.sum((ref_data-np.mean(ref_data, axis=0))**2,axis=0))
             
-            print((t0-fbin-1)/(count-2*(fbin-1))*100.)
+            #print((t0-fbin-1)/(count-2*(fbin-1))*100.)
             #Zero lag Crosscovariance calculation for the positive and negative sample time signal
             for i0 in range(x_range[1]-x_range[0]+1):
                 for j0 in range(y_range[1]-y_range[0]+1):
                     
-                    frame_ref=d.data[t0-fbin:t0+fbin,i0+x_range[0],j0+y_range[0]]
-                    frame_ref=frame_ref-np.mean(frame_ref)
+                    frame_ref=d.data[t0-fbin:t0+fbin,
+                                     i0+x_range[0],
+                                     j0+y_range[0]]                             #oN=pointer*nt*nx*ny*nxs*nys
+                    frame_ref=frame_ref-np.mean(frame_ref)                      #oN=2*2fbin*nt*nx*ny
                     
                     for i1 in range(2*x_search+1):
                         for j1 in range(2*y_search+1):
                             frame_n=d.data[t0-fbin-1:t0+fbin-1,
                                            i1+i0+x_range[0]-x_search,
-                                           j1+j0+y_range[0]-y_search]
-                            frame_n=frame_n-np.mean(frame_n)
+                                           j1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
+                            frame_n=frame_n-np.mean(frame_n)                    #oN=2*2fbin*nt*nx*ny*nxs*nys
+                            
                             frame_p=d.data[t0-fbin+1:t0+fbin+1,
                                            i1+i0+x_range[0]-x_search,
-                                           j1+j0+y_range[0]-y_search]
+                                           j1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
+                            frame_p=frame_p-np.mean(frame_p)                    #oN=2*2fbin*nt*nx*ny*nxs*nys #mean should come from the mean array, it is calculated multiple times
                             
-                            frame_p=frame_p-np.mean(frame_p)
-                            ccorr_n[i0,j0,i1,j1]=np.sum(frame_ref*frame_n)
-                            ccorr_p[i0,j0,i1,j1]=np.sum(frame_ref*frame_p)
+                            ccorr_n[i0,j0,i1,j1]=np.sum(frame_ref*frame_n)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    These could be generated with rolling
+                            ccorr_p[i0,j0,i1,j1]=np.sum(frame_ref*frame_p)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    correlation calculation getting rid of one fbin order
                             
             #Calculating the actual cross-correlation coefficients       
             for i0 in range(x_range[1]-x_range[0]+1):
@@ -172,49 +185,72 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
                     vcorr_n=np.zeros([2*x_search+1,2*y_search+1])
                     for i1 in range(2*x_search+1):
                         for j1 in range(2*y_search+1):
-                            vcorr_p[i1,j1]=ccorr_p[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_p[i0+i1,j0+j1])
-                            vcorr_n[i1,j1]=ccorr_n[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_n[i0+i1,j0+j1])
+                            vcorr_p[i1,j1]=ccorr_p[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_p[i0+i1,j0+j1]) #2*nt*nx*ny*nxs*nys         This could be morphed to
+                            vcorr_n[i1,j1]=ccorr_n[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_n[i0+i1,j0+j1]) #2*nt*nx*ny*nxs*nys         matrix calculations.
+                            
                     #Calculating the displacement in pixel coordinates
                     index_p=np.unravel_index(np.argmax(vcorr_p),shape=vcorr_p.shape)
                     index_n=np.unravel_index(np.argmax(vcorr_n),shape=vcorr_n.shape)
                     
                     cmax_p[i0,j0,t0]=vcorr_p[index_p]
                     cmax_n[i0,j0,t0]=vcorr_n[index_n]
+                    
                     #Transforming the coordinates into spatial coordinates
                     delta_index_p=np.asarray(index_p)-np.asarray([x_search,y_search])
                     delta_index_n=np.asarray(index_n)-np.asarray([x_search,y_search])
-                                               
+                        
                     vpol_p[i0,j0,t0]=(coeff_z[0]*delta_index_p[0]+
                                       coeff_z[1]*delta_index_p[1])/sample_time                                        
                     vpol_n[i0,j0,t0]=(coeff_z[0]*delta_index_n[0]+
                                       coeff_z[1]*delta_index_n[1])/sample_time
-                          
                     vrad_p[i0,j0,t0]=(coeff_r[0]*delta_index_p[0]+
                                       coeff_r[1]*delta_index_p[1])/sample_time                                        
                     vrad_n[i0,j0,t0]=(coeff_r[0]*delta_index_n[0]+
                                       coeff_r[1]*delta_index_n[1])/sample_time                       
+            #Calculating the average between the positive and negative shifted pixels
+            vpol_tot = (vpol_p - vpol_n)/2.	 	# Average p and n correlations
+            vrad_tot = (vrad_p - vrad_n)/2.     # This is non causal
+            #print((t0-fbin)/(count-2*(fbin+1))*100,'% done from the calculation for shot '+str(exp_id))
+            
+            
+
         
-                    #Calculating the average between the positive and negative shifted pixels
-                    
-                    vpol_tot = (vpol_p - vpol_n)/2.	 	# Average p and n correlations
-                    vrad_tot = (vrad_p - vrad_n)/2.     # This is non causal
-                    
         #Averaging in an fbin long time window
         for t0 in range(int(fbin/2),count-int(fbin/2)):
             vpol[:,:,t0] = np.mean(vpol_tot[:,:,t0-int(fbin/2):t0+int(fbin/2)], axis=2)
             vrad[:,:,t0] = np.mean(vrad_tot[:,:,t0-int(fbin/2):t0+int(fbin/2)], axis=2)
         
-        results={'Time':d.coordinate('Time')[0][:,0,0],
-                 'Radial velocity':vrad,
-                 'Poloidal velocity':vpol,
+        time=d.coordinate('Time')[0][:,0,0][fbin:-fbin]
+        vpol=vpol[:,:,fbin:-fbin]
+        vrad=vrad[:,:,fbin:-fbin]
+        vpol_tot=vpol_tot[:,:,fbin:-fbin]
+        vrad_tot=vrad_tot[:,:,fbin:-fbin]
+        
+
+        results={'Time':time,
+                 'Image x':np.arange(x_range[1]-x_range[0]+1)+x_range[0],
+                 'Image y':np.arange(y_range[1]-y_range[0]+1)+y_range[0],
+                 'Radial velocity smooth':vrad,
+                 'Poloidal velocity smooth':vpol,
+                 'Radial velocity':vrad_tot,
+                 'Poloidal velocity':vpol_tot,
                  'Maximum correlation p':cmax_p,
-                 'Maximum correlation n':cmax_n}
+                 'Maximum correlation n':cmax_n,
+                 'X range':x_range,
+                 'Y range':y_range,
+                 'fbin':fbin}
         
         pickle.dump(results, open(pickle_filename, 'wb'))
     else:
         results=pickle.load(open(pickle_filename, 'rb'))
-        print('Data loaded from pickle file.')
         
+        if (results['X range'] != x_range or
+            results['Y range'] != y_range or
+            results['fbin'] != fbin):
+            raise ValueError('The requested results are not in the saved file. Run the code with nocalc=False')
+            
+        if verbose: print('Data loaded from pickle file.')
+    
     if pdf:
         pdf=PdfPages(filename.replace('processed_data', 'plots')+'.pdf')
         

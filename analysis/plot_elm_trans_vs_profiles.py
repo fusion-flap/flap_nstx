@@ -58,7 +58,8 @@ def get_all_thomson_data_for_elms():
 def get_elms_with_thomson_profile(before=False,
                                   after=False,
                                   entire=False,
-                                  time_window=2e-3):
+                                  time_window=2e-3,
+                                  reverse_db=False):
     if before+after+entire != 1:
         raise ValueError('Set one of the input variables.')
         
@@ -66,7 +67,17 @@ def get_elms_with_thomson_profile(before=False,
     thomson_dir='/Users/mlampert/work/NSTX_workspace/thomson_data/'
     db=pandas.read_csv(database_file, index_col=0)
     elm_index=list(db.index)
-    elms_with_thomson=[]
+    
+    if reverse_db:
+        elms_with_thomson={'shot':[], 
+                           'elm_time':[],
+                           'thomson_time':[],
+                           'index_elm':[],
+                           'index_ts':[],
+                           }
+    else:
+        elms_with_thomson=[]
+        
     for index_elm in range(len(elm_index)):
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
@@ -90,11 +101,24 @@ def get_elms_with_thomson_profile(before=False,
                 thomson_time=thomson['ts_times'][np.where(thomson['ts_times'] > elm_time)]
             if entire:
                 thomson_time=thomson['ts_times'][ind]
-            thomson_time=thomson_time[np.argmin(np.abs(thomson_time-elm_time))]
-            elms_with_thomson.append({'shot':shot, 
-                                      'elm_time':elm_time,
-                                      'thomson_time':thomson_time,
-                                      'index_elm':index_elm})
+            index_ts=np.argmin(np.abs(thomson_time-elm_time))
+            thomson_time=thomson_time[index_ts]
+            if reverse_db:
+                elms_with_thomson['shot'].append(shot)
+                elms_with_thomson['elm_time'].append(elm_time)
+                elms_with_thomson['thomson_time'].append(thomson_time)
+                elms_with_thomson['index_elm'].append(index_elm)
+                elms_with_thomson['index_ts'].append(index_ts)
+            else:
+                elms_with_thomson.append({'shot':shot, 
+                                          'elm_time':elm_time,
+                                          'thomson_time':thomson_time,
+                                          'index_elm':index_elm,
+                                          'index_ts':index_ts,
+                                          })
+    if reverse_db:
+        for key in elms_with_thomson.keys():
+            elms_with_thomson[key]=np.asarray(elms_with_thomson[key])
     return elms_with_thomson
 
 def plot_elm_properties_vs_gradient(elm_duration=100e-6,
@@ -1106,6 +1130,7 @@ def plot_elm_parameters_vs_ahmed_fitting(averaging='before',
         gradient={'Pressure':[],
                   'Density':[],
                   'Temperature':[]}
+        
         gradient_error={'Pressure':[],
                         'Density':[],
                         'Temperature':[]}

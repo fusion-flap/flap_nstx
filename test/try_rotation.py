@@ -62,7 +62,7 @@ The horse picture and related troubleshooting is referenced from here:
     https://sthoduka.github.io/imreg_fmt/docs/fourier-mellin-transform/
     
 """
-
+from flap_nstx.gpi import generate_displaced_gaussian
 def try_rotation(angle=25.,
                  scale=1.3,
                  zero_padding=True,
@@ -74,8 +74,16 @@ def try_rotation(angle=25.,
     image_path='/Users/mlampert/work/NSTX_workspace/horse.png'
     image = imread(image_path)[:,:,0]
     image = img_as_float(image)
+    image=generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]], 
+                                      angle_per_frame=5, 
+                                      size=[15,10], 
+                                      size_velocity=[0.1,
+                                                      0.1],
+                                      sampling_time=2.5e-6,
+                                      output_name='gaussian', 
+                                      n_frames=3).data[1,:,:]
     
-    radius=min(image.shape[0],image.shape[1])
+    radius=min(image.shape[0],image.shape[1])/2
     
     #rotated_path='/Users/mlampert/work/NSTX_workspace/horse_rot_scale.png'
     #rotated = imread(rotated_path)[:,:,0]
@@ -101,8 +109,8 @@ def try_rotation(angle=25.,
         rotated = img_as_float(rotated)
     
 
-    image = difference_of_gaussians(image, 5, 20)
-    rotated = difference_of_gaussians(rotated, 5, 20)
+    image = difference_of_gaussians(image, 3, None)
+    rotated = difference_of_gaussians(rotated, 3, None)
 
     shape=np.asarray(image.shape)
     if zero_padding:
@@ -195,18 +203,18 @@ def try_rotation(angle=25.,
     
     plt.show()
     
-    shift_rot, error, phasediff = phase_cross_correlation(image_fft_polar, 
-                                                          rotated_fft_polar,
-                                                          upsample_factor=20)
+    shift_rot, error, phasediff, cross_correlation = phase_cross_correlation(image_fft_polar, 
+                                                                             rotated_fft_polar,
+                                                                             upsample_factor=20)
     shiftr, shiftc = shift_rot[:2]
     
-    shift_rot_log, error_log, phasediff = phase_cross_correlation(image_fft_polar_log, 
-                                                              rotated_fft_polar_log,
-                                                              upsample_factor=20)
+    shift_rot_log, error_log, phasediff, cross_correlation = phase_cross_correlation(image_fft_polar_log, 
+                                                                                     rotated_fft_polar_log,
+                                                                                     upsample_factor=20)
     shiftr_log, shiftc_log = shift_rot_log[:2]
     
     # Calculate scale factor from translation
-    klog = radius / np.log(radius)
+    klog = image_fft_polar_log.shape[1] / np.log(radius)
     shift_scale_log = (np.exp(shiftc_log / klog))
     
     image_retransformed_small=rescale(rotate(rotated,-shiftr),1/shift_scale_log)
@@ -239,9 +247,9 @@ def try_rotation(angle=25.,
     
     print(image.shape,image_retransformed.shape)
 
-    shift_tra, error, phasediff = phase_cross_correlation(image, 
-                                                          image_retransformed,
-                                                          upsample_factor=20)
+    shift_tra, error, phasediff, cross_correlation = phase_cross_correlation(image, 
+                                                                             image_retransformed,
+                                                                             upsample_factor=20)
     
     shift_tra=np.asarray(shift_tra,dtype='int16')
     print(shift_tra,error, phasediff)
@@ -283,10 +291,11 @@ def try_rotation(angle=25.,
     
     print(f"Expected value for cc rotation in degrees: {angle}")
     print(f"Recovered value for cc rotation: {shiftr}")
+    print(f"Recovered value for cc rotation log: {shiftr_log}")
     print()
     print(f"Expected value for scaling difference: {scale}")
     print(f"Recovered value for scaling difference: {shift_scale_log}")
-    
+    print(f"Recovered value ratio: {(scale-1)/(shift_scale_log-1)}")
 def try_scaling():
     
     """

@@ -27,7 +27,7 @@ import flap
 import flap_nstx
 wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 fig_dir='/publication_figures/pop_2022'
-    
+
     
 thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
@@ -37,7 +37,7 @@ styled=True
 
 if styled:
     plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=9.
+    labelsize=8.
     linewidth=0.5
     major_ticksize=2.
     plt.rc('text', usetex=False)
@@ -63,16 +63,23 @@ if styled:
 else:
     import matplotlib.style as pltstyle
     pltstyle.use('default')
-    
+
+class NoobError(Exception):
+    pass
+
 def plot_results_for_pop_2022(plot_figure=2,
                               plot_all=False,
-                              save_data_into_txt=False):
+                              save_data_into_txt=False,
+                              gaussian_blur=True,
+                              subtraction_order=2,
+                              skim_or_flap='flap'):
     
     if plot_all:
         plot_figure=-1
         for i in range(12):
             plot_results_for_pop_2022(plot_figure=i,
                                       save_data_into_txt=save_data_into_txt)
+    
     
     """
     ELM figure
@@ -91,21 +98,26 @@ def plot_results_for_pop_2022(plot_figure=2,
     """
     
     if plot_figure == 3 or plot_figure == 4:
-        result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
-                                                   time_range=[0.5524,0.5526],  
-                                                   normalize='roundtrip', 
-                                                   normalize_for_velocity=True, 
-                                                   plot=False, 
-                                                   pdf=False,
-                                                   nocalc=False,
-                                                   plot_scatter=False,
-                                                   plot_for_publication=False,
-                                                   test_into_pdf=True,
-                                                   return_results=True,
-                                                   subtraction_order_for_velocity=4,
-                                                   sample_to_plot=[20873,20874],
-                                                   save_data_for_publication=True,
-                                                   data_filename=wd+fig_dir+'/data_accessibility/fig_34')
+            
+            
+            result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
+                                                       time_range=[0.5524,0.5526],  
+                                                       normalize='roundtrip', 
+                                                       normalize_for_velocity=True, 
+                                                       plot=False, 
+                                                       pdf=True,
+                                                       nocalc=False,
+                                                       plot_scatter=False,
+                                                       plot_for_publication=False,
+                                                       gaussian_blur=gaussian_blur,
+                                                       calculate_half_fft=False,
+                                                       test_into_pdf=True,
+                                                       return_results=True,
+                                                       plot_zoomed_ccf=False,
+                                                       subtraction_order_for_velocity=subtraction_order,
+                                                       sample_to_plot=[20873,20874],
+                                                       save_data_for_publication=True,
+                                                       data_filename=wd+fig_dir+'/data_accessibility/fig_34')
 
     
     """
@@ -149,6 +161,32 @@ def plot_results_for_pop_2022(plot_figure=2,
     Filament rotation estimation for the single shot
     """
     if plot_figure == 7:
+        
+        plt.rc('font', family='serif', serif='Helvetica')
+        labelsize=7.
+        linewidth=0.4
+        major_ticksize=2.
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+
         result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
                                                    time_range=[0.552,0.553],  
                                                    normalize='roundtrip', 
@@ -160,7 +198,9 @@ def plot_results_for_pop_2022(plot_figure=2,
                                                    plot_for_publication=True,
                                                    
                                                    return_results=True,
-                                                   subtraction_order_for_velocity=4)
+                                                   subtraction_order_for_velocity=2,
+                                                   gaussian_blur=True,
+                                                   )
         if save_data_into_txt:
             filename=wd+fig_dir+'/data_accessibility/figure_7abcd.txt'
             file1=open(filename, 'w+')
@@ -195,12 +235,15 @@ def plot_results_for_pop_2022(plot_figure=2,
     Evolution of the rotation and expansion distribution functions
     """
     if plot_figure == 8:
-        time_vec, y_vector, y_vector_avg=plot_nstx_gpi_angular_velocity_distribution(plot_for_publication=True,
-                                                                       pdf=False,
-                                                                       plot=False,
-                                                                       return_results=True,
-                                                                       figure_size=4.25,
-                                                                       general_plot=False)
+        time_vec, y_vector = plot_nstx_gpi_angular_velocity_distribution(plot_for_publication=True,
+                                                                         window_average=500e-6,
+                                                                         subtraction_order=subtraction_order,
+                                                                         correlation_threshold=0.6,
+                                                                         pdf=False,
+                                                                         plot=False,
+                                                                         return_results=True,
+                                                                         plot_all_time_traces=False,
+                                                                         tau_range=[-1e-3,1e-3])
         figsize=(8.5/2.54,8.5/np.sqrt(2)/2.54)
         plt.rc('font', family='serif', serif='Helvetica')
         labelsize=8
@@ -228,7 +271,7 @@ def plot_results_for_pop_2022(plot_figure=2,
         plt.rcParams['ytick.minor.size'] = major_ticksize/2
         plt.rcParams['legend.fontsize'] = labelsize
         
-        pdf_object=PdfPages(wd+fig_dir+'/fig_ang_velocity_distribution.pdf')
+        pdf_object=PdfPages(wd+fig_dir+'/fig_ang_velocity_distribution_log.pdf')
             
 
         import matplotlib
@@ -237,60 +280,67 @@ def plot_results_for_pop_2022(plot_figure=2,
         def fmt(x, pos):
             a = '{:3.2f}'.format(x)
             return a
+        
         plt.figure()
         fig,((ax1,ax2),(ax3,ax4))=plt.subplots(2,2,figsize=figsize)
-        for i in [5,7]:
-            if i == 5:
+        flap_or_skim='skim'
+        for key in ['Angular velocity ccf '+flap_or_skim+' log',
+                    'Expansion velocity ccf '+flap_or_skim+'']:
+            
+            if key == 'Angular velocity ccf '+flap_or_skim+' log':
                 ax=ax1
             else:
                 ax=ax3
             im=ax.contourf(time_vec*1e3,
-                           y_vector[i]['Bins'],
-                           y_vector[i]['Data'].transpose(),
+                           y_vector[key]['bins'],
+                           y_vector[key]['data'].transpose(),
                            levels=50,
                            )
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['Data'],
-                     color='red')
+                     y_vector[key]['median'],
+                     color='red',
+                     lw=linewidth)
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['10th'],
+                     y_vector[key]['10th'],
                      color='white',
-                     lw=0.2)
+                     lw=linewidth/2)
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['90th'],
+                     y_vector[key]['90th'],
                      color='white',
-                     lw=0.2)
+                     lw=linewidth/2)
             
-            ax.set_title('Relative frequency of '+y_vector[i]['ylabel'])
-            ax.set_xlabel('Time [$\mu$s]')
-            ax.set_ylabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
+            ax.set_title('Relative frequency of '+y_vector[key]['ylabel'])
+            ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+            ax.set_ylabel(y_vector[key]['ylabel']+' ['+y_vector[key]['unit']+']')
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
             ax.yaxis.set_major_locator(MaxNLocator(5))
-            ax.set_ylim(np.min(y_vector_avg[i]['10th']),
-                        np.max(y_vector_avg[i]['90th']))
+            ax.set_ylim(np.min(y_vector[key]['10th']),
+                        np.max(y_vector[key]['90th']))
             ax.set_xticks(ticks=[-500,-250,0,250,500])
             
             import matplotlib.ticker as ticker
             cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt), ax=ax)
             cbar.ax.tick_params(labelsize=6)
-            
-        for i in [5,7]:
-            if i == 5:
+
+            if key == 'Angular velocity ccf '+flap_or_skim+' log':
                 ax=ax2
             else:
                 ax=ax4
-            nwin=y_vector[i]['Data'].shape[0]//2
-    #        plt.plot(y_vector[i]['Bins'], np.mean(y_vector[i]['Data'][nwin-2:nwin+3,:], axis=0))
-            ax.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
-            ax.set_xlabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
-            ax.set_ylabel('f(x)')
-            ax.set_title('PDF of '+y_vector[i]['ylabel'])
-            ax.xaxis.set_major_locator(MaxNLocator(5)) 
-            ax.yaxis.set_major_locator(MaxNLocator(5)) 
-            ax.axvline(x=y_vector_avg[i]['Data'][nwin], ymin=0.0,ymax=1.0, color='red')
-            ax.axvline(x=y_vector_avg[i]['10th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
-            ax.axvline(x=y_vector_avg[i]['90th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+            # nwin=y_vector[key]['Data'].shape[0]//2
+    #        plt.plot(y_vector[key]['Bins'], np.mean(y_vector[key]['Data'][nwin-2:nwin+3,:], axis=0))
+            ax.plot(time_vec*1e3,
+                     y_vector[key]['median'],
+                     color='red',
+                     lw=linewidth)
             
+            ax.set_title('Median '+y_vector[key]['ylabel']+' evolution')
+            ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+            ax.set_ylabel(y_vector[key]['ylabel']+' ['+y_vector[key]['unit']+']')
+            ax.set_xlim([-500,500])
+            # ax.xaxis.set_major_locator(MaxNLocator(5)) 
+            ax.yaxis.set_major_locator(MaxNLocator(5)) 
+            ax.xaxis.set_major_locator(MaxNLocator(5)) 
+            ax.set_xticks(ticks=[-500,-250,0,250,500])
         plt.tight_layout(pad=0.1)
         pdf_object.savefig()
         pdf_object.close()
@@ -310,26 +360,26 @@ def plot_results_for_pop_2022(plot_figure=2,
                     file1.write(str(time_vec[i])+'\t')
                     
                 file1.write('\n#Median\n')
-                for i in range(1, len(y_vector_avg[ind]['Data'])):
-                    file1.write(str(y_vector_avg[ind]['Data'])+'\t')
+                for i in range(1, len(y_vector[key]['median'])):
+                    file1.write(str(y_vector[key]['median'])+'\t')
                     
                 file1.write('\n#10th perc.\n')
-                for i in range(1, len(y_vector_avg[ind]['10th'])):
-                    file1.write(str(y_vector_avg[ind]['10th'])+'\t')
+                for i in range(1, len(y_vector[key]['10th'])):
+                    file1.write(str(y_vector[key]['10th'])+'\t')
                     
                 file1.write('\n#90th perc.\n')
-                for i in range(1, len(y_vector_avg[ind]['90th'])):
-                    file1.write(str(y_vector_avg[ind]['90th'])+'\t')    
+                for i in range(1, len(y_vector[key]['90th'])):
+                    file1.write(str(y_vector[key]['90th'])+'\t')    
                     
                 file1.write('\n#Distribution bins\n')
-                for i in range(1, len(y_vector[ind]['Bins'])):
-                    file1.write(str(y_vector[ind]['Bins'])+'\t')
+                for i in range(1, len(y_vector[key]['bins'])):
+                    file1.write(str(y_vector[key]['bins'])+'\t')
                 file1.write('\n#Distribution\n')
                 
-                for i in range(len(y_vector[ind]['Data'][0,:])):
+                for i in range(len(y_vector[key]['data'][0,:])):
                     string=''
-                    for j in range(len(y_vector[ind]['Data'][:,0])):
-                        string+=str(y_vector[ind]['Data'][j,i])+'\t'
+                    for j in range(len(y_vector[key]['data'][:,0])):
+                        string+=str(y_vector[key]['data'][j,i])+'\t'
                     string+='\n'
                     file1.write(string)   
                 file1.close()
@@ -339,11 +389,11 @@ def plot_results_for_pop_2022(plot_figure=2,
     """
     
     if plot_figure == 9:
-        time_vec, y_vector, y_vector_avg = plot_nstx_gpi_velocity_distribution(plot_for_publication=False,
-                                                                               pdf=False,
-                                                                               plot=False,
-                                                                               return_results=True,
-                                                                               figure_size=4.25)
+        time_vec, y_vector = plot_nstx_gpi_velocity_distribution(plot_for_publication=False,
+                                                                 pdf=False,
+                                                                 plot=False,
+                                                                 return_results=True,
+                                                                 figure_size=4.25)
         figsize=(8.5/2.54,8.5/np.sqrt(2)/2.54)
         plt.rc('font', family='serif', serif='Helvetica')
         labelsize=8
@@ -382,33 +432,34 @@ def plot_results_for_pop_2022(plot_figure=2,
             return a
         plt.figure()
         fig,((ax1,ax2),(ax3,ax4))=plt.subplots(2,2,figsize=figsize)
-        for i in [0,8]:
-            if i == 0:
+        for key in ['Velocity ccf radial','Distance']:
+            if key == 'Velocity ccf radial':
                 ax=ax1
             else:
                 ax=ax3
             im=ax.contourf(time_vec*1e3,
-                           y_vector[i]['Bins'],
-                           y_vector[i]['Data'].transpose(),
+                           y_vector[key]['bins'],
+                           y_vector[key]['data'].transpose(),
                            levels=50,
                            )
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['Data'],
-                     color='red')
+                     y_vector[key]['median'],
+                     color='red',
+                     lw=linewidth)
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['10th'],
+                     y_vector[key]['10th'],
                      color='white',
-                     lw=0.2)
+                     lw=linewidth/2)
             ax.plot(time_vec*1e3,
-                     y_vector_avg[i]['90th'],
+                     y_vector[key]['90th'],
                      color='white',
-                     lw=0.2)
+                     lw=linewidth/2)
             
-            ax.set_title('Relative frequency of '+y_vector[i]['ylabel'])
-            ax.set_xlabel('Time [$\mu$s]')
-            ax.set_ylabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
-            ax.set_ylim(np.min(y_vector_avg[i]['10th']),
-                        np.max(y_vector_avg[i]['90th']))
+            ax.set_title('Relative frequency of '+y_vector[key]['ylabel'])
+            ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+            ax.set_ylabel(y_vector[key]['ylabel']+' ['+y_vector[key]['unit']+']')
+            ax.set_ylim(np.min(y_vector[key]['10th']),
+                        np.max(y_vector[key]['90th']))
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
             ax.yaxis.set_major_locator(MaxNLocator(5))
             ax.set_xticks(ticks=[-500,-250,0,250,500])
@@ -417,32 +468,37 @@ def plot_results_for_pop_2022(plot_figure=2,
             cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt), ax=ax)
             cbar.ax.tick_params(labelsize=6)
             
-        for i in [0,8]:
-            if i == 0:
+    
+        for key in ['Velocity ccf radial','Distance']:
+            if key == 'Velocity ccf radial':
                 ax=ax2
             else:
                 ax=ax4
-            nwin=y_vector[i]['Data'].shape[0]//2
+            # nwin=y_vector[i]['Data'].shape[0]//2
     #        plt.plot(y_vector[i]['Bins'], np.mean(y_vector[i]['Data'][nwin-2:nwin+3,:], axis=0))
-            ax.bar(y_vector[i]['Bins'],y_vector[i]['Data'][nwin,:], width=y_vector[i]['Bar width'])
-            ax.set_xlabel(y_vector[i]['ylabel']+' '+y_vector[i]['unit'])
-            ax.set_ylabel('f(x)')
-            ax.set_title('PDF of '+y_vector[i]['ylabel'])
+            ax.plot(time_vec*1e3,
+                     y_vector[key]['median'],
+                     color='red',
+                     lw=linewidth)
+            
+            ax.set_title('Median '+y_vector[key]['ylabel']+' evolution')
+            ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+            ax.set_ylabel(y_vector[key]['ylabel']+' ['+y_vector[key]['unit']+']')
+            ax.set_xlim([-500,500])
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
+            ax.set_xticks(ticks=[-500,-250,0,250,500])
             ax.yaxis.set_major_locator(MaxNLocator(5)) 
-            ax.axvline(x=y_vector_avg[i]['Data'][nwin], ymin=0.0,ymax=1.0, color='red')
-            ax.axvline(x=y_vector_avg[i]['10th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
-            ax.axvline(x=y_vector_avg[i]['90th'][nwin], ymin=0.0,ymax=1.0, color='magenta')
+    
         plt.tight_layout(pad=0.1)
         pdf_object.savefig()
         pdf_object.close()
         matplotlib.use('qt5agg')
                 
         if save_data_into_txt:
-            for ind in [0,8]:
-                if ind == 0:
+            for key in ['Velocity ccf radial','Distance']:
+                if key == 'Velocity ccf radial':
                     filename=wd+fig_dir+'/data_accessibility/figure_9ab.txt'
-                if ind == 8:
+                if key == 'Distance':
                     filename=wd+fig_dir+'/data_accessibility/figure_9cd.txt'
                 file1=open(filename, 'w+')
 
@@ -451,26 +507,26 @@ def plot_results_for_pop_2022(plot_figure=2,
                     file1.write(str(time_vec[i])+'\t')
                     
                 file1.write('\n#Median\n')
-                for i in range(1, len(y_vector_avg[ind]['Data'])):
-                    file1.write(str(y_vector_avg[ind]['Data'])+'\t')
+                for i in range(1, len(y_vector[key]['median'])):
+                    file1.write(str(y_vector[key]['median'])+'\t')
                     
                 file1.write('\n#10th perc.\n')
-                for i in range(1, len(y_vector_avg[ind]['10th'])):
-                    file1.write(str(y_vector_avg[ind]['10th'])+'\t')
+                for i in range(1, len(y_vector[key]['10th'])):
+                    file1.write(str(y_vector[key]['10th'])+'\t')
                     
                 file1.write('\n#90th perc.\n')
-                for i in range(1, len(y_vector_avg[ind]['90th'])):
-                    file1.write(str(y_vector_avg[ind]['90th'])+'\t')    
+                for i in range(1, len(y_vector[key]['90th'])):
+                    file1.write(str(y_vector[key]['90th'])+'\t')    
                     
                 file1.write('\n#Distribution bins\n')
-                for i in range(1, len(y_vector[ind]['Bins'])):
-                    file1.write(str(y_vector[ind]['Bins'])+'\t')
+                for i in range(1, len(y_vector[key]['bins'])):
+                    file1.write(str(y_vector[key]['bins'])+'\t')
                 file1.write('\n#Distribution\n')
                 
-                for i in range(len(y_vector[ind]['Data'][0,:])):
+                for i in range(len(y_vector[key]['data'][0,:])):
                     string=''
-                    for j in range(len(y_vector[ind]['Data'][:,0])):
-                        string+=str(y_vector[ind]['Data'][j,i])+'\t'
+                    for j in range(len(y_vector[key]['data'][:,0])):
+                        string+=str(y_vector[key]['data'][j,i])+'\t'
                     string+='\n'
                     file1.write(string)   
                 file1.close()
@@ -480,8 +536,11 @@ def plot_results_for_pop_2022(plot_figure=2,
     """
     if plot_figure == 10:
         plot_angular_vs_translational_velocity(tau_range=[-200e-6,200e-6],
+                                               subtraction_order=2,
                                                plot_for_pop_paper=True,
+                                               plot_log_omega=True,
                                                figure_filename=wd+fig_dir+'/fig_parameter_dependence.pdf')
+            
         #No need for data accessibility txt file because the data are in the previous txt files.
     """
     Dependence on plasma parameters

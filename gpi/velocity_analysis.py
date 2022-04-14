@@ -98,7 +98,7 @@ def calculate_nstx_gpi_avg_velocity(exp_id=None,
         - Only pixel coordinates are considered for the directions, slicing
         along spatial or magnetic coordinates would require the cross-correlation
         functions to be calculated between each and other pixels which is not
-        a memory efficient process
+        a memory efficient process.
     """
     
     if time_range is None:
@@ -379,7 +379,8 @@ def calculate_nstx_gpi_tde_velocity(exp_id=None,                 #Shot number
                             exp_id=exp_id, 
                             slicing=slicing, 
                             output_name='GPI_WINDOW_REF_12')
-            ccf=flap.ccf('GPI_WINDOW_1',exp_id=exp_id,
+            ccf=flap.ccf('GPI_WINDOW_1',
+                         exp_id=exp_id,
                          ref='GPI_WINDOW_REF_12',
                          coordinate='Time',
                          options={'Resolution':taures,
@@ -398,6 +399,7 @@ def calculate_nstx_gpi_tde_velocity(exp_id=None,                 #Shot number
             ccf_max_correlation=np.zeros(ccf.data.shape[0])
             maxrange=Ellipsis
             time_lag_vector=ccf.coordinate('Time lag')[0][0,:]
+            
             if poloidal:
                 displacement_vector=ccf.coordinate('Device z')[0][:,0]
             if radial:
@@ -514,6 +516,7 @@ def calculate_nstx_gpi_tde_velocity(exp_id=None,                 #Shot number
         data_title='Estimated poloidal velocity'
     if radial:
         data_title='Estimated radial velocity'
+        
     d_vel = flap.DataObject(data_array=velocity_matrix,
                             data_unit=flap.Unit(name='Velocity',unit='m/s'),
                             coordinates=coord,

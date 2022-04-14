@@ -150,37 +150,46 @@ def calculate_all_nstx_gpi_sz_velocity():
         
         flap.delete_data_object('*')
 
-        print('Calculating '+str(shot)+ ' at '+str(elm_time))
+        print('Calculating '+str(shot)+ ' at '+str(elm_time*1e3)+'ms')
         elm=elm+1
         start_time=time.time()
-        #try:
-        if True:
-            elm_time_range=[elm_time-1e-3,elm_time+1e-3]
+        try:
+        #if True:
+            # elm_time_range=[elm_time-200e-6,elm_time] #Finished calculation
+            # elm_time_range=[elm_time-500e-6,elm_time+200e-6] #Finished calculation
+            elm_time_range=[elm_time-5e-3,elm_time]
+            
             nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=shot, 
                                                                     time_range=elm_time_range, 
-                                                                    x_range=[10,15], 
-                                                                    y_range=[40,45], 
+                                                                    x_search=5,
+                                                                    y_search=5,
+                                                                    x_range=[5,49], 
+                                                                    y_range=[35,45], 
                                                                     plot=False, 
                                                                     pdf=False, 
-                                                                    nocalc=False)
+                                                                    nocalc=True)
 
-#        except:
-#            print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
-#            failed_elms.append({'Shot':shot,'Time':elm_time})
-#            number_of_failed_elms+=1
-            
-        print(failed_elms,number_of_failed_elms)
+        except:
+            print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
+            failed_elms.append({'Shot':shot,'Time':elm_time})
+            number_of_failed_elms += 1
+            print(failed_elms,number_of_failed_elms)
+        
         finish_time=time.time()
         rem_time=(finish_time-start_time)*(len(elm_index)-index_elm+1)
-        print('Remaining time from the calculation:'+str(rem_time/3600.)+'hours.')
+        print('Remaining time from the calculation: '+
+              str(int(rem_time/3600./24.))+'d '+
+              str(int(np.mod(rem_time,86400)/3600.))+'h.')
         
-def calculate_all_nstx_gpi_angular_velocity(elm_time_window=0.6e-3):
+def calculate_all_nstx_gpi_angular_velocity(elm_time_window=1e-3, backwards=False):
     database_file='/Users/mlampert/work/NSTX_workspace/db/ELM_findings_mlampert_velocity_good.csv'
     db=pandas.read_csv(database_file, index_col=0)
     elm_index=(list(db.index))
     elm=0.
     failed_elms=[]
     number_of_failed_elms=0
+    if backwards:
+        elm_index=np.flip(elm_index)
     for index_elm in range(len(elm_index)):
         #preprocess velocity results, tackle with np.nan and outliers
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
@@ -194,20 +203,28 @@ def calculate_all_nstx_gpi_angular_velocity(elm_time_window=0.6e-3):
         if status != 'NO':
             #try:
             if True:
-                calculate_nstx_gpi_angular_velocity(exp_id=shot, 
-                                                    time_range=[elm_time-elm_time_window,elm_time+elm_time_window],
-                                                    subtraction_order_for_velocity=4,
-                                                    nocalc=False, 
+                calculate_nstx_gpi_angular_velocity(exp_id=shot,
+                                                    normalize='roundtrip', 
+                                                    normalize_for_velocity=True,
+                                                    time_range=[elm_time-elm_time_window,
+                                                                elm_time+elm_time_window],
+                                                    
+                                                    subtraction_order_for_velocity=2,
+                                                    gaussian_blur=True,
+                                                    calculate_half_fft=True,
+                                                    
+                                                    nocalc=True, 
                                                     correlation_threshold=0., 
                                                     plot=False, 
-                                                    pdf=True)
+                                                    pdf=False)
 #            except:
 #                print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
 #                failed_elms.append({'Shot':shot,'Time':elm_time})
 #                number_of_failed_elms+=1
         one_time=time.time()-start_time
         rem_time=one_time*(len(elm_index)-index_elm)
-        print('Remaining time from the calculation:'+str(rem_time/3600.)+'hours.')
+        print('Remaining time from the calculation:'+str(int(rem_time/3600.))+'h '+str(int(np.mod(rem_time,3600.)/60.))+'min.')
+        
         print(failed_elms,number_of_failed_elms)
         
 def calculate_all_elm_fitting_videos(elm_time_window=0.2e-3, watershed=True, contour=False, random=False, nrand=5):

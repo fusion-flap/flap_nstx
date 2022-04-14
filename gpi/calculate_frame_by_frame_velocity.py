@@ -141,6 +141,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                test_gas_cloud=False,                 #Test the gas cloud property determination
                                                test_histogram=False,                 #Plot the poloidal velocity histogram
                                                save_data_for_publication=False,
+                                               verbose=False,
                                                ):
 
     """
@@ -363,7 +364,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             
         #Subtract trend from data
         if subtraction_order_for_velocity is not None:
-            print("*** Subtracting the trend of the data ***")
+            if verbose: print("*** Subtracting the trend of the data ***")
             d=detrend_multidim(object_name_ccf_velocity,
                                exp_id=exp_id,
                                order=subtraction_order_for_velocity, 
@@ -379,7 +380,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             object_name_str_vel='GPI_DETREND_STR_VEL'
             
         if subtraction_order_for_size is not None:
-            print("*** Subtracting the trend of the data ***")
+            if verbose: print("*** Subtracting the trend of the data ***")
             d=detrend_multidim(object_name_str_size,
                                exp_id=exp_id,
                                order=subtraction_order_for_size, 
@@ -851,7 +852,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                     valid_structure1_vel=False
                     valid_structure2_vel=False
                     valid_structure2_size=False
-                    print('Invalid consecutive number of frames: '+str(invalid_correlation_frame_counter))
+                    if verbose: print('Invalid consecutive number of frames: '+str(invalid_correlation_frame_counter))
                         
                 """Structure size calculation based on the contours"""    
                 #Crude average size calculation
@@ -872,7 +873,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                         weight=intensities/np.sum(intensities)
                     elif weighting == 'area':
                         weight=areas/np.sum(areas)
-                    print(n_str2, weight, i_frames)
+                    if verbose: print(n_str2, weight, i_frames)
                     for i_str2 in range(n_str2):   
                         #Quantities from Ellipse fitting
                         frame_properties['Size avg'][i_frames,:]+=structures2_size[i_str2]['Size']*weight[i_str2]

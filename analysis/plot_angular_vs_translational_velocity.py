@@ -59,140 +59,144 @@ else:
     figsize=None
     
 def plot_angular_vs_translational_velocity(window_average=500e-6,
-                                                tau_range=[-500e-6,500e-6],
-                                                sampling_time=2.5e-6,
-                                                pdf=False,
-                                                plot=True,
-                                                return_results=False,
-                                                return_error=False,
-                                                plot_variance=True,
-                                                plot_error=False,
-                                                normalized_velocity=True,
-                                                normalized_structure=True,
-                                                subtraction_order=4,
-                                                opacity=0.2,
-                                                correlation_threshold=0.6,
-                                                plot_max_only=False,
-                                                plot_for_publication=False,
-                                                gpi_plane_calculation=True,
-                                                plot_scatter=True,
-                                                elm_time_base='frame similarity',
-                                                n_hist=50,
-                                                min_max_range=False,
-                                                nocalc=False,
-                                                general_plot=True,
-                                                plot_for_velocity=False,
-                                                plot_for_structure=False,
-                                                plot_for_dependence=False,
-                                                plot_for_pop_paper=False,
-                                                figure_filename=None):
+                                           tau_range=[-500e-6,500e-6],
+                                           sampling_time=2.5e-6,
+                                           pdf=False,
+                                           plot=True,
+                                           return_results=False,
+                                           return_error=False,
+                                           plot_variance=True,
+                                           plot_error=False,
+                                           normalized_velocity=True,
+                                           normalized_structure=True,
+                                           subtraction_order=4,
+                                           opacity=0.2,
+                                           correlation_threshold=0.6,
+                                           plot_max_only=False,
+                                           plot_for_publication=False,
+                                           gpi_plane_calculation=True,
+                                           plot_scatter=True,
+                                           elm_time_base='frame similarity',
+                                           n_hist=50,
+                                           min_max_range=False,
+                                           nocalc=False,
+                                           general_plot=True,
+                                           plot_for_velocity=False,
+                                           plot_for_structure=False,
+                                           plot_for_dependence=False,
+                                           plot_for_pop_paper=False,
+                                           plot_log_omega=False,
+                                           figure_filename=None,
+                                           ):
     
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
     
-    time_vec, y_vector_rot, y_vector_avg_rot = plot_nstx_gpi_angular_velocity_distribution(return_results=True)
+    time_vec, y_vector_rot = plot_nstx_gpi_angular_velocity_distribution(plot_for_publication=True,
+                                                                        window_average=window_average,
+                                                                        subtraction_order=subtraction_order,
+                                                                        correlation_threshold=correlation_threshold,
+                                                                        pdf=False,
+                                                                        plot=False,
+                                                                        return_results=True,
+                                                                        plot_all_time_traces=False,
+                                                                        tau_range=[-1e-3,1e-3],
+                                                                        )
     
-    time_vec, y_vector_tra, y_vector_avg_tra = plot_nstx_gpi_velocity_distribution(return_results=True)
+    time_vec, y_vector_tra = plot_nstx_gpi_velocity_distribution(return_results=True,
+                                                                 plot=False,
+                                                                 pdf=False)
     
     tau_ind=np.where(np.logical_and(time_vec >= tau_range[0]*1e3, time_vec <= tau_range[1]*1e3))
-    y_vector_avg_tra[0]['Data']=y_vector_avg_tra[0]['Data'][tau_ind]  #vrad
-    y_vector_avg_tra[1]['Data']=y_vector_avg_tra[1]['Data'][tau_ind]  #vpol
-    y_vector_avg_tra[2]['Data']=y_vector_avg_rot[3]['Data'][tau_ind]  #vrad skim
-    y_vector_avg_tra[3]['Data']=y_vector_avg_rot[4]['Data'][tau_ind]  #vpol skim
-    
-    y_vector_avg_tra[4]['Data']=y_vector_avg_tra[4]['Data'][tau_ind]  #dpol
-    y_vector_avg_tra[5]['Data']=y_vector_avg_tra[5]['Data'][tau_ind]  #drad
-    y_vector_avg_tra[8]['Data']=y_vector_avg_tra[8]['Data'][tau_ind]  #r-r_sep
-    
-    y_vector_avg_rot[4]['Data']=y_vector_avg_rot[4]['Data'][tau_ind] # ang vel skim
-    y_vector_avg_rot[5]['Data']=y_vector_avg_rot[5]['Data'][tau_ind] # ang vel flap
-    y_vector_avg_rot[6]['Data']=y_vector_avg_rot[6]['Data'][tau_ind] # exp vel skim
-    y_vector_avg_rot[7]['Data']=y_vector_avg_rot[7]['Data'][tau_ind] # exp vel flap
     
     if not plot_for_pop_paper or figure_filename is None:
         pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians_angular.pdf')
     else:
         pdf_object=PdfPages(figure_filename)
         
+    if plot_log_omega:
+        log_str=' log'
+    else:
+        log_str=''
     if not plot_for_pop_paper:
         gs=GridSpec(2,2)
         plt.figure()   
         ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         
         plt.subplot(gs[0,0])
-        plt.plot(y_vector_avg_tra[3]['Data'],
-                 y_vector_avg_tra[2]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind],
+                 y_vector_tra['Velocity ccf radial']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[3]['Data'][ind_a], 
-                        y_vector_avg_tra[2]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind][ind_a], 
+                        y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('v pol [km/s]')
-        plt.ylabel('v rad [km/s]')
-        plt.title('vrad vs. vpol')
+        plt.xlabel('$v_{pol}$ [km/s]')
+        plt.ylabel('$v_{rad}$ [km/s]')
+        plt.title('$v_{rad}$ vs. $v_{pol}$')
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,1])
-        plt.plot(y_vector_avg_tra[5]['Data'],
-                 y_vector_avg_tra[4]['Data'],
+        plt.plot(y_vector_tra['Size max radial']['median'][tau_ind],
+                 y_vector_tra['Size max poloidal']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[5]['Data'][ind_a], 
-                        y_vector_avg_tra[4]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Size max radial']['median'][tau_ind][ind_a], 
+                        y_vector_tra['Size max poloidal']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('d rad [mm]')
-        plt.ylabel('d pol [mm]')
-        plt.title('drad vs. dpol')
+        plt.xlabel('$d_{rad}$ [mm]')
+        plt.ylabel('$d_{pol}$ [mm]')
+        plt.title('$d_{rad} vs. $d_{pol}$')
         
-        # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        # colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median']))))
         # plt.subplot(gs[1,0])
-        # plt.plot(y_vector_avg_tra[8]['Data'],
-        #          y_vector_avg_tra[0]['Data'],
+        # plt.plot(y_vector_tra['Distance']['median'],
+        #          y_vector_tra['Velocity ccf radial']['median'],
         #          lw='0.2')
-        # for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        # for ind_a in range(len(y_vector_tra['Distance']['median'])):
         #     color=copy.deepcopy(next(colors))
-        #     plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-        #                 y_vector_avg_tra[0]['Data'][ind_a], 
+        #     plt.scatter(y_vector_tra['Distance']['median'][ind_a], 
+        #                 y_vector_tra['Velocity ccf radial']['median'][ind_a], 
         #                 color=color,
         #                 s=1)
         
         # plt.xlabel('r-r_sep [mm]')
         # plt.ylabel('vrad [km/s]')
         # plt.title('r-r_sep vs. vrad')
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[1,0])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_tra[2]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_tra['Velocity ccf radial']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_tra[2]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
         
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('vrad skim [km/s]')
-        plt.title('r-r_sep vs. vrad')
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$v_{rad}$ [km/s]')
+        plt.title('$r-r_{sep}$ vs. $v_{rad}$')
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind]))))
         plt.subplot(gs[1,1])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_tra[3]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_tra['Velocity ccf poloidal']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_tra[3]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_tra['Velocity ccf poloidal']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('vpol skim [km/s]')
-        plt.title('r-r_sep vs. vpol')           
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$v_{pol}$ [km/s]')
+        plt.title('$r-r_{sep}$ vs. $v_{pol}$')           
     
         pdf_object.savefig()
         
@@ -201,65 +205,65 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
         
         gs=GridSpec(2,2)
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,0])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[6]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf skim']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[6]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf skim']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('omega [1/s]')
-        plt.title('r-r_sep vs. omega skim')  
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$\omega$ [rad/s]')
+        plt.title('$r-r_{sep}$ vs. $\omega_{skim}$')  
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,1])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[7]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[7]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('omega [1/s]')
-        plt.title('r-r_sep vs. omega FLAP')  
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$\omega$ [rad/s]')
+        plt.title('$r-r_{sep}$ vs. $\omega_{FLAP}$')  
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[1,0])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[8]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Expansion velocity ccf skim']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[8]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf skim']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('exp vel [1/s]')
-        plt.title('r-r_sep vs. exp vel skim')  
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$f_{s}$')
+        plt.title('$r-r_{sep}$ vs. $f_{s}$')  
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[1,1])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[9]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[8]['Data'])):
+        for ind_a in range(len(y_vector_tra['Distance']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[9]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('exp vel [1/s]')
-        plt.title('r-r_sep vs. exp vel FLAP')      
+        plt.xlabel('$r-r_{sep}$ [mm]')
+        plt.ylabel('$f_{s}$')
+        plt.title('$r-r_{sep}$ vs. $f_{s,FLAP}$')      
         
         pdf_object.savefig()
         
@@ -267,131 +271,135 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
         
         gs=GridSpec(2,2)
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,0])
-        plt.plot(y_vector_avg_tra[0]['Data'],
-                 y_vector_avg_rot[6]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf skim']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                        y_vector_avg_rot[6]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf skim']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('vrad [km/s]')
-        plt.ylabel('omega [1/s]')
-        plt.title('vrad vs. ang vel skim')   
+        plt.xlabel('$v_{rad}$ [km/s]')
+        plt.ylabel('$\omega$ [1/s]')
+        plt.title('$v_{rad}$ vs. $\omega_{skim}$')   
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,1])
-        plt.plot(y_vector_avg_tra[0]['Data'],
-                 y_vector_avg_rot[7]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[0]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                        y_vector_avg_rot[7]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('vrad [km/s]')
-        plt.ylabel('omega [1/s]')
-        plt.title('vrad vs. ang vel FLAP')   
+        plt.xlabel('$v_{rad}$ [km/s]')
+        plt.ylabel('$\omega$ [rad/s]')
+        plt.title('$v_{rad}$ vs. $\omega$ FLAP')   
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind]))))
         plt.subplot(gs[1,0])
-        plt.plot(y_vector_avg_tra[1]['Data'],
-                 y_vector_avg_rot[6]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf skim']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[3]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[1]['Data'][ind_a], 
-                        y_vector_avg_rot[6]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf skim']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('vpol skim [km/s]')
-        plt.ylabel('ang vel [1/s]')
-        plt.title('vpol skim vs. ang vel skim')   
+        plt.xlabel('$v_{pol}$ [km/s]')
+        plt.ylabel('$\omega$ [rad/s]')
+        plt.title('$v_{pol}$ vs. $\omega_{skim}$')   
     
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[3]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind]))))
         plt.subplot(gs[1,1])
-        plt.plot(y_vector_avg_tra[1]['Data'],
-                 y_vector_avg_rot[7]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[3]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[1]['Data'][ind_a], 
-                        y_vector_avg_rot[7]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf poloidal']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf FLAP']['median'][tau_ind][ind_a], 
                         color=color,
                         s=1)
-        plt.xlabel('vpol skim [km/s]')
-        plt.ylabel('ang vel [1/s]')
-        plt.title('vpol skim vs. ang vel FLAP')          
+        plt.xlabel('$v_{pol}$ [km/s]')
+        plt.ylabel('$\omega$ [rad/s]')
+        plt.title('$v_{pol}$ vs. ang vel FLAP')          
         pdf_object.savefig()
+        
+        
+        
     else:
+
         gs=GridSpec(2,2)
         plt.figure()   
         ax,fig=plt.subplots(figsize=(17/2.54,14/2.54))
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         
         plt.subplot(gs[0,0])
-        plt.plot(y_vector_avg_tra[0]['Data'],
-                 y_vector_avg_rot[7]['Data']/1e3,
+        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf log']['median'][tau_ind],
                  lw='0.2')
-        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                        y_vector_avg_rot[7]['Data'][ind_a]/1e3, 
+            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf log']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('v rad [km/s]')
-        plt.ylabel('omega [krad/s]')
-        plt.title('vrad vs. omega')
+        plt.xlabel('$v_{rad}$ [km/s]')
+        plt.ylabel('$\omega$ [krad/s]')
+        plt.title('$v_{rad}$ vs. $\omega$')
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[0,1])
-        plt.plot(y_vector_avg_tra[0]['Data'],
-                 y_vector_avg_rot[9]['Data'],
+        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                 y_vector_rot['Expansion velocity ccf']['median'][tau_ind],
                  lw='0.5')
-        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[0]['Data'][ind_a], 
-                        y_vector_avg_rot[9]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('vrad [km/s]')
-        plt.ylabel('exp vel')
-        plt.title('vrad vs. exp vel')
+        plt.xlabel('$v_{rad}$ [km/s]')
+        plt.ylabel('$f_{S}$')
+        plt.title('$v_{rad}$ vs. scaling')
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[2]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         
         plt.subplot(gs[1,0])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[7]['Data']/1e3,
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf log']['median'][tau_ind],
                  lw='0.5')
-        for ind_a in range(len(y_vector_avg_tra[2]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[7]['Data'][ind_a]/1e3, 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf log']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('omega [krad/s]')
-        plt.title('r-r_sep vs. omega')
+        plt.xlabel('r-$r_{sep}$ [mm]')
+        plt.ylabel('$\omega$ [krad/s]')
+        plt.title('r-$r_{sep}$ vs. $\omega$')
         
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_avg_tra[0]['Data']))))
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
         plt.subplot(gs[1,1])
-        plt.plot(y_vector_avg_tra[8]['Data'],
-                 y_vector_avg_rot[9]['Data'],
+        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Expansion velocity ccf']['median'][tau_ind],
                  lw='0.5')
-        for ind_a in range(len(y_vector_avg_tra[4]['Data'])):
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_avg_tra[8]['Data'][ind_a], 
-                        y_vector_avg_rot[9]['Data'][ind_a], 
+            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('r-r_sep [mm]')
-        plt.ylabel('exp vel')
-        plt.title('r-r_sep vs. exp vel')
+        plt.xlabel('r-$r_{sep}$ [mm]')
+        plt.ylabel('$f_{S}$')
+        plt.title('r-$r_{sep}$ vs. $f_{S}$')
         plt.tight_layout()
         pdf_object.savefig()
     pdf_object.close()
