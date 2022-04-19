@@ -336,70 +336,77 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
         
     else:
 
-        gs=GridSpec(2,2)
+        #gs=GridSpec(2,2)
         plt.figure()   
-        ax,fig=plt.subplots(figsize=(17/2.54,14/2.54))
+        fig,axs=plt.subplots(2,2,figsize=(17/2.54,14/2.54))
         colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
-        
-        plt.subplot(gs[0,0])
-        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
-                 y_vector_rot['Angular velocity ccf log']['median'][tau_ind],
-                 lw='0.2')
+        x_text=-0.2
+        ax=axs[0,0]
+        #plt.subplot(gs[0,0])
+        ax.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                y_vector_rot['Angular velocity ccf FLAP log']['median'][tau_ind],
+                lw='0.2')
         for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
-                        y_vector_rot['Angular velocity ccf log']['median'][tau_ind][ind_a], 
+            ax.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf FLAP log']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('$v_{rad}$ [km/s]')
-        plt.ylabel('$\omega$ [krad/s]')
-        plt.title('$v_{rad}$ vs. $\omega$')
+        ax.set_xlabel('$v_{rad}$ [km/s]')
+        ax.set_ylabel('$\omega$ [krad/s]')
+        ax.set_title('Radial vs. angular velocity')
+        ax.text(x_text, 1.05, '(a)', transform=ax.transAxes, size=9)
         
         colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
-        plt.subplot(gs[0,1])
-        plt.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
-                 y_vector_rot['Expansion velocity ccf']['median'][tau_ind],
+        #plt.subplot(gs[0,1])
+        ax=axs[0,1]
+        ax.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
+                y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind],
+                lw='0.5')
+        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
+            color=copy.deepcopy(next(colors))
+            ax.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind][ind_a], 
+                        color=color,
+                        s=4)
+        ax.set_xlabel('$v_{rad}$ [km/s]')
+        ax.set_ylabel('$f_{S}$')
+        ax.set_title('Radial velocity vs. scaling')
+        ax.text(x_text, 1.05, '(b)', transform=ax.transAxes, size=9)
+        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
+        
+        #plt.subplot(gs[1,0])
+        ax=axs[1,0]
+        ax.plot(y_vector_tra['Distance']['median'][tau_ind],
+                 y_vector_rot['Angular velocity ccf FLAP log']['median'][tau_ind],
                  lw='0.5')
         for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 
-                        y_vector_rot['Expansion velocity ccf']['median'][tau_ind][ind_a], 
+            ax.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Angular velocity ccf FLAP log']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('$v_{rad}$ [km/s]')
-        plt.ylabel('$f_{S}$')
-        plt.title('$v_{rad}$ vs. scaling')
+        ax.set_xlabel('r-$r_{sep}$ [mm]')
+        ax.set_ylabel('$\omega$ [krad/s]')
+        ax.set_title('Distance vs. angular velocity')
+        ax.text(x_text, 1.05, '(c)', transform=ax.transAxes, size=9)
         
         colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
-        
-        plt.subplot(gs[1,0])
-        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
-                 y_vector_rot['Angular velocity ccf log']['median'][tau_ind],
-                 lw='0.5')
+        #plt.subplot(gs[1,1])
+        ax=axs[1,1]
+        ax.plot(y_vector_tra['Distance']['median'][tau_ind],
+                y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind],
+                lw='0.5')
         for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
-                        y_vector_rot['Angular velocity ccf log']['median'][tau_ind][ind_a], 
+            ax.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
+                        y_vector_rot['Expansion velocity ccf FLAP']['median'][tau_ind][ind_a], 
                         color=color,
                         s=4)
-        plt.xlabel('r-$r_{sep}$ [mm]')
-        plt.ylabel('$\omega$ [krad/s]')
-        plt.title('r-$r_{sep}$ vs. $\omega$')
-        
-        colors = iter(cm.gist_ncar(np.linspace(0, 1, len(y_vector_tra['Velocity ccf radial']['median'][tau_ind]))))
-        plt.subplot(gs[1,1])
-        plt.plot(y_vector_tra['Distance']['median'][tau_ind],
-                 y_vector_rot['Expansion velocity ccf']['median'][tau_ind],
-                 lw='0.5')
-        for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
-            color=copy.deepcopy(next(colors))
-            plt.scatter(y_vector_tra['Distance']['median'][tau_ind][ind_a], 
-                        y_vector_rot['Expansion velocity ccf']['median'][tau_ind][ind_a], 
-                        color=color,
-                        s=4)
-        plt.xlabel('r-$r_{sep}$ [mm]')
-        plt.ylabel('$f_{S}$')
-        plt.title('r-$r_{sep}$ vs. $f_{S}$')
+        ax.set_xlabel('r-$r_{sep}$ [mm]')
+        ax.set_ylabel('$f_{S}$')
+        ax.set_title('Distance vs. scaling')
+        ax.text(x_text, 1.05, '(d)', transform=ax.transAxes, size=9)
         plt.tight_layout()
         pdf_object.savefig()
     pdf_object.close()

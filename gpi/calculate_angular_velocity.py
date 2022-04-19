@@ -105,9 +105,10 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                         plot_scatter=True,
                                         plot_time_range=None,                       #Plot the results in a different time range than the data is read from
                                         plot_for_publication=False,                 #Modify the plot sizes to single column sizes and golden ratio axis ratios
-                                        plot_zoomed_ccf=False,
-                                        plot_skimage=False,
-                                        sample_to_plot=None,
+                                        plot_ccf=False,
+                                        plot_skimage=False,                         #Splot scikit-image results instead of FLAP (only when plot_for_publication)
+                                        
+                                        sample_to_plot=None,                        #The sample numbers which should be plot for the paper. Should be a two element list.
                                         save_data_for_publication=False,
                                         data_filename=None,
                                         
@@ -212,6 +213,15 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         pdf_test=PdfPages(pdf_filename)
     else:
         pdf_test=None
+    if plot_ccf:
+        if pdf:
+            pdf_filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                                  working_directory=wd+'/plots',
+                                                  time_range=time_range,
+                                                  purpose='ang vel ccf',
+                                                  comment=comment+'_ct_'+str(correlation_threshold),
+                                                  extension='pdf')
+            pdf_object_ccf=PdfPages(pdf_filename)
     import matplotlib.pyplot as plt
            
     if not nocalc:
@@ -444,6 +454,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             fig, axs = plt.subplots(3, len(sample_to_plot), figsize=(8.5/2.54, 13.7/2.54))
         else:
             axs=None
+
         for i_frames in range(0,n_frames-2):
             """
             STRUCTURE VELOCITY CALCULATION BASED ON FLAP CCF CALCULATION
@@ -624,18 +635,42 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                                       ccf_object_polar.data.shape))
                 
                 #Crude way to get rid of a bunch of code from the main part, sry, not sry
-                plot_angular_velocity_calc_test(test,test_into_pdf,pdf_test,plot_zoomed_ccf,
-                                                sample_number, sample_to_plot,i_log_or_not,
-                                                axs,frame2_fft_polar_log,frame2_fft,
-                                                save_data_for_publication,data_filename,time,i_frames)
+                plot_angular_velocity_calc_test(test=test,
+                                                test_into_pdf=test_into_pdf,
+                                                pdf_test=pdf_test,
+                                                sample_number=sample_number,
+                                                sample_to_plot=sample_to_plot,
+                                                i_log_or_not=i_log_or_not,
+                                                axs=axs,
+                                                frame2_fft_polar_log=frame2_fft_polar_log,
+                                                frame2_fft=frame2_fft,
+                                                save_data_for_publication=save_data_for_publication,
+                                                data_filename=data_filename,
+                                                time=time,
+                                                i_frames=i_frames)
                 
-                plot_angular_velocity_ccf(sample_to_plot=sample_to_plot, 
-                                          xdata=xdata, 
-                                          ydata=ydata, 
-                                          ccf=ccf, 
-                                          plot=plot, 
-                                          pdf=pdf,
-                                          plot_for_publication=plot_for_publication)
+                if (plot_ccf and 
+                    sample_to_plot is not None and 
+                    not plot_skimage
+                    and i_log_or_not):
+                    
+                    ccf=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').data
+                    xdata=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').coordinate('Radius lag')[0][0,:]
+                    ydata=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').coordinate('Angle lag')[0][:,0]
+                    
+                    plot_angular_velocity_ccf(sample_to_plot=sample_to_plot, 
+                                              xdata=xdata, 
+                                              ydata=ydata, 
+                                              ccf=ccf, 
+                                              pdf=pdf,
+                                              title='FLAP CCF',
+                                              pdf_object=pdf_object_ccf,
+                                              plot_for_publication=plot_for_publication,
+                                              save_data_for_publication=save_data_for_publication,
+                                              data_filename=data_filename,
+                                              time=time,
+                                              sample_number=sample_number,
+                                              i_frames=i_frames)
                 
                 #Fit a 2D polinomial on top of the peak
     
@@ -676,10 +711,20 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             else:
                 frame1_fft_input=frame1_fft_polar
                 frame2_fft_input=frame2_fft_polar
-            shift_rot, error, phasediff, cross_corr_max = phase_cross_correlation_mod_ml(frame1_fft_input,#_half, 
-                                                                                         frame2_fft_input,#_half,
-                                                                                         upsample_factor=upsample_factor,
-                                                                                         polyfit_2D=flap_nstx.tools.polyfit_2D)
+                
+            shape=frame1_fft_input.shape
+            frame1_input_zero_padded=np.zeros(np.asarray(shape)*(2*zero_padding_scale+1))
+            frame1_input_zero_padded[shape[0]*zero_padding_scale:shape[0]*(zero_padding_scale+1),
+                                     shape[1]*zero_padding_scale:shape[1]*(zero_padding_scale+1)]=frame1_fft_input
+            shape=frame2_fft_input.shape
+            frame2_input_zero_padded=np.zeros(np.asarray(shape)*(2*zero_padding_scale+1))
+            frame2_input_zero_padded[shape[0]*zero_padding_scale:shape[0]*(zero_padding_scale+1),
+                                     shape[1]*zero_padding_scale:shape[1]*(zero_padding_scale+1)]=frame2_fft_input
+            
+            shift_rot, error, phasediff, cross_corr_max, cross_corr_lin = phase_cross_correlation_mod_ml(frame1_input_zero_padded,
+                                                                                                         frame2_input_zero_padded,
+                                                                                                         upsample_factor=upsample_factor,
+                                                                                                         polyfit_2D=flap_nstx.tools.polyfit_2D)
             shiftr, shiftc = shift_rot[:2]
             
             shape_vec=frame1_fft_polar_log.shape
@@ -690,12 +735,44 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             else:
                 frame1_fft_log_input=frame1_fft_polar_log
                 frame2_fft_log_input=frame2_fft_polar_log
-                
             
-            shift_rot_log, error_log, phasediff, cross_corr_max_log = phase_cross_correlation_mod_ml(frame1_fft_log_input,#_half, 
-                                                                                                 frame2_fft_log_input,#_half,
-                                                                                                 upsample_factor=upsample_factor,
-                                                                                                 polyfit_2D=flap_nstx.tools.polyfit_2D)
+            # shape=frame1_fft_log_input.shape
+            # frame1_log_input_zero_padded=np.zeros(np.asarray(shape)*(2*zero_padding_scale+1))
+            # frame1_log_input_zero_padded[shape[0]*zero_padding_scale:shape[0]*(zero_padding_scale+1),
+            #                          shape[1]*zero_padding_scale:shape[1]*(zero_padding_scale+1)]=frame1_fft_log_input
+            
+            # shape=frame2_fft_log_input.shape
+            # frame2_log_input_zero_padded=np.zeros(np.asarray(shape)*(2*zero_padding_scale+1))
+            # frame2_log_input_zero_padded[shape[0]*zero_padding_scale:shape[0]*(zero_padding_scale+1),
+            #                              shape[1]*zero_padding_scale:shape[1]*(zero_padding_scale+1)]=frame2_fft_log_input
+            frame1_log_input_zero_padded=frame1_fft_log_input
+            frame2_log_input_zero_padded=frame2_fft_log_input
+            
+            pc_output = phase_cross_correlation_mod_ml(frame1_log_input_zero_padded,
+                                                       frame2_log_input_zero_padded,
+                                                       upsample_factor=upsample_factor,
+                                                       polyfit_2D=flap_nstx.tools.polyfit_2D)
+            
+            (shift_rot_log, error_log, phasediff, cross_corr_max_log, cross_corr_log)=pc_output
+            
+            if plot_ccf and plot_skimage:
+                xdata=np.arange(cross_corr_log.shape[0])-cross_corr_log.shape[0]//2
+                ydata=np.arange(cross_corr_log.shape[1])-cross_corr_log.shape[1]//2
+                
+                plot_angular_velocity_ccf(sample_to_plot=sample_to_plot, 
+                                          sample_number=sample_number,
+                                          xdata=ydata, 
+                                          ydata=xdata, 
+                                          ccf=np.fft.fftshift(cross_corr_log), 
+                                          
+                                          pdf=pdf,
+                                          title='skim CCF',
+                                          pdf_object=pdf_object_ccf,
+                                          plot_for_publication=plot_for_publication,
+                                          save_data_for_publication=save_data_for_publication,
+                                          data_filename=data_filename,
+                                          time=time,
+                                          i_frames=i_frames)
             
             shiftr_log, shiftc_log = shift_rot_log[:2]
             
@@ -762,6 +839,8 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         if test_into_pdf:
             plt.tight_layout(pad=0.1)
             pdf_test.savefig()
+        if plot_ccf and pdf:
+            pdf_object_ccf.close()
     else:
         print('--- Loading data from the pickle file ---')
         frame_properties=pickle.load(open(pickle_filename, 'rb'))
@@ -1044,10 +1123,19 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         return frame_properties
     
     
-def plot_angular_velocity_calc_test(test,test_into_pdf,pdf_test,plot_zoomed_ccf,
-                                    sample_number, sample_to_plot,i_log_or_not,
-                                    axs, frame2_fft_polar_log, frame2_fft,
-                                    save_data_for_publication,data_filename,time,i_frames):
+def plot_angular_velocity_calc_test(test=False,
+                                    test_into_pdf=False,
+                                    pdf_test=None,
+                                    sample_number=None,
+                                    sample_to_plot=None,
+                                    i_log_or_not=0,
+                                    axs=None, 
+                                    frame2_fft_polar_log=None, 
+                                    frame2_fft=None,
+                                    save_data_for_publication=False,
+                                    data_filename=None,
+                                    time=None,
+                                    i_frames=None):
     if test and not test_into_pdf:
         plt.cla()
 
@@ -1165,167 +1253,70 @@ def plot_angular_velocity_calc_test(test,test_into_pdf,pdf_test,plot_zoomed_ccf,
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
         
-    if (test_into_pdf and 
-        i_log_or_not == 0 and 
-        sample_to_plot is None):
-        
-        plt.figure()
-        gs=GridSpec(2,2)
-        plt.subplot(gs[0,0])
-        flap.plot('GPI_FRAME_2_FILTERED', 
-                  plot_type='contour',
-                  plot_options={'levels':51},
-                  axes=['Image x', 'Image y'],
-                  options={'Equal axes':True})
-        plt.title('Frame t='+str(time[i_frames]*1e3)+'ms')
-        plt.pause(0.001)
-        plt.show()
-        
-        if save_data_for_publication and data_filename is not None:
-            file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_frame.txt', 'w+')
-            data=flap.get_data_object_ref('GPI_FRAME_2').data
-            for i in range(len(data[0,:])):
-                string=''
-                for j in range(len(data[:,0])):
-                    string+=str(data[j,i])+'\t'
-                string+='\n'
-                file1.write(string)
-            file1.close()
-        elif save_data_for_publication and data_filename is None:
-            print('No data_filename was given. Data is not saved into txt.')
-            
-        plt.subplot(gs[0,1])
-        plt.contourf(np.arange(frame2_fft.shape[0])-frame2_fft.shape[0]//2,
-                     np.arange(frame2_fft.shape[1])-frame2_fft.shape[1]//2,
-                     frame2_fft.transpose(), levels=51)
-        
-        plt.xlabel('k_y [pix-1]')
-        plt.ylabel('k_x [pix-1]')
-        plt.xlim([-64,64])
-        plt.ylim([-80,80])
-        plt.title('FFT lin t='+str(time[i_frames]*1e3)+'ms')
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.pause(0.001)
-        plt.show()
-        
-        if save_data_for_publication and data_filename is not None:
-            file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_fft_linear.txt', 'w+')
-            data=frame2_fft
-            xdata=np.arange(frame2_fft.shape[0]) - frame2_fft.shape[0]//2
-            ydata=np.arange(frame2_fft.shape[1]) - frame2_fft.shape[1]//2
-            
-            file1.write('#x lag (pix)\n')
-            for i in range(len(xdata)):
-                file1.write(str(xdata[i])+'\t')
-                
-            file1.write('\n#y lag (pix)\n')
-            for i in range(len(ydata)):
-                file1.write(str(ydata[i])+'\t')
-                
-            file1.write('\n#FFT linear\n')
-            for i in range(len(data[0,:])):
-                string=''
-                for j in range(len(data[:,0])):
-                    string+=str(data[j,i])+'\t'
-                string+='\n'
-                file1.write(string)
-            file1.close()
-        elif save_data_for_publication and data_filename is None:
-            print('No data_filename was given. Data is not saved into txt.')
-        
-        plt.subplot(gs[1,0])
-        xdata=np.arange(frame2_fft_polar_log.shape[0])
-        ydata=np.arange(frame2_fft_polar_log.shape[1])
-        #ydata=(np.exp(np.arange(frame2_fft_polar_log.shape[1]) / radius / np.log(radius)))
-        
-        data=frame2_fft_polar_log
-        plt.contourf(xdata,
-                     ydata,
-                     data.transpose(), levels=51)
-        
-        plt.xlabel('phi [deg]')
-        plt.ylabel('r (pix)')
-
-        plt.title('FFT logpol t='+str(time[i_frames]*1e3)+'ms')
-        plt.pause(0.001)
-        plt.show()
-        
-        if save_data_for_publication and data_filename is not None:
-            file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_fft_logpol.txt', 'w+')
-            
-            file1.write('#phi (deg)\n')
-            for i in range(len(xdata)):
-                file1.write(str(xdata[i])+'\t')
-                
-            file1.write('\n#r (pix)\n')
-            for i in range(len(ydata)):
-                file1.write(str(ydata[i])+'\t')
-                
-            file1.write('\n#FFT logpol\n')
-            for i in range(len(data[0,:])):
-                string=''
-                for j in range(len(data[:,0])):
-                    string+=str(data[j,i])+'\t'
-                string+='\n'
-                file1.write(string)
-            file1.close()
-        elif save_data_for_publication and data_filename is None:
-            print('No data_filename was given. Data is not saved into txt.')
-        
-        plt.subplot(gs[1,1])
-
-        
-        
-def plot_angular_velocity_ccf(sample_to_plot=None, 
+def plot_angular_velocity_ccf(sample_to_plot=None,
+                              sample_number=0,
                               xdata=None, 
                               ydata=None,
                               time=None,
                               i_frames=None,
                               ccf=None, 
-                              plot=False, 
+                              
+                              levels=51,
+
                               pdf=False,
+                              title='',
                               pdf_object=None,
                               plot_for_publication=False,
                               save_data_for_publication=True,
                               data_filename=None):
-    flap.plot('GPI_FRAME_12_CCF_POLAR', 
-              plot_type='contour',
-              plot_options={'levels':51},
-              axes=['Radius lag',
-                    'Angle lag'])
-    # if plot_zoomed_ccf:
-    #     plt.xlim(-5,5)
-    #     plt.ylim(-10,10)
-    plt.title('CCF polar t='+str(time[i_frames]*1e3)+'ms')
-    plt.pause(0.001)
-    plt.show()
-    pdf_object.savefig()
     
-    if save_data_for_publication and data_filename is not None:
-        data=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').data
-        xdata=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').coordinate('Angle lag')[0][:,0]
-        ydata=flap.get_data_object_ref('GPI_FRAME_12_CCF_POLAR').coordinate('Radius lag')[0][0,:]
-        file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_2D_logpol_CCCF.txt', 'w+')
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    
+    if sample_number in sample_to_plot:
+        fig, ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54))
+        ax.contourf(xdata,
+                     ydata,
+                     ccf, #No transpose is needed, the transposed ccf is plot from the first place
+                     levels=levels)
+
+        ax.set_title(title+' t='+str(time[i_frames]*1e3)+'ms')
+        ax.set_xlabel('Scale lag [pix]')
+        ax.set_ylabel('Angle lag [deg]')
+
+        axins = ax.inset_axes([0.6, 0.6, 0.4, 0.4])
+        axins.contourf(xdata,
+                       ydata,
+                       ccf, #No transpose is needed, the transposed ccf is plot from the first place
+                       levels=levels)
         
-        file1.write('#phi lag (deg)\n')
-        for i in range(len(xdata)):
-            file1.write(str(xdata[i])+'\t')
+        axins.set_xlim(-5,5)
+        axins.set_ylim(-15,5)
+        
+        ax.indicate_inset_zoom(axins, edgecolor="black")
+        plt.tight_layout()
+        if pdf:
+            pdf_object.savefig()
+        plt.cla()
+        
+        if save_data_for_publication and data_filename is not None:
+            data=ccf
+            file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_2D_logpol_CCCF.txt', 'w+')
             
-        file1.write('\n#r lag (pix)\n')
-        for i in range(len(ydata)):
-            file1.write(str(ydata[i])+'\t')
-            
-        file1.write('\n#2D CCCF data\n')
-        for i in range(len(data[0,:])):
-            string=''
-            for j in range(len(data[:,0])):
-                string+=str(data[j,i])+'\t'
-            string+='\n'
-            file1.write(string)
-        file1.close()
-    elif save_data_for_publication and data_filename is None:
-        print('No data_filename was given. Data is not saved into txt.')
-    plt.tight_layout()
-    
-    plt.cla()
-    plt.clf()
+            file1.write('#phi lag (deg)\n')
+            for i in range(len(xdata)):
+                file1.write(str(xdata[i])+'\t')
+                
+            file1.write('\n#r lag (pix)\n')
+            for i in range(len(ydata)):
+                file1.write(str(ydata[i])+'\t')
+                
+            file1.write('\n#2D CCCF data\n')
+            for i in range(len(data[0,:])):
+                string=''
+                for j in range(len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
+        elif save_data_for_publication and data_filename is None:
+            print('No data_filename was given. Data is not saved into txt.')    

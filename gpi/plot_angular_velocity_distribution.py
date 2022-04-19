@@ -225,6 +225,8 @@ def plot_nstx_gpi_angular_velocity_distribution(window_average=500e-6,
                 velocity_results=pickle.load(open(filename, 'rb'))
 
                 corr_thres_index=np.where(velocity_results['Correlation max'] < correlation_threshold)
+               # corr_thres_index=np.where(velocity_results['Correlation max polar FLAP'] < correlation_threshold)
+               
                 for key in velocity_results.keys():
                     if key in ['Velocity ccf',
                                'Velocity ccf FLAP',

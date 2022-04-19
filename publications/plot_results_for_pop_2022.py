@@ -72,7 +72,7 @@ def plot_results_for_pop_2022(plot_figure=2,
                               save_data_into_txt=False,
                               gaussian_blur=True,
                               subtraction_order=2,
-                              skim_or_flap='flap'):
+                              flap_or_skim='flap'):
     
     if plot_all:
         plot_figure=-1
@@ -97,29 +97,45 @@ def plot_results_for_pop_2022(plot_figure=2,
     Example frame pairs with observable rotation in between them
     """
     
-    if plot_figure == 3 or plot_figure == 4:
-            
-            
-            result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
-                                                       time_range=[0.5524,0.5526],  
-                                                       normalize='roundtrip', 
-                                                       normalize_for_velocity=True, 
-                                                       plot=False, 
-                                                       pdf=True,
-                                                       nocalc=False,
-                                                       plot_scatter=False,
-                                                       plot_for_publication=False,
-                                                       gaussian_blur=gaussian_blur,
-                                                       calculate_half_fft=False,
-                                                       test_into_pdf=True,
-                                                       return_results=True,
-                                                       plot_zoomed_ccf=False,
-                                                       subtraction_order_for_velocity=subtraction_order,
-                                                       sample_to_plot=[20873,20874],
-                                                       save_data_for_publication=True,
-                                                       data_filename=wd+fig_dir+'/data_accessibility/fig_34')
+    if plot_figure == 3:     
+        result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
+                                                   time_range=[0.5524,0.5526],  
+                                                   normalize='roundtrip', 
+                                                   normalize_for_velocity=True, 
+                                                   plot=False, 
+                                                   pdf=True,
+                                                   nocalc=False,
+                                                   plot_scatter=False,
+                                                   plot_for_publication=True,
+                                                   gaussian_blur=gaussian_blur,
+                                                   calculate_half_fft=False,
+                                                   test_into_pdf=True,
+                                                   return_results=True,
+                                                   
+                                                   subtraction_order_for_velocity=subtraction_order,
+                                                   sample_to_plot=[20873,20874],
+                                                   save_data_for_publication=True,
+                                                   data_filename=wd+fig_dir+'/data_accessibility/fig_34')
 
-    
+    if plot_figure == 4:
+        result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
+                                                   time_range=[0.5524,0.5526],  
+                                                   normalize='roundtrip', 
+                                                   normalize_for_velocity=True, 
+                                                   plot=False, 
+                                                   pdf=True,
+                                                   nocalc=False,
+                                                   plot_scatter=False,
+                                                   plot_for_publication=False,
+                                                   gaussian_blur=gaussian_blur,
+                                                   calculate_half_fft=False,
+                                                   test_into_pdf=False,
+                                                   return_results=True,
+                                                   plot_ccf=True,
+                                                   subtraction_order_for_velocity=subtraction_order,
+                                                   sample_to_plot=[20874],
+                                                   save_data_for_publication=True,
+                                                   data_filename=wd+fig_dir+'/data_accessibility/fig_34')
     """
     Flowchart of the Fourier Mellin based method
     """
@@ -283,14 +299,15 @@ def plot_results_for_pop_2022(plot_figure=2,
         
         plt.figure()
         fig,((ax1,ax2),(ax3,ax4))=plt.subplots(2,2,figsize=figsize)
-        flap_or_skim='skim'
         for key in ['Angular velocity ccf '+flap_or_skim+' log',
                     'Expansion velocity ccf '+flap_or_skim+'']:
             
             if key == 'Angular velocity ccf '+flap_or_skim+' log':
                 ax=ax1
+                corner_text='(a)'
             else:
                 ax=ax3
+                corner_text='(c)'
             im=ax.contourf(time_vec*1e3,
                            y_vector[key]['bins'],
                            y_vector[key]['data'].transpose(),
@@ -308,7 +325,7 @@ def plot_results_for_pop_2022(plot_figure=2,
                      y_vector[key]['90th'],
                      color='white',
                      lw=linewidth/2)
-            
+            ax.text(-0.5, 1.2, corner_text, transform=ax.transAxes, size=9)
             ax.set_title('Relative frequency of '+y_vector[key]['ylabel'])
             ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
             ax.set_ylabel(y_vector[key]['ylabel']+' ['+y_vector[key]['unit']+']')
@@ -324,8 +341,10 @@ def plot_results_for_pop_2022(plot_figure=2,
 
             if key == 'Angular velocity ccf '+flap_or_skim+' log':
                 ax=ax2
+                corner_text='(b)'
             else:
                 ax=ax4
+                corner_text='(d)'
             # nwin=y_vector[key]['Data'].shape[0]//2
     #        plt.plot(y_vector[key]['Bins'], np.mean(y_vector[key]['Data'][nwin-2:nwin+3,:], axis=0))
             ax.plot(time_vec*1e3,
@@ -341,6 +360,7 @@ def plot_results_for_pop_2022(plot_figure=2,
             ax.yaxis.set_major_locator(MaxNLocator(5)) 
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
             ax.set_xticks(ticks=[-500,-250,0,250,500])
+            ax.text(-0.5, 1.2, corner_text, transform=ax.transAxes, size=9)
         plt.tight_layout(pad=0.1)
         pdf_object.savefig()
         pdf_object.close()
@@ -352,7 +372,7 @@ def plot_results_for_pop_2022(plot_figure=2,
                     filename=wd+fig_dir+'/data_accessibility/figure_8ab.txt'
                 if ind == 7:
                     filename=wd+fig_dir+'/data_accessibility/figure_8cd.txt'
-            
+                    
                 file1=open(filename, 'w+')
 
                 file1.write('#Time (ms)\n')
@@ -435,8 +455,10 @@ def plot_results_for_pop_2022(plot_figure=2,
         for key in ['Velocity ccf radial','Distance']:
             if key == 'Velocity ccf radial':
                 ax=ax1
+                corner_text='(a)'
             else:
                 ax=ax3
+                corner_text='(c)'
             im=ax.contourf(time_vec*1e3,
                            y_vector[key]['bins'],
                            y_vector[key]['data'].transpose(),
@@ -463,7 +485,7 @@ def plot_results_for_pop_2022(plot_figure=2,
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
             ax.yaxis.set_major_locator(MaxNLocator(5))
             ax.set_xticks(ticks=[-500,-250,0,250,500])
-            
+            ax.text(-0.5, 1.2, corner_text, transform=ax.transAxes, size=9)
             import matplotlib.ticker as ticker
             cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt), ax=ax)
             cbar.ax.tick_params(labelsize=6)
@@ -472,8 +494,10 @@ def plot_results_for_pop_2022(plot_figure=2,
         for key in ['Velocity ccf radial','Distance']:
             if key == 'Velocity ccf radial':
                 ax=ax2
+                corner_text='(b)'
             else:
                 ax=ax4
+                corner_text='(d)'
             # nwin=y_vector[i]['Data'].shape[0]//2
     #        plt.plot(y_vector[i]['Bins'], np.mean(y_vector[i]['Data'][nwin-2:nwin+3,:], axis=0))
             ax.plot(time_vec*1e3,
@@ -488,7 +512,7 @@ def plot_results_for_pop_2022(plot_figure=2,
             ax.xaxis.set_major_locator(MaxNLocator(5)) 
             ax.set_xticks(ticks=[-500,-250,0,250,500])
             ax.yaxis.set_major_locator(MaxNLocator(5)) 
-    
+            ax.text(-0.5, 1.2, corner_text, transform=ax.transAxes, size=9)
         plt.tight_layout(pad=0.1)
         pdf_object.savefig()
         pdf_object.close()
