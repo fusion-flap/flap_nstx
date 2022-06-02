@@ -8,20 +8,23 @@ Created on Fri Feb  4 11:49:01 2022
 
 import os
 import copy
-import pickle
+# import pickle
 
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.gridspec import GridSpec
+# from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MaxNLocator
+import matplotlib.cm as cm
 
 from flap_nstx.gpi import calculate_nstx_gpi_frame_by_frame_velocity
 from flap_nstx.gpi import show_nstx_gpi_video_frames
 from flap_nstx.gpi import calculate_nstx_gpi_angular_velocity
 from flap_nstx.gpi import plot_nstx_gpi_angular_velocity_distribution, plot_nstx_gpi_velocity_distribution
-from flap_nstx.analysis import plot_angular_vs_translational_velocity
+from flap_nstx.analysis import plot_angular_vs_translational_velocity, plot_gpi_profile_dependence_ultimate
+from flap_nstx.analysis import calculate_shear_induced_angular_velocity, calculate_shear_layer_vpol, analyze_shear_distribution
+from flap_nstx.tools import calculate_corr_acceptance_levels
 
 import flap
 import flap_nstx
@@ -37,7 +40,7 @@ styled=True
 
 if styled:
     plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=8.
+    labelsize=9.
     linewidth=0.5
     major_ticksize=2.
     plt.rc('text', usetex=False)
@@ -72,7 +75,9 @@ def plot_results_for_pop_2022(plot_figure=2,
                               save_data_into_txt=False,
                               gaussian_blur=True,
                               subtraction_order=2,
-                              flap_or_skim='flap'):
+                              flap_or_skim='FLAP',
+                              plot_for_analysis=False,
+                              ):
     
     if plot_all:
         plot_figure=-1
@@ -202,21 +207,200 @@ def plot_results_for_pop_2022(plot_figure=2,
         plt.rcParams['ytick.minor.width'] = linewidth/2
         plt.rcParams['ytick.minor.size'] = major_ticksize/2
         plt.rcParams['legend.fontsize'] = labelsize
+        
+        time_range=[0.552,0.553]
+        correlation_threshold=0.7
+        frame_properties=calculate_nstx_gpi_angular_velocity(exp_id=141319,
+                                                             time_range=time_range,  
+                                                             normalize='roundtrip', 
+                                                             normalize_for_velocity=True, 
+                                                             plot=False, 
+                                                             pdf=False,
+                                                             nocalc=True,
+                                                             plot_scatter=False,
+                                                             plot_for_publication=False,
+                                                             correlation_threshold=correlation_threshold,
+                                                             return_results=True,
+                                                             subtraction_order_for_velocity=2,
+                                                             gaussian_blur=True,
+                                                             )
+        
+        str_fitting=calculate_nstx_gpi_frame_by_frame_velocity(exp_id=141319, 
+                                                      time_range=time_range, 
+                                                      plot=False,
+                                                      subtraction_order_for_velocity=4,
+                                                      skip_structure_calculation=False,
+                                                      remove_interlaced_structures=False,
+                                                      correlation_threshold=correlation_threshold,
+                                                      pdf=False, 
+                                                      nlevel=51, 
+                                                      nocalc=True, 
+                                                      filter_level=5, 
+                                                      normalize_for_size=False,
+                                                      normalize_for_velocity=True,
+                                                      threshold_coeff=1.,
+                                                      normalize_f_high=1e3, 
+                                                      normalize='roundtrip', 
+                                                      velocity_base='cog', 
+                                                      return_results=True, 
+                                                      plot_gas=False,
+                                                      structure_pixel_calc=True,
+                                                      structure_pdf_save=False,
+                                                      test_structures=False,
+                                                      save_data_for_publication=False,
+                                                      )
+        
+        plot_index=np.logical_and(np.logical_not(np.isnan(frame_properties['Velocity ccf FLAP'][:,0])),
+                                  np.logical_and(frame_properties['Time'] >= time_range[0],
+                                                 frame_properties['Time'] <= time_range[1]))
+        
+        
+        nan_ind=np.where(frame_properties['Correlation max'] < correlation_threshold)
+        
+        frame_properties['Velocity ccf FLAP'][nan_ind,0] = np.nan
+        frame_properties['Velocity ccf FLAP'][nan_ind,1] = np.nan
+        frame_properties['Angular velocity ccf FLAP log'][nan_ind]=np.nan
+        frame_properties['Expansion velocity ccf FLAP'][nan_ind]=np.nan
+        
+        #Plotting the radial velocity
+        
+        filename=flap_nstx.tools.filename(exp_id=141319,
+                                          working_directory=wd+'/plots',
+                                          time_range=time_range,
+                                          purpose='ccf ang velocity')
+        pdf_filename=filename+'.pdf'
+        pdf_pages=PdfPages(pdf_filename)
+        
+    
+        figsize=(8.5/2.54, 
+                 8.5/2.54)
+        plt.rc('font', family='serif', serif='Helvetica')
+        labelsize=9
+        linewidth=0.5
+        major_ticksize=2
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+        import matplotlib
+        if plot_for_analysis:
+            matplotlib.use('qt5agg')
+        else:
+            matplotlib.use('agg')
+            
+        """
+        RADIAL AND POLOIDAL PLOTTING FROM FLAP
+        """
+            
+        fig, axs = plt.subplots(2,2, figsize=figsize)
+        
+        ax=axs[1,0]
+        frame_properties['Time']=np.arange(frame_properties['Time'].shape[0])*2.5-frame_properties['Time'].shape[0]//2*2.5
 
-        result=calculate_nstx_gpi_angular_velocity(exp_id=141319,
-                                                   time_range=[0.552,0.553],  
-                                                   normalize='roundtrip', 
-                                                   normalize_for_velocity=True, 
-                                                   plot=False, 
-                                                   pdf=True,
-                                                   nocalc=True,
-                                                   plot_scatter=False,
-                                                   plot_for_publication=True,
-                                                   
-                                                   return_results=True,
-                                                   subtraction_order_for_velocity=2,
-                                                   gaussian_blur=True,
-                                                   )
+        ax.plot(frame_properties['Time'][plot_index], 
+                 frame_properties['Velocity ccf FLAP'][plot_index,0]/1e3,
+                 label='Velocity ccf FLAP')
+        ax.set_title('Radial velocity')
+        ax.text(-0.5, 1.2, '(c)', transform=ax.transAxes, size=9)
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+        ax.set_xlabel('$t-t_{ELM}$ $[\mu s]$')
+        ax.set_ylabel('$v_{rad}$ [km/s]')
+        ax.set_xlim([-500,500])
+
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        # ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+            
+            
+        ax=axs[1,1]
+
+        ax.plot(frame_properties['Time'][plot_index], 
+                str_fitting['Separatrix dist max'][plot_index],
+                label='Velocity ccf FLAP')
+        ax.set_title('Separatrix distance')
+
+            
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+        ax.set_xlabel('$t-t_{ELM}$ $[\mu s]$')
+        ax.text(-0.5, 1.2, '(d)', transform=ax.transAxes, size=9)
+        ax.set_ylabel('$r-r_{sep}$ [mm]')
+        ax.set_xlim([-500,500])
+
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        
+        """
+        ANGULAR AND EXPANSION VELOCITY PLOTTING FROM SKIMAGE
+        """
+            
+        ax=axs[0,0]
+        ax.plot(frame_properties['Time'][plot_index], 
+                 frame_properties['Angular velocity ccf FLAP log'][plot_index]/1e3,
+                 label='Angular velocity ccf FLAP log',
+                 color='tab:blue')
+        ax.set_title('Angular velocity FLAP')
+        ax.text(-0.5, 1.2, '(a)', transform=ax.transAxes, size=9)
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+        
+        ax.set_xlabel('$t-t_{ELM}$ $[\mu s]$')
+        ax.set_ylabel('$\omega$ [krad/s]')
+        ax.set_xlim([-500,500])
+
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+
+            
+            
+        """
+        ANGULAR AND EXPANSION VELOCITY PLOTTING FROM SKIMAGE
+        """
+            
+        ax=axs[0,1]
+
+        ax.plot(frame_properties['Time'][plot_index], 
+                frame_properties['Expansion velocity ccf FLAP'][plot_index], 
+                label='Expansion velocity ccf FLAP',
+                color='tab:blue')
+        ax.set_title('Scaling factor')
+        ax.text(-0.5, 1.2, '(b)', transform=ax.transAxes, size=9)
+        ax.set_xlabel('$t-t_{ELM}$ $[\mu s]$')
+        ax.set_ylabel('$f_{S}$')
+        ax.set_xlim([-500,500])
+
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+
+        x1,x2=ax.get_xlim()
+        y1,y2=ax.get_ylim()
+        ax.set_title('Scaling factor')
+        
+        plt.tight_layout(pad=0.01)
+        pdf_pages.savefig()    
+        pdf_pages.close()
+        
         if save_data_into_txt:
             filename=wd+fig_dir+'/data_accessibility/figure_7abcd.txt'
             file1=open(filename, 'w+')
@@ -254,13 +438,13 @@ def plot_results_for_pop_2022(plot_figure=2,
         time_vec, y_vector = plot_nstx_gpi_angular_velocity_distribution(plot_for_publication=True,
                                                                          window_average=500e-6,
                                                                          subtraction_order=subtraction_order,
-                                                                         correlation_threshold=0.6,
+                                                                         correlation_threshold=0.7,
                                                                          pdf=False,
                                                                          plot=False,
                                                                          return_results=True,
                                                                          plot_all_time_traces=False,
                                                                          tau_range=[-1e-3,1e-3])
-        figsize=(8.5/2.54,8.5/np.sqrt(2)/2.54)
+        figsize=(8.5/2.54,8.5/2.54)
         plt.rc('font', family='serif', serif='Helvetica')
         labelsize=8
         linewidth=0.4
@@ -291,7 +475,10 @@ def plot_results_for_pop_2022(plot_figure=2,
             
 
         import matplotlib
-        matplotlib.use('agg')
+        if plot_for_analysis:
+            matplotlib.use('qt5agg')
+        else:
+            matplotlib.use('agg')
             
         def fmt(x, pos):
             a = '{:3.2f}'.format(x)
@@ -364,7 +551,10 @@ def plot_results_for_pop_2022(plot_figure=2,
         plt.tight_layout(pad=0.1)
         pdf_object.savefig()
         pdf_object.close()
-        matplotlib.use('qt5agg')
+        if plot_for_analysis:
+            matplotlib.use('qt5agg')
+        else:
+            matplotlib.use('agg')
             
         if save_data_into_txt:
             for ind in [5,7]:
@@ -410,11 +600,12 @@ def plot_results_for_pop_2022(plot_figure=2,
     
     if plot_figure == 9:
         time_vec, y_vector = plot_nstx_gpi_velocity_distribution(plot_for_publication=False,
+                                                                 correlation_threshold=0.7,
                                                                  pdf=False,
                                                                  plot=False,
                                                                  return_results=True,
                                                                  figure_size=4.25)
-        figsize=(8.5/2.54,8.5/np.sqrt(2)/2.54)
+        figsize=(8.5/2.54,8.5/2.54)
         plt.rc('font', family='serif', serif='Helvetica')
         labelsize=8
         linewidth=0.4
@@ -445,8 +636,10 @@ def plot_results_for_pop_2022(plot_figure=2,
             
 
         import matplotlib
-        matplotlib.use('agg')
-            
+        if plot_for_analysis:
+            matplotlib.use('qt5agg')
+        else:
+            matplotlib.use('agg')
         def fmt(x, pos):
             a = '{:3.2f}'.format(x)
             return a
@@ -462,7 +655,7 @@ def plot_results_for_pop_2022(plot_figure=2,
             im=ax.contourf(time_vec*1e3,
                            y_vector[key]['bins'],
                            y_vector[key]['data'].transpose(),
-                           levels=50,
+                           levels=51,
                            )
             ax.plot(time_vec*1e3,
                      y_vector[key]['median'],
@@ -563,6 +756,7 @@ def plot_results_for_pop_2022(plot_figure=2,
                                                subtraction_order=2,
                                                plot_for_pop_paper=True,
                                                plot_log_omega=True,
+                                               correlation_threshold=0.7,
                                                figure_filename=wd+fig_dir+'/fig_parameter_dependence.pdf')
             
         #No need for data accessibility txt file because the data are in the previous txt files.
@@ -570,10 +764,230 @@ def plot_results_for_pop_2022(plot_figure=2,
     Dependence on plasma parameters
     """
     if plot_figure == 11:
-        raise NoobError('The idiot should have already finished this...')
-   
+        plot_gpi_profile_dependence_ultimate(plot_correlation_matrix=True, 
+                                             pdf=True, 
+                                             plot=True,
+                                             recalc_gpi=False,
+                                             recalc_thomson=False, 
+                                             thomson_time_window=5e-3, 
+                                             skip_uninteresting=True, 
+                                             elm_window=200e-6, 
+                                             plot_error=False, 
+                                             throw_outliers=True, 
+                                             flux_range=[0.65,1.1], 
+                                             threshold_corr=True, 
+                                             corr_thres_multiplier=1., 
+                                             n_sigma=2)
+    
+    if plot_figure == 12:
+        calculate_shear_layer_vpol(nocalc=True,
+                                   shear_avg_t_elm_range=[-5e-3,-200e-6],
+                                   sg_filter_order=21,
+                                   test=False,
+                                   plot_shear_profile=True, 
+                                   shot_to_plot=141319,
+                                   save_data_for_publication=False,
+                                   return_results=False)
+    
+    
+    """
+    Shear induced filament rotation sketch
+    """
+    if plot_figure == 13:
+        raise ValueError('This is the sketch of the filament rotation mechanism')
+    
+    
     """
     Form factors vs. experimental observations
     """
-    if plot_figure == 12:
-        pass    
+    if plot_figure == 14:
+        model_angular_velocity=calculate_shear_induced_angular_velocity(shear_avg_t_elm_range=[-5e-3,-200e-6], 
+                                                                        plot_error=False, 
+                                                                        test=False, 
+                                                                        std_thres_outlier=2.,
+                                                                        return_results=True,
+                                                                        plot_for_publication=False)
+        
+        
+        res = analyze_shear_distribution(nocalc=True, return_results=True, pdf=True, n_hist=50)
+        
+        figsize=(8.5/2.54,8.5/2.54)
+        plt.rc('font', family='serif', serif='Helvetica')
+        labelsize=8
+        linewidth=0.4
+        major_ticksize=2
+        plt.rc('text', usetex=False)
+        plt.rcParams['pdf.fonttype'] = 42
+        plt.rcParams['ps.fonttype'] = 42
+        
+        plt.rcParams['lines.linewidth'] = linewidth
+        plt.rcParams['axes.linewidth'] = linewidth
+        plt.rcParams['axes.labelsize'] = labelsize
+        plt.rcParams['axes.titlesize'] = labelsize
+        
+        plt.rcParams['xtick.labelsize'] = labelsize
+        plt.rcParams['xtick.major.size'] = major_ticksize
+        plt.rcParams['xtick.major.width'] = linewidth
+        plt.rcParams['xtick.minor.width'] = linewidth/2
+        plt.rcParams['xtick.minor.size'] = major_ticksize/2
+        
+        plt.rcParams['ytick.labelsize'] = labelsize
+        plt.rcParams['ytick.major.width'] = linewidth
+        plt.rcParams['ytick.major.size'] = major_ticksize
+        plt.rcParams['ytick.minor.width'] = linewidth/2
+        plt.rcParams['ytick.minor.size'] = major_ticksize/2
+        plt.rcParams['legend.fontsize'] = labelsize
+        
+                
+        time_vec, y_vector_rot = plot_nstx_gpi_angular_velocity_distribution(plot_for_publication=True,
+                                                                             window_average=500e-6,
+                                                                             subtraction_order=2,
+                                                                             correlation_threshold=0.7,
+                                                                             pdf=False,
+                                                                             plot=False,
+                                                                             return_results=True,
+                                                                             plot_all_time_traces=False,
+                                                                             tau_range=[-1e-3,1e-3],
+                                                                             )
+        
+        pdf_object=PdfPages(wd+fig_dir+'/fig_model_ang_vel_distribution.pdf')
+            
+
+        import matplotlib
+        if plot_for_analysis:
+            matplotlib.use('qt5agg')
+        else:
+            matplotlib.use('agg')
+            
+        def fmt(x, pos):
+            a = '{:3.2f}'.format(x)
+            return a
+        plt.figure()
+        fig,ax_all=plt.subplots(2,2,figsize=figsize)
+        
+        ax=ax_all[0,0]
+        time_vec=res['coord']['time']['data']*1e6
+        
+        im=ax.contourf(time_vec,
+                    res['derived']['bins']['data'],
+                    res['derived']['histogram']['data'].transpose())
+        
+        ax.plot(time_vec,
+                 res['derived']['median']['data'],
+                 color='red',
+                 lw=linewidth)
+        ax.plot(time_vec,
+                 res['derived']['10th percentile']['data'],
+                 color='white',
+                 lw=linewidth/2)
+        ax.plot(time_vec,
+                res['derived']['90th percentile']['data'],
+                color='white',
+                lw=linewidth/2)
+        
+        ax.set_title('Relative frequency of $\omega_{model}$')
+        ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+        ax.set_ylabel('$\omega_{model} [krad/s]$')
+        ax.set_ylim(np.min(res['derived']['10th percentile']['data']),
+                    np.max(res['derived']['90th percentile']['data']))
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.yaxis.set_major_locator(MaxNLocator(5))
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+        ax.text(-0.5, 1.2, '(a)', transform=ax.transAxes, size=9)
+        import matplotlib.ticker as ticker
+        cbar=fig.colorbar(im, format=ticker.FuncFormatter(fmt), ax=ax)
+        cbar.ax.tick_params(labelsize=6)
+            
+        
+        ax=ax_all[0,1]
+
+        ax.plot(time_vec,
+                res['derived']['median']['data'],
+                color='red',
+                lw=linewidth)
+        
+        ax.set_title('Median $\omega_{model}$ evolution')
+        ax.set_xlabel('$t-t_{ELM}$ [$\mu$s]')
+        ax.set_ylabel('$\omega_{model}$ [krad/s]')
+        ax.set_xlim([-500,500])
+        ax.xaxis.set_major_locator(MaxNLocator(5)) 
+        ax.set_xticks(ticks=[-500,-250,0,250,500])
+        ax.yaxis.set_major_locator(MaxNLocator(5)) 
+        ax.text(-0.5, 1.2, '(b)', transform=ax.transAxes, size=9)
+        plt.tight_layout(pad=0.1)
+        
+        plot_x_vs_y=[['Angular velocity experimental max neg','Shearing rate time dep max neg'],
+                     ['Angular velocity experimental max pos','Shearing rate time dep max pos'],
+                     ]
+        
+        for ind_plot in range(len(plot_x_vs_y)):
+            if ind_plot == 0:
+                ax=ax_all[1,0]
+            else:
+                ax=ax_all[1,1]
+            xdata=model_angular_velocity['data'][plot_x_vs_y[ind_plot][0]]['data']/1e3
+            ydata=model_angular_velocity['data'][plot_x_vs_y[ind_plot][1]]['data']/1e3
+            
+            ind_not_nan=np.logical_and(~np.isnan(xdata),
+                                       ~np.isnan(ydata))
+            
+            xdata=xdata[ind_not_nan]
+            ydata=ydata[ind_not_nan]
+            
+            xdata_std=np.sqrt(np.var(xdata))
+            ydata_std=np.sqrt(np.var(ydata))
+            
+            ind_keep=np.where(np.logical_and(np.abs(xdata-np.mean(xdata))<xdata_std*3,
+                                             np.abs(ydata-np.mean(ydata))<ydata_std*3))
+            color='tab:blue'
+            ax.scatter(xdata[ind_keep],
+                       ydata[ind_keep],
+                       marker='o',
+                       color=color,
+                       s=2)
+                
+            ax.set_title(plot_x_vs_y[ind_plot][0]+' vs.\n'+plot_x_vs_y[ind_plot][1])
+            ax.set_xlabel(model_angular_velocity['data'][plot_x_vs_y[ind_plot][0]]['label']+' [k'+model_angular_velocity['data'][plot_x_vs_y[ind_plot][0]]['unit']+']')
+            if model_angular_velocity['data'][plot_x_vs_y[ind_plot][1]]['unit'] =='':
+                ax.set_ylabel(model_angular_velocity['data'][plot_x_vs_y[ind_plot][1]]['label'])
+            else:
+                ax.set_ylabel(model_angular_velocity['data'][plot_x_vs_y[ind_plot][1]]['label']+' [k'+model_angular_velocity['data'][plot_x_vs_y[ind_plot][1]]['unit']+']')    
+            
+        plt.tight_layout(pad=0.1)
+
+        pdf_object.savefig()
+        pdf_object.close()
+        matplotlib.use('qt5agg')
+                
+        if save_data_into_txt:
+            filename=wd+fig_dir+'/data_accessibility/figure_16ab.txt'
+            file1=open(filename, 'w+')
+
+            file1.write('#Time (ms)\n')
+            for i in range(1, len(time_vec)):
+                file1.write(str(time_vec[i])+'\t')
+                
+            file1.write('\n#Median\n')
+            for i in range(1, len(res['derived']['median']['data'])):
+                file1.write(str(res['derived']['median']['data'][i])+'\t')
+                
+            file1.write('\n#10th perc.\n')
+            for i in range(1, len(res['derived']['10th percentile']['data'])):
+                file1.write(str(res['derived']['10th percentile']['data'][i])+'\t')
+                
+            file1.write('\n#90th perc.\n')
+            for i in range(1, len(res['derived']['90th percentile']['data'])):
+                file1.write(str(res['derived']['90th percentile']['data'][i])+'\t')    
+                
+            file1.write('\n#Distribution bins\n')
+            for i in range(1, len(res['derived']['bins']['data'])):
+                file1.write(str(res['derived']['bins']['data'][i])+'\t')
+                
+            file1.write('\n#Distribution\n')
+            for i in range(len(res['derived']['histogram']['data'][0,:])):
+                string=''
+                for j in range(len(res['derived']['histogram']['data'][:,0])):
+                    string+=str(res['derived']['histogram']['data'][j,i])+'\t'
+                string+='\n'
+                file1.write(string)   
+            file1.close()

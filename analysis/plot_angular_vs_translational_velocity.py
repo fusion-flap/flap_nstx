@@ -25,38 +25,6 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.gridspec import GridSpec
 import matplotlib.cm as cm
-
-publication=True
-if publication:
-    #figsize=(8.5/2.54, 
-    #         8.5/2.54/1.618*1.1)
-    figsize=(17/2.54,10/2.54)
-    plt.rc('font', family='serif', serif='Helvetica')
-    labelsize=12
-    linewidth=0.5
-    major_ticksize=4
-    plt.rc('text', usetex=False)
-    plt.rcParams['pdf.fonttype'] = 42
-    plt.rcParams['ps.fonttype'] = 42
-    plt.rcParams['lines.linewidth'] = linewidth
-    plt.rcParams['axes.linewidth'] = linewidth
-    plt.rcParams['axes.labelsize'] = labelsize
-    plt.rcParams['axes.titlesize'] = labelsize
-    
-    plt.rcParams['xtick.labelsize'] = labelsize
-    plt.rcParams['xtick.major.size'] = major_ticksize
-    plt.rcParams['xtick.major.width'] = linewidth
-    plt.rcParams['xtick.minor.width'] = linewidth/2
-    plt.rcParams['xtick.minor.size'] = major_ticksize/2
-    
-    plt.rcParams['ytick.labelsize'] = labelsize
-    plt.rcParams['ytick.major.width'] = linewidth
-    plt.rcParams['ytick.major.size'] = major_ticksize
-    plt.rcParams['ytick.minor.width'] = linewidth/2
-    plt.rcParams['ytick.minor.size'] = major_ticksize/2
-    plt.rcParams['legend.fontsize'] = labelsize
-else:
-    figsize=None
     
 def plot_angular_vs_translational_velocity(window_average=500e-6,
                                            tau_range=[-500e-6,500e-6],
@@ -107,6 +75,33 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
                                                                  pdf=False)
     
     tau_ind=np.where(np.logical_and(time_vec >= tau_range[0]*1e3, time_vec <= tau_range[1]*1e3))
+    
+    figsize=(17/2.54,10/2.54)
+    plt.rc('font', family='serif', serif='Helvetica')
+    labelsize=12
+    linewidth=0.5
+    major_ticksize=4
+    plt.rc('text', usetex=False)
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
+    plt.rcParams['lines.linewidth'] = linewidth
+    plt.rcParams['axes.linewidth'] = linewidth
+    plt.rcParams['axes.labelsize'] = labelsize
+    plt.rcParams['axes.titlesize'] = labelsize
+    
+    plt.rcParams['xtick.labelsize'] = labelsize
+    plt.rcParams['xtick.major.size'] = major_ticksize
+    plt.rcParams['xtick.major.width'] = linewidth
+    plt.rcParams['xtick.minor.width'] = linewidth/2
+    plt.rcParams['xtick.minor.size'] = major_ticksize/2
+    
+    plt.rcParams['ytick.labelsize'] = labelsize
+    plt.rcParams['ytick.major.width'] = linewidth
+    plt.rcParams['ytick.major.size'] = major_ticksize
+    plt.rcParams['ytick.minor.width'] = linewidth/2
+    plt.rcParams['ytick.minor.size'] = major_ticksize/2
+    plt.rcParams['legend.fontsize'] = labelsize
+    
     
     if not plot_for_pop_paper or figure_filename is None:
         pdf_object=PdfPages(wd+'/plots/parameter_dependence_based_on_medians_angular.pdf')
@@ -345,7 +340,7 @@ def plot_angular_vs_translational_velocity(window_average=500e-6,
         #plt.subplot(gs[0,0])
         ax.plot(y_vector_tra['Velocity ccf radial']['median'][tau_ind],
                 y_vector_rot['Angular velocity ccf FLAP log']['median'][tau_ind],
-                lw='0.2')
+                lw='0.5')
         for ind_a in range(len(y_vector_tra['Velocity ccf radial']['median'][tau_ind])):
             color=copy.deepcopy(next(colors))
             ax.scatter(y_vector_tra['Velocity ccf radial']['median'][tau_ind][ind_a], 

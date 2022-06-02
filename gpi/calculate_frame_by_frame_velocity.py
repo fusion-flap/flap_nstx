@@ -342,18 +342,18 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             gas_levels=np.arange(nlevel)/(nlevel-1)*(gas_max-gas_min)+gas_min            
             
             if normalize_for_velocity:
-                data_obj=flap.get_data_object(object_name_ccf_velocity)
+                data_obj=flap.get_data_object(object_name_ccf_velocity, exp_id=exp_id)
                 data_obj.data = data_obj.data/coefficient
                 flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_CCF_VEL')
                 object_name_ccf_velocity='GPI_SLICED_DENORM_CCF_VEL'
                 
-                data_obj=flap.get_data_object(object_name_str_vel)
+                data_obj=flap.get_data_object(object_name_str_vel, exp_id=exp_id)
                 data_obj.data = data_obj.data/coefficient
                 flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_VEL')
                 object_name_str_vel='GPI_SLICED_DENORM_STR_VEL'            
                 
             if normalize_for_size:
-                data_obj=flap.get_data_object(object_name_str_size)
+                data_obj=flap.get_data_object(object_name_str_size, exp_id=exp_id)
                 if str_finding_method == 'contour':
                     data_obj.data = data_obj.data/coefficient
                 elif str_finding_method == 'watershed':
@@ -418,12 +418,14 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                 levels=np.arange(nlevel)/(nlevel-1)*(max_data-min_data)+min_data
 
         thres_obj_str_size=flap.slice_data(object_name_str_size,
+                                           exp_id=exp_id,
                                            summing={'Image x':'Mean',
                                                     'Image y':'Mean'},
                                                     output_name='GPI_SLICED_TIMETRACE')
         intensity_thres_level_str_size=np.sqrt(np.var(thres_obj_str_size.data))*threshold_coeff+np.mean(thres_obj_str_size.data)
         
         thres_obj_str_vel=flap.slice_data(object_name_str_size,
+                                           exp_id=exp_id,
                                            summing={'Image x':'Mean',
                                                     'Image y':'Mean'},
                                                     output_name='GPI_SLICED_TIMETRACE')
@@ -1041,7 +1043,15 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                 else:
                     frame_properties['Velocity str avg'][i_frames,:]=[np.nan,np.nan]
                     frame_properties['Velocity str max'][i_frames,:]=[np.nan,np.nan]
-    
+                
+        #Wrapper for separatrix distance
+        frame_properties=calculate_separatrix_distance(frame_properties=frame_properties,
+                                                       skip_structure_calculation=skip_structure_calculation,
+                                                       exp_id=exp_id,
+                                                       coeff_r=coeff_r,
+                                                       coeff_z=coeff_z,
+                                                       )
+            
         if (structure_video_save):
             cv2.destroyAllWindows()
             video.release()  
@@ -1067,54 +1077,14 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
             raise ValueError('Please run the calculation again with the timerange. The pickle file doesn\'t have the desired range')
     if time_range is None:
         time_range=[frame_properties['Time'][0],frame_properties['Time'][-1]]
-        
     
-    #Calculating the distance from the separatrix
-    frame_properties['Separatrix dist avg']=np.zeros(frame_properties['Position avg'].shape[0])
-    frame_properties['Separatrix dist max']=np.zeros(frame_properties['Position max'].shape[0])
+    frame_properties=calculate_separatrix_distance(frame_properties=frame_properties,
+                                                   skip_structure_calculation=skip_structure_calculation,
+                                                   exp_id=exp_id,
+                                                   coeff_r=coeff_r,
+                                                   coeff_z=coeff_z,
+                                                   )
     
-    if data_object is not None and not skip_structure_calculation:
-        try:
-            elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
-            
-            R_sep=flap.get_data('NSTX_MDSPlus',
-                                name='\EFIT02::\RBDRY',
-                                exp_id=exp_id,
-                                object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
-            z_sep=flap.get_data('NSTX_MDSPlus',
-                                name='\EFIT02::\ZBDRY',
-                                exp_id=exp_id,
-                                object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
-            sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
-                                                      np.logical_and(z_sep > coeff_z[2],
-                                                                     z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
-            sep_GPI_ind=np.asarray(sep_GPI_ind[0])
-            sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
-            sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)            
-            z_sep_GPI=z_sep[(sep_GPI_ind)]
-            R_sep_GPI=R_sep[sep_GPI_ind]
-            GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
-            R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
-            z_sep_GPI_interp=GPI_z_vert
-            
-            for key in ['max','avg']:
-                for ind_time in range(len(frame_properties['Position '+key][:,0])):
-                    frame_properties['Separatrix dist '+key][ind_time]=np.min(np.sqrt((frame_properties['Position '+key][ind_time,0]-R_sep_GPI_interp)**2 + 
-                                                                              (frame_properties['Position '+key][ind_time,1]-z_sep_GPI_interp)**2))
-                    ind_z_min=np.argmin(np.abs(z_sep_GPI-frame_properties['Position '+key][ind_time,1]))
-                    if z_sep_GPI[ind_z_min] >= frame_properties['Position '+key][ind_time,1]:
-                        ind1=ind_z_min
-                        ind2=ind_z_min+1
-                    else:
-                        ind1=ind_z_min-1
-                        ind2=ind_z_min
-                        
-                    radial_distance=frame_properties['Position '+key][ind_time,0]-((frame_properties['Position '+key][ind_time,1]-z_sep_GPI[ind2])/(z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
-                    if radial_distance < 0:
-                        frame_properties['Separatrix dist '+key][ind_time]*=-1
-        except:
-            print('Separatrix distance calculation failed.')
-            
     nan_ind=np.where(frame_properties['Correlation max'] < correlation_threshold)
     frame_properties['Velocity ccf'][nan_ind,0] = np.nan
     frame_properties['Velocity ccf'][nan_ind,1] = np.nan
@@ -1615,3 +1585,57 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
         pltstyle.use('default')
     if return_results:
         return frame_properties
+    
+def calculate_separatrix_distance(frame_properties=None,
+                                  skip_structure_calculation=None,
+                                  exp_id=None,
+                                  coeff_r=None,
+                                  coeff_z=None,
+                                  ):
+            
+    #Calculating the distance from the separatrix
+    frame_properties['Separatrix dist avg']=np.zeros(frame_properties['Position avg'].shape[0])
+    frame_properties['Separatrix dist max']=np.zeros(frame_properties['Position max'].shape[0])
+    
+    if not skip_structure_calculation:
+        try:
+            elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
+            
+            R_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\RBDRY',
+                                exp_id=exp_id,
+                                object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
+            z_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\ZBDRY',
+                                exp_id=exp_id,
+                                object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
+            sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
+                                                      np.logical_and(z_sep > coeff_z[2],
+                                                                     z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
+            sep_GPI_ind=np.asarray(sep_GPI_ind[0])
+            sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
+            sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)            
+            z_sep_GPI=z_sep[(sep_GPI_ind)]
+            R_sep_GPI=R_sep[sep_GPI_ind]
+            GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
+            R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
+            z_sep_GPI_interp=GPI_z_vert
+            
+            for key in ['max','avg']:
+                for ind_time in range(len(frame_properties['Position '+key][:,0])):
+                    frame_properties['Separatrix dist '+key][ind_time]=np.min(np.sqrt((frame_properties['Position '+key][ind_time,0]-R_sep_GPI_interp)**2 + 
+                                                                              (frame_properties['Position '+key][ind_time,1]-z_sep_GPI_interp)**2))
+                    ind_z_min=np.argmin(np.abs(z_sep_GPI-frame_properties['Position '+key][ind_time,1]))
+                    if z_sep_GPI[ind_z_min] >= frame_properties['Position '+key][ind_time,1]:
+                        ind1=ind_z_min
+                        ind2=ind_z_min+1
+                    else:
+                        ind1=ind_z_min-1
+                        ind2=ind_z_min
+                        
+                    radial_distance=frame_properties['Position '+key][ind_time,0]-((frame_properties['Position '+key][ind_time,1]-z_sep_GPI[ind2])/(z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
+                    if radial_distance < 0:
+                        frame_properties['Separatrix dist '+key][ind_time]*=-1
+        except:
+            print('Separatrix distance calculation failed.')
+    return frame_properties

@@ -82,7 +82,10 @@ def get_elms_with_thomson_profile(before=False,
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
         thomson=pickle.load(open(thomson_dir+'nstx_mdsplus_thomson_'+str(shot)+'.pickle','rb'))
-        if before:
+        if type(time_window) is list and len(time_window) == 2:
+            start_time=elm_time+time_window[0]
+            end_time=elm_time+time_window[1]
+        elif before:
             start_time=elm_time-time_window
             end_time=elm_time
         elif after:

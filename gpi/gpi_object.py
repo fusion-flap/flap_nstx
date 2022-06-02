@@ -22,7 +22,7 @@ thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
-class StructureSegmentation:
+class Structure:
     def __init__(self):
         pass
         
@@ -151,37 +151,44 @@ class Gpi:
                  exp_id=None,
                  time_range=None,
                  object_name='GPI',
-                 pdf=False,
+                 options=None,
                  test=False):
         
         self.exp_id=exp_id
         self.time_range=time_range
         self.object_name=object_name
-        self.pdf=pdf,
+        self.options=None
         self.test=test
         
-    def load_data(self):
-        self.data_object()
-        
-    @property
-    def data_object(self):
-        d = flap.get_data('NSTX GPI', 
-                          exp_id=self.exp_id, 
-                          name='', 
-                          object_name=self.object_name)
-        
-        return d.slice_data(slicing={'Time':flap.Intervals(self.time_range[0],self.time_range[1])})
+        d=flap.get_data('NSTX GPI', 
+                         exp_id=self.exp_id, 
+                         name='', 
+                         object_name=self.object_name)
+        self.data_object=d.slice_data(slicing={'Time':flap.Intervals(self.time_range[0],self.time_range[1])})
+
     
     @property
     def data(self):
-        return self.data_object.data
+        return self._data
     
+    @data.setter
+    def data(self):
+        self._data=self.data_object.data
+        
     @property
     def time(self):
+        return self._time
+    
+    @time.setter
+    def time(self):
         try:
-            return self.data_object.coordinate('Time')[0][:,0,0]
+            self._time=self.data_object.coordinate('Time')[0][:,0,0]
         except:
-            return ValueError('Couldn\'t load time vector')
+            self._time=ValueError('Couldn\'t load time vector')
+        
+    def coordinate(self,name):
+        return self.data_object.coordinate(name)[0][0,:,:]
+
     
     def video(self):
         raise NotImplementedError('Not implemented...')

@@ -32,6 +32,7 @@ import pandas
 import scipy
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_pdf import PdfPages
 
 plt.rc('font', family='serif', serif='Helvetica')
@@ -62,6 +63,8 @@ plt.rcParams['legend.fontsize'] = labelsize
 
 def read_gpi_results(elm_window=400e-6,
                      elm_duration=100e-6,
+                     calculation_time_window=1e-3,
+                     subtraction_order=2,
                      correlation_threshold=0.6,
                      transformation=None, #['log','power','exp','diff',]
                      transformation_power=None,
@@ -85,10 +88,10 @@ def read_gpi_results(elm_window=400e-6,
         elm_index=list(db.index)
         
         
-        dict_avg={'before':[],
-                  'during':[],
-                  'after':[],
-                  'full':[],
+        dict_avg={'before':[],                                                  #[t_ELM-elm_window,t_ELM]
+                  'during':[],                                                  #[t_ELM,t_ELM+elm_duration]
+                  'after':[],                                                   #[t_ELM+elm_duration,t_ELM+elm_window]
+                  'full':[],                                                    #[t_ELM-elm_window,t_ELM+elm_window]
                   }
         
         gpi_result_dict={'data':[],
@@ -97,8 +100,9 @@ def read_gpi_results(elm_window=400e-6,
                                     'skewness':copy.deepcopy(dict_avg),
                                     'kurtosis':copy.deepcopy(dict_avg),
                                           
-                                    'elm':[],
-                                    'max':[],},
+                                    'elm':[],                                   #At the ELM time
+                                    'max':[],                                   # max in [t_ELM - elm_duration, t_ELM + elm_duration]
+                                    },                 
                          'label':'',
                          'unit':'',
 
@@ -200,14 +204,15 @@ def read_gpi_results(elm_window=400e-6,
         trans_ind_shift=translation_results['Str number'].shape[0] // 2
         for elm_ind in elm_index:
             
-            elm_time=db.loc[elm_ind]['ELM time']/1000.
+            elm_time=db.loc[elm_ind]['Time prec']
             shot=int(db.loc[elm_ind]['Shot'])
             
             filename_rotation=flap_nstx.tools.filename(exp_id=shot,
                                                        working_directory=wd+'/processed_data',
-                                                       time_range=[elm_time-600e-6,elm_time+600e-6],
+                                                       time_range=[elm_time-calculation_time_window,
+                                                                   elm_time+calculation_time_window],
                                                        purpose='ccf ang velocity',
-                                                       comment='pfit_o4_fst_0.0')
+                                                       comment='pfit_o'+str(int(subtraction_order))+'_fst_0.0')
             # str_add='_ns'
             # filename_translation=flap_nstx.analysis.filename(exp_id=shot,
             #                                                  working_directory=wd+'/processed_data',
@@ -240,7 +245,12 @@ def read_gpi_results(elm_window=400e-6,
                 rotation_results['Velocity ccf FLAP poloidal']=(coeff_z_new/det*(-coeff_z[0]*rotation_results['Velocity ccf FLAP'][:,0]+
                                                                                  coeff_r[0]*rotation_results['Velocity ccf FLAP'][:,1]))
                 
-                for key in ['Acceleration ccf', 'Size max', 'Position max', 'Centroid max', 'COG max']:
+                for key in ['Acceleration ccf', 
+                            'Size max', 
+                            'Position max', 
+                            'Centroid max', 
+                            'COG max']:
+                    
                     translation_results[key+' radial']=translation_results[key][:,:,0]
                     translation_results[key+' poloidal']=translation_results[key][:,:,1]
                     
@@ -260,7 +270,7 @@ def read_gpi_results(elm_window=400e-6,
                         
                         if key_avg == 'before':   twin=[elm_time_ind-nwin,elm_time_ind]
                             
-                        elif key_avg == 'during': twin=[elm_time_ind,elm_time_ind+n_elm]
+                        elif key_avg == 'during': twin=[elm_time_ind-int(n_elm/4),elm_time_ind+n_elm]
                             
                         elif key_avg == 'after':  twin=[elm_time_ind+n_elm,elm_time_ind+nwin]
                             
@@ -356,7 +366,11 @@ def read_thomson_results(thomson_time_window=5e-3,
             str_add='_'+transformation+'_trans'
     else:
         str_add=''
-    thomson_results_db_file=wd+'/processed_data/thomson_profile_analysis_'+str(int(thomson_time_window*1e3))+'ms'+str_add+'.pickle'
+    if type(thomson_time_window) == list:
+        thomson_results_db_file=wd+'/processed_data/thomson_profile_analysis_'+str(int(thomson_time_window[0]*1e3))+'_'+\
+                                str(int(thomson_time_window[0]*1e3))+'ms'+str_add+'.pickle'
+    else:
+        thomson_results_db_file=wd+'/processed_data/thomson_profile_analysis_'+str(int(thomson_time_window*1e3))+'ms'+str_add+'.pickle'
     if recalc_thomson or not os.path.exists(thomson_results_db_file):
         database_file=wd+'/db/ELM_findings_mlampert_velocity_good.csv'
         db=pandas.read_csv(database_file, index_col=0)
@@ -370,14 +384,25 @@ def read_thomson_results(thomson_time_window=5e-3,
         
         profile_results={'max_gradient_mtanh':copy.deepcopy(value_error),
                          'max_gradient_tanh':copy.deepcopy(value_error),
+                         
                          'value_at_max_grad_mtanh':copy.deepcopy(value_error),
                          'value_at_max_grad_tanh':copy.deepcopy(value_error),
+                         
+                         'value_at_max_grad_pres_mtanh':copy.deepcopy(value_error),
+                         'value_at_max_grad_pres_tanh':copy.deepcopy(value_error),
+                         
                          'global_gradient':copy.deepcopy(value_error),
                          'pedestal_height':copy.deepcopy(value_error),
                          'pedestal_width':copy.deepcopy(value_error),
                          'SOL_offset':copy.deepcopy(value_error),
                          'position_r':copy.deepcopy(value_error),
+                         
                          'position_psi':copy.deepcopy(value_error),
+                         'position_psi_tanh':copy.deepcopy(value_error),
+                         'position_psi_mtanh':copy.deepcopy(value_error),
+                         
+                         'fit_parameters_tanh':copy.deepcopy(value_error),
+                         'fit_parameters_mtanh':copy.deepcopy(value_error),
                          }
         
         thomson_results_solo={'data':{'Pressure':copy.deepcopy(profile_results),
@@ -390,7 +415,8 @@ def read_thomson_results(thomson_time_window=5e-3,
                          'Mate':copy.deepcopy(thomson_results_solo),
                          'Comment':{'Ahmed':'',
                                     'Mate':'',
-                                    }
+                                    },
+
                          }
         
         thomson_results['Comment']['Mate']='Results from Mate tanh and mtanh fitting. Number of Thomson points is defined.'
@@ -480,7 +506,7 @@ def read_thomson_results(thomson_time_window=5e-3,
                         thomson_results['Ahmed']['data'][key][key_param]['error'].append(np.nan)
         
         """
-        Fitting my data
+        Fitting MATE's data
         """
         elms_with_thomson=get_elms_with_thomson_profile(before=True,
                                                         time_window=thomson_time_window,
@@ -498,8 +524,11 @@ def read_thomson_results(thomson_time_window=5e-3,
                             'pedestal_height':'Height',
                             'pedestal_width':'Width',
                             'SOL_offset':'SOL offset',
-                            'position_psi':'Position',
                             'position_r':'Position r',
+                            'position_psi_tanh':'Position',
+                            'position_psi_mtanh':'Position',
+                            'fit_parameters_tanh':'Fit parameters',
+                            'fit_parameters_mtanh':'Fit parameters',
                             }
         
         for elm_ind in elm_index:
@@ -525,9 +554,9 @@ def read_thomson_results(thomson_time_window=5e-3,
                                                                    flux_range=flux_range,
                                                                    modified_tanh=True,
                                                                    return_parameters=True)
-                    
+                        
                         for key_param in key_correspondence.keys():
-                            if 'mtanh' in key_param:
+                            if 'mtanh' in key_param and 'fit_parameters' not in key_param:
                                 if transformation == 'log':
                                     trans_value=np.log(np.asarray(para_modtanh[key_correspondence[key_param]])[index_ts])
                                     trans_error=1/trans_value*np.asarray(para_modtanh['Error'][key_correspondence[key_param]])[index_ts]
@@ -540,14 +569,17 @@ def read_thomson_results(thomson_time_window=5e-3,
                                 else:
                                     trans_value=np.asarray(para_modtanh[key_correspondence[key_param]])[index_ts]
                                     trans_error=np.asarray(para_modtanh['Error'][key_correspondence[key_param]])[index_ts]
+                                    
                                 if trans_value == 0:
                                     thomson_results['Mate']['data'][key][key_param]['value'].append(np.nan)
                                     thomson_results['Mate']['data'][key][key_param]['error'].append(np.nan)
                                 else:
                                     thomson_results['Mate']['data'][key][key_param]['value'].append(trans_value)
                                     thomson_results['Mate']['data'][key][key_param]['error'].append(trans_error)
-
-                               
+                            
+                            elif 'mtanh' in key_param and 'fit_parameters' in key_param:
+                                thomson_results['Mate']['data'][key][key_param]['value'].append(list(para_modtanh['Fit parameters'][index_ts,:]))
+                                thomson_results['Mate']['data'][key][key_param]['error'].append(list(para_modtanh['Fit parameter errors'][index_ts,:]))
 
                     if True:
                         para_tanh=get_fit_nstx_thomson_profiles(exp_id=shot,
@@ -559,8 +591,9 @@ def read_thomson_results(thomson_time_window=5e-3,
                                                                    flux_range=flux_range,
                                                                    modified_tanh=False,
                                                                    return_parameters=True)
+                        
                         for key_param in key_correspondence.keys():
-                            if 'mtanh' not in key_param:
+                            if 'mtanh' not in key_param and 'fit_parameters' not in key_param:
                                 if transformation == 'log':
                                     trans_value=np.log(np.asarray(para_tanh[key_correspondence[key_param]])[index_ts])
                                     trans_error=1/trans_value*np.asarray(para_tanh['Error'][key_correspondence[key_param]])[index_ts]
@@ -580,22 +613,45 @@ def read_thomson_results(thomson_time_window=5e-3,
                                 else:
                                     thomson_results['Mate']['data'][key][key_param]['value'].append(trans_value)
                                     thomson_results['Mate']['data'][key][key_param]['error'].append(trans_error)
+                                                        
+                            elif 'mtanh' not in key_param and 'fit_parameters' in key_param:
+                                thomson_results['Mate']['data'][key][key_param]['value'].append(list(para_tanh['Fit parameters'][index_ts,:]))
+                                thomson_results['Mate']['data'][key][key_param]['error'].append(list(para_tanh['Fit parameter errors'][index_ts,:]))
+                                
                                     
                 else:
                     for key_param in key_correspondence.keys():
-                        thomson_results['Mate']['data'][key][key_param]['value'].append(np.nan)
-                        thomson_results['Mate']['data'][key][key_param]['error'].append(np.nan)
-                    
+                        if 'fit_parameters' not in key_param:
+                            thomson_results['Mate']['data'][key][key_param]['value'].append(np.nan)
+                            thomson_results['Mate']['data'][key][key_param]['error'].append(np.nan)
+                        else:
+                            thomson_results['Mate']['data'][key][key_param]['value'].append([np.nan]*5)
+                            thomson_results['Mate']['data'][key][key_param]['error'].append([np.nan]*5)
+        
         for key_user in ['Ahmed', 'Mate']:
             for key_prof in ['Density', 'Pressure', 'Temperature']:
                 for key_param in thomson_results[key_user]['data'][key_prof].keys():
                     for key_valerr in ['value', 'error']:
-                        thomson_results[key_user]['data'][key_prof][key_param][key_valerr]=np.asarray(thomson_results[key_user]['data'][key_prof][key_param][key_valerr])
-
-            
+                        if 'grad_pres' not in key_param:
+                            thomson_results[key_user]['data'][key_prof][key_param][key_valerr]=np.asarray(thomson_results[key_user]['data'][key_prof][key_param][key_valerr])
+                            
         pickle.dump(thomson_results, open(thomson_results_db_file,'wb'))          
     else:
         thomson_results = pickle.load(open(thomson_results_db_file,'rb'))
+        
+    for elm_ind in range(len(thomson_results['Mate']['data']['Pressure']['position_psi_mtanh']['value'])):
+        for key in thomson_results['Mate']['data'].keys():
+            psi_max=thomson_results['Mate']['data']['Pressure']['position_psi_mtanh']['value'][elm_ind]
+            value_modtanh=modtanh_fit_function(psi_max,*thomson_results['Mate']['data'][key]['fit_parameters_mtanh']['value'][elm_ind,:])
+            thomson_results['Mate']['data'][key]['value_at_max_grad_pres_mtanh']['value'].append(value_modtanh)
+            
+            psi_max=thomson_results['Mate']['data']['Pressure']['position_psi_tanh']['value'][elm_ind]
+            value_tanh=tanh_fit_function(psi_max,*thomson_results['Mate']['data'][key]['fit_parameters_tanh']['value'][elm_ind,0:4])
+            thomson_results['Mate']['data'][key]['value_at_max_grad_pres_tanh']['value'].append(value_tanh)
+            
+    for key in thomson_results['Mate']['data'].keys():
+        thomson_results['Mate']['data'][key]['value_at_max_grad_pres_tanh']['value']=np.asarray(thomson_results['Mate']['data'][key]['value_at_max_grad_pres_tanh']['value'])
+        thomson_results['Mate']['data'][key]['value_at_max_grad_pres_mtanh']['value']=np.asarray(thomson_results['Mate']['data'][key]['value_at_max_grad_pres_mtanh']['value'])
     
     return thomson_results
 
@@ -608,6 +664,7 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                                          plot_predictive_power_score=False,
                                          plot_gpi_correlation=False,
                                          corr_threshold=0.2,
+                                         corr_thres_multiplier=1,
                                          
                                          thomson_time_window=5e-3,
                                          flux_range=[0.65,1.1],
@@ -621,6 +678,11 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                                          transformation_power=None,
                                          throw_outliers=False,
                                          return_results=False,
+                                         n_sigma=2,
+                                         percentile_acceptance_level=99,
+                                         plot_avg_only=False,
+                                         plot_lines_with_value=False,
+                                         plot_for_paper=False,
                                          ):
     
     gpi_results=read_gpi_results(elm_window=elm_window,
@@ -637,35 +699,78 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                                          transformation_power=transformation_power)
                                             
     if skip_uninteresting:
-        del gpi_results['data']['Angular velocity ccf FLAP log']
-        del gpi_results['data']['Velocity ccf FLAP poloidal']
+        gpi_del_keys=['Velocity ccf FLAP poloidal',
+                      'Angular velocity ccf FLAP',
+                      'Size max radial',
+                      'Size max poloidal',
+                      'Position max radial',
+                      'Position max poloidal',
+                      'Centroid max radial',
+                      'Centroid max poloidal',
+                      'COG max radial',
+                      'COG max poloidal',
+                      'Acceleration ccf radial',
+                      'Acceleration ccf poloidal',
+                      'Str number',
+                      'Elongation max',
+                      'Angle max',
+                      'Area max',
+                      ]
+        for key in gpi_del_keys:
+            del gpi_results['data'][key]
         for key in gpi_results['data'].keys():
-            if not plot_trends:
-                del gpi_results['data'][key]['derived']['stddev']
-            del gpi_results['data'][key]['derived']['skewness']
-            del gpi_results['data'][key]['derived']['kurtosis']
+
+            derived_del_keys=[
+                              'skewness',
+                              'kurtosis',
+                              'elm',
+                              ]
+            if plot_trends:
+                derived_del_keys.append('stddev')
+            for key_derived in derived_del_keys:
+                del gpi_results['data'][key]['derived'][key_derived]
+
+            
             for key2 in gpi_results['data'][key]['derived'].keys():
                 try:
-                    # del gpi_results[key][key2]['after']
                     del gpi_results['data'][key]['derived'][key2]['full']
                 except:
                     pass
-        for key_prof in ['Density', 'Pressure', 'Temperature']:
-            del thomson_results['Mate']['data'][key_prof]['global_gradient']
-            del thomson_results['Mate']['data'][key_prof]['value_at_max_grad_mtanh']
-            del thomson_results['Mate']['data'][key_prof]['max_gradient_mtanh']
+        for key_prof in ['Density',
+                         'Pressure',
+                         'Temperature']:
+            ts_del_keys=['global_gradient',
+                         'value_at_max_grad_mtanh',
+                         'value_at_max_grad_tanh',
+                         'value_at_max_grad_pres_tanh',
+                         'max_gradient_tanh',
+                         'position_psi',
+                         'position_psi_tanh',
+                         'position_psi_mtanh',
+                         'position_r',
+                         'pedestal_height',
+                         'pedestal_width',
+                         'fit_parameters_tanh',
+                         'fit_parameters_mtanh',
+                         ]
+            for key in ts_del_keys:
+                del thomson_results['Mate']['data'][key_prof][key]
+
             
         momentum_keys=['avg']
-        avg_keys=['before','during', 'after']
+        avg_keys=[
+                  #'before',
+                  'during',
+                  #'after',
+                  ]
         users=['Mate']
     else:
         momentum_keys=['avg','stddev','skewness','kurtosis']
         avg_keys=['before','during','after','full']
         users=[
-               #'Ahmed',
+               'Ahmed',
                'Mate',
                ]
-    
     if not plot:
         import matplotlib
         matplotlib.use('agg')
@@ -797,7 +902,11 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
             str_add=''
             
         if pdf:
-            pdf_pages=PdfPages(wd+'/plots/pearson_matrix_ts_vs_gpi_TS_'+str(int(thomson_time_window*1e3))+'ms'+str_add+'.pdf')
+            if type(thomson_time_window) == list:
+                pdf_pages=PdfPages(wd+'/plots/pearson_matrix_ts_vs_gpi_TS_'+str(int(thomson_time_window[0]*1e3))+\
+                                   'ms_'+str(int(thomson_time_window[1]*1e3))+'ms'+str_add+'.pdf')
+            else:
+                pdf_pages=PdfPages(wd+'/plots/pearson_matrix_ts_vs_gpi_TS_'+str(int(thomson_time_window*1e3))+'ms'+str_add+'.pdf')
             
         nwin=len(gpi_results['data'][list(gpi_results['data'].keys())[0]]['data'][0,:])
         time_vec=(np.arange(nwin)-nwin//2)*2.5e-6
@@ -819,15 +928,23 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                         for key_gpi_res in gpi_results['data'][key_gpi_param]['derived'].keys():
                             if key_gpi_res in momentum_keys:
                                 for key_range in avg_keys:
-                                    print(key_gpi_res,key_range,key_gpi_param)
                                     signal_a=gpi_results['data'][key_gpi_param]['derived'][key_gpi_res][key_range]
                                     signal_b=thomson_results[key_user]['data'][key_prof][key_ts_param]['value']
+                                    if key_ts_param == 'SOL_offset':
+                                        signal_b[np.where(signal_b < 0)] = np.nan  #SOL offset cannot be negative
+                                    if key_ts_param == 'max_gradient_mtanh':
+                                        signal_b[np.where(signal_b > 0)] = np.nan  #Gradient cannot be positive at the edge
+                                    print(key_gpi_param,key_gpi_res,key_range)
+                                    # print(signal_a)
                                     
+                                    print(key_prof,key_ts_param)
                                     ind_not_nan=np.logical_not(np.logical_or(np.isnan(signal_a),np.isnan(signal_b)))
                                     
-                                    signal_a=signal_a[ind_not_nan]
-                                    signal_b=signal_b[ind_not_nan]
-                                    
+
+                                    # print(signal_b)                                    
+                                    signal_a=(signal_a[ind_not_nan])
+                                    signal_b=(signal_b[ind_not_nan])
+
                                     if throw_outliers:
                                         avg_a=np.mean(signal_a)
                                         stddev_a=np.sqrt(np.var(signal_a))
@@ -882,7 +999,8 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                                 except:
                                     print('Houston, we have a problem...')
                                 correlation_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]=corr
-                                corr_thres_level_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]=corr_accept['avg'][np.sum(ind_not_nan)]+corr_accept['stddev'][np.sum(ind_not_nan)]
+                                #corr_thres_level_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]=corr_accept['avg'][np.sum(ind_not_nan)]+corr_accept['stddev'][np.sum(ind_not_nan)]*n_sigma
+                                corr_thres_level_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]=np.percentile(corr_accept['result'][np.sum(ind_not_nan)],percentile_acceptance_level)
         
                                 
         ts_label_num=(len(list(correlation_dict.keys()))*
@@ -906,7 +1024,9 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                     key_prof_new=key_prof_new.replace('Pressure','$p_{e}$')
                     
                     key_ts_param_new=key_ts_param.replace('max_gradient_tanh','$\\nabla_{max}$ '+key_prof_new)
+                    key_ts_param_new=key_ts_param.replace('max_gradient_mtanh','$\\nabla_{max}$ '+key_prof_new)
                     key_ts_param_new=key_ts_param_new.replace('value_at_max_grad_tanh','at $\\nabla_{max}$ '+key_prof_new)
+                    key_ts_param_new=key_ts_param_new.replace('value_at_max_grad_mtanh','at $\\nabla_{max}$ '+key_prof_new)
                     key_ts_param_new=key_ts_param_new.replace('pedestal_height','$h_{ped}$')
                     key_ts_param_new=key_ts_param_new.replace('pedestal_width','$w_{ped}$')
                     key_ts_param_new=key_ts_param_new.replace('SOL_offset',key_prof_new+'$_{,SOL}$')
@@ -918,16 +1038,25 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                     
                     gpi_labels=[]
                     for key_gpi_param in correlation_dict[key_user][key_prof][key_ts_param].keys():
+                        key_gpi_param_new=key_gpi_param
+                        # key_gpi_param_new=key_gpi_param.replace('Velocity ccf FLAP radial','$v_{rad}$')
+                        # key_gpi_param_new=key_gpi_param_new.replace('Velocity ccf FLAP poloidal','$v_{pol}$')
+                        # key_gpi_param_new=key_gpi_param_new.replace('Angular velocity ccf FLAP','$\omega$')
+                        # key_gpi_param_new=key_gpi_param_new.replace('Expansion velocity ccf FLAP','$f_{S}$')
+                        # key_gpi_param_new=key_gpi_param_new.replace('Separatrix dist max','$r-r_{sep}$')
+                        
                         for key_gpi_res in correlation_dict[key_user][key_prof][key_ts_param][key_gpi_param].keys():
                             correlation_matrix[i_ts,j_gpi]=correlation_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]
                             corr_thres_level_matrix[i_ts,j_gpi]=corr_thres_level_dict[key_user][key_prof][key_ts_param][key_gpi_param][key_gpi_res]
                             j_gpi+=1
-                            key_gpi_param_new=key_gpi_param.replace('Velocity ccf FLAP radial','$v_{rad}$')
-                            key_gpi_param_new=key_gpi_param_new.replace('Velocity ccf FLAP poloidal','$v_{pol}$')
-                            key_gpi_param_new=key_gpi_param_new.replace('Angular velocity ccf FLAP','$\omega$')
-                            key_gpi_param_new=key_gpi_param_new.replace('Expansion velocity ccf FLAP','exp. vel.')
                             
-                            gpi_labels.append(key_gpi_param_new+' '+key_gpi_res)
+                            
+                            #key_gpi_res_new=key_gpi_res.replace('avg during', '$_{,avg}$')
+                            #key_gpi_res_new=key_gpi_res.replace('max', '$_{,max}$')
+                            #new_key=new_key.replace('$$','')
+                            # new_key=new_key.replace('_{','')
+                            gpi_labels.append(key_gpi_param_new+key_gpi_res)
+                            
                     i_ts += 1
 
         
@@ -936,29 +1065,34 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                 for j_gpi in range(gpi_label_num):
                     if abs(correlation_matrix[i_ts,j_gpi]) < corr_thres_level_matrix[i_ts,j_gpi]:
                         correlation_matrix[i_ts,j_gpi]=0.
-                    
-        plt.matshow(correlation_matrix, 
+        fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54*1.2))
+        im=ax.matshow(correlation_matrix, 
                     #fignum=fig, 
                     cmap='seismic',vmin=-1,vmax=1)
+        
+        for (i, j), z in np.ndenumerate(correlation_matrix):
+            ax.text(j, i, '{:0.1f}'.format(z), ha='center', va='center', color='white')
 
         plt.xticks(ticks=np.arange(correlation_matrix.shape[1]), labels=gpi_labels, rotation='vertical',
                                                 )
-            
         plt.yticks(np.arange(correlation_matrix.shape[0]), labels=ts_labels)
-        plt.colorbar()
-        ax = plt.gca()
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
         ax.set_title('Thomson profile parameter vs. GPI thresholded correlation')
         #plt.tight_layout(pad=0.1)
         ax.set_xticks(np.arange(0, gpi_label_num, 1))
         ax.set_yticks(np.arange(0, ts_label_num, 1))
         ax.set_xticks(np.arange(-.5, gpi_label_num, 1), minor=True)
         ax.set_yticks(np.arange(-.5, ts_label_num, 1), minor=True)
-
+        #plt.tight_layout(pad=0.1)
 # Gridlines based on minor ticks
         ax.grid(which='minor', color='black', linestyle='-', linewidth=0.5)
         plt.show()
+        
         if pdf:
             pdf_pages.savefig()
+            pdf_pages.close()
             
             
     if plot_predictive_power_score:
@@ -1201,21 +1335,30 @@ def plot_gpi_profile_dependence_ultimate(pdf=False,
                 plt.tight_layout(pad=0.1)
                 pdf_pages.savefig()
                 
-    if pdf:
-        pdf_pages.close()
-    if not plot:
-        matplotlib.use('qt5agg')
-        for key1 in time_lag_max.keys():
-            for key2 in time_lag_max.keys():
-                if key1 != key2:
-                    print('time_lag_max',key1,key2,
-                          np.median(time_lag_max[key1][key2]), 
-                          np.mean(time_lag_max[key1][key2]),
-                          np.percentile(time_lag_max[key1][key2],10),
-                          np.percentile(time_lag_max[key1][key2],90))
-                    print('corr',key1,key2,np.median(correlation_max[key1][key2]),
-                          np.mean(correlation_max[key1][key2]),
-                          np.percentile(correlation_max[key1][key2],10),
-                          np.percentile(correlation_max[key1][key2],90))
-    if return_results:
-        return corr_function_multi, time_lag_max, correlation_max
+        if pdf:
+            pdf_pages.close()
+        if not plot:
+            matplotlib.use('qt5agg')
+            for key1 in time_lag_max.keys():
+                for key2 in time_lag_max.keys():
+                    if key1 != key2:
+                        print('time_lag_max',key1,key2,
+                              np.median(time_lag_max[key1][key2]), 
+                              np.mean(time_lag_max[key1][key2]),
+                              np.percentile(time_lag_max[key1][key2],10),
+                              np.percentile(time_lag_max[key1][key2],90))
+                        print('corr',key1,key2,np.median(correlation_max[key1][key2]),
+                              np.mean(correlation_max[key1][key2]),
+                              np.percentile(correlation_max[key1][key2],10),
+                              np.percentile(correlation_max[key1][key2],90))
+        if return_results:
+            return corr_function_multi, time_lag_max, correlation_max
+        
+def tanh_fit_function(r, b_height, b_sol, b_pos, b_width):
+    def tanh(x):
+        return (np.exp(x)-np.exp(-x))/(np.exp(x)+np.exp(-x))
+    return (b_height-b_sol)/2*(tanh((b_pos-r)/(2*b_width))+1)+b_sol
+
+def modtanh_fit_function(x, b_height, b_sol, b_pos, b_width, b_slope):
+    x_mod=2*(x - b_pos)/b_width
+    return (b_height+b_sol)/2 + (b_height-b_sol)/2*((1 - b_slope*x_mod)*np.exp(-x_mod) - np.exp(x_mod))/(np.exp(x_mod) + np.exp(-x_mod))

@@ -476,6 +476,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                    exp_id=exp_id,
                                    slicing=slicing_frame2,
                                    output_name='GPI_FRAME_2')
+            
             sample_number=frame2.coordinate('Sample')[0][0,0]
             frame1.data=np.asarray(frame1.data, dtype='float64')
             frame2.data=np.asarray(frame2.data, dtype='float64')
@@ -984,9 +985,13 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                          label='Velocity ccf skim')
                 ax.set_title('Poloidal velocity skimage of '+str(exp_id)+'')
             else:
+                # ax.plot(frame_properties['Time'][plot_index], 
+                #          frame_properties['Velocity ccf FLAP'][plot_index,1]/1e3,
+                #          label='Velocity ccf FLAP')
+                # ax.set_title('Poloidal velocity FLAP of '+str(exp_id))
                 ax.plot(frame_properties['Time'][plot_index], 
-                         frame_properties['Velocity ccf FLAP'][plot_index,1]/1e3,
-                         label='Velocity ccf FLAP')
+                          frame_properties['Velocity ccf FLAP'][plot_index,1]/1e3,
+                          label='Velocity ccf FLAP')
                 ax.set_title('Poloidal velocity FLAP of '+str(exp_id))
         else:
             ax.plot(frame_properties['Time'][plot_index], 
@@ -1002,7 +1007,8 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set_xticks(ticks=[-500,-250,0,250,500])
         ax.set_xlabel('$t-t_{ELM}$ $[\mu s]$')
-        ax.set_ylabel('$v_{pol}$ [km/s]')
+        #ax.set_ylabel('$v_{pol}$ [km/s]')
+        ax.set_ylabel('$r-r_{sep}$ [mm]')
         ax.set_xlim([-500,500])
 
         if plot_for_publication:
@@ -1149,6 +1155,9 @@ def plot_angular_velocity_calc_test(test=False,
     if test_into_pdf and sample_number in sample_to_plot:
         ind_sample_to_plot=int(np.where(np.asarray(sample_to_plot) == sample_number)[0])
         
+        x_text=0.0
+        y_text=1.06
+        
         data=flap.get_data_object_ref('GPI_FRAME_2_FILTERED').data
         ax=axs[0,ind_sample_to_plot]
         ax.contourf(np.arange(data.shape[0]),
@@ -1159,6 +1168,12 @@ def plot_angular_velocity_calc_test(test=False,
         ax.set_xlabel('x [pix]')
         ax.set_ylabel('y [pix]')
         ax.set_aspect('equal')
+        if sample_number == sample_to_plot[0]:
+            corner_str='(a)'
+        else:
+            corner_str='(b)'
+        ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
+            
         # ax.xaxis.set_major_locator(MaxNLocator(5)) 
         # ax.yaxis.set_major_locator(MaxNLocator(5))
         
@@ -1185,6 +1200,11 @@ def plot_angular_velocity_calc_test(test=False,
         ax.set_ylim([-40,40])
         ax.set_title('FFT magnitude #'+str(ind_sample_to_plot+1))
         ax.set_aspect('equal')
+        if sample_number == sample_to_plot[0]:
+            corner_str='(c)'
+        else:
+            corner_str='(d)'
+        ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
         # ax.xaxis.set_major_locator(MaxNLocator(5)) 
         # ax.yaxis.set_major_locator(MaxNLocator(5))
         
@@ -1227,7 +1247,12 @@ def plot_angular_velocity_calc_test(test=False,
         ax.set_ylabel('$\\theta$ [deg]')
         ax.set_xlabel('r [pix]')
 
-        ax.set_title('FFT magnitude logpol #'+str(ind_sample_to_plot+1))
+        ax.set_title('FFT magn. log-pol #'+str(ind_sample_to_plot+1))
+        if sample_number == sample_to_plot[0]:
+            corner_str='(e)'
+        else:
+            corner_str='(f)'
+        ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
         # ax.xaxis.set_major_locator(MaxNLocator(5)) 
         # ax.yaxis.set_major_locator(MaxNLocator(5))
         
@@ -1274,14 +1299,14 @@ def plot_angular_velocity_ccf(sample_to_plot=None,
     
     if sample_number in sample_to_plot:
         fig, ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54))
-        ax.contourf(xdata,
+        im=ax.contourf(xdata,
                      ydata,
                      ccf, #No transpose is needed, the transposed ccf is plot from the first place
                      levels=levels)
 
         ax.set_title(title+' t='+str(time[i_frames]*1e3)+'ms')
-        ax.set_xlabel('Scale lag [pix]')
-        ax.set_ylabel('Angle lag [deg]')
+        ax.set_xlabel('r lag [pix]')
+        ax.set_ylabel('$\\theta$ lag [deg]')
 
         axins = ax.inset_axes([0.6, 0.6, 0.4, 0.4])
         axins.contourf(xdata,
@@ -1293,6 +1318,7 @@ def plot_angular_velocity_ccf(sample_to_plot=None,
         axins.set_ylim(-15,5)
         
         ax.indicate_inset_zoom(axins, edgecolor="black")
+        fig.colorbar(im)
         plt.tight_layout()
         if pdf:
             pdf_object.savefig()

@@ -8,6 +8,7 @@ Created on Mon Nov 11 13:37:37 2019
 #Core imports
 import os
 import copy
+import time
 #Importing and setting up the FLAP environment
 import flap
 import flap_nstx
@@ -786,21 +787,30 @@ class Kmeans:
 
 
 def calculate_corr_acceptance_levels(n_data=160,
-                                     n_rand=10000):
-            
+                                     n_rand=10000,
+                                     recalc=False,
+                                     verbose=False):
+    
     corr_accept_filename=wd+'/processed_data/correlation_coefficient_significance_threshold_'+str(n_data)+'_'+str(n_rand)+'.pickle'
-    if not os.path.exists(corr_accept_filename):
+    if not os.path.exists(corr_accept_filename) or recalc:
             
         result=np.zeros([n_data,n_rand])
-        for i_data in range(n_data):
-            for i_rand in range(n_rand):
+        
+        start_time=time.time()
+        for i_rand in range(n_rand):
+            for i_data in range(n_data):
                 a=np.random.rand(i_data)
                 b=np.random.rand(i_data)
                 a=a-np.mean(a)
                 b=b-np.mean(b)
                 result[i_data,i_rand]=np.abs(np.sum((a)*(b))/np.sqrt((np.sum((a)**2)*(np.sum((b)**2)))))
+            one_time=time.time()-start_time
+            rem_time=one_time*(n_rand-i_rand)
+            #print(rem_time)
+            print('Remaining time from the calculation:'+str(int(rem_time/3600.))+'h '+str(int(np.mod(rem_time,3600.)/60.))+'min.')
         corr_accept={'avg':np.mean(result, axis=1),
-                     'stddev':np.sqrt(np.var(result, axis=1))}
+                     'stddev':np.sqrt(np.var(result, axis=1)),
+                     'result':result}
         pickle.dump(corr_accept,open(corr_accept_filename,'wb'))
     else:
         corr_accept=pickle.load(open(corr_accept_filename,'rb'))
