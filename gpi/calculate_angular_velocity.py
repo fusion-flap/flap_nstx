@@ -399,6 +399,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
         flap.add_data_object(ccf_object, 'GPI_CCF_F_BY_F')        
         if log_polar_data_shape is None:
             log_polar_data_shape=(360,max(d.data.shape))
+            
         ccf_data_polar=np.zeros(log_polar_data_shape)
         
         coord_polar=[]

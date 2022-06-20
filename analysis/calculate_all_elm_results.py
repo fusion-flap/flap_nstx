@@ -153,8 +153,8 @@ def calculate_all_nstx_gpi_sz_velocity():
         print('Calculating '+str(shot)+ ' at '+str(elm_time*1e3)+'ms')
         elm=elm+1
         start_time=time.time()
-        try:
-        #if True:
+        #try:
+        if True:
             # elm_time_range=[elm_time-200e-6,elm_time] #Finished calculation
             # elm_time_range=[elm_time-500e-6,elm_time+200e-6] #Finished calculation
             elm_time_range=[elm_time-5e-3,elm_time]
@@ -167,13 +167,13 @@ def calculate_all_nstx_gpi_sz_velocity():
                                                                     y_range=[35,45], 
                                                                     plot=False, 
                                                                     pdf=False, 
-                                                                    nocalc=True)
+                                                                    nocalc=False)
 
-        except:
-            print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
-            failed_elms.append({'Shot':shot,'Time':elm_time})
-            number_of_failed_elms += 1
-            print(failed_elms,number_of_failed_elms)
+        # except:
+        #     print('Calculating '+str(shot)+ ' at '+str(elm_time)+' failed.')
+        #     failed_elms.append({'Shot':shot,'Time':elm_time})
+        #     number_of_failed_elms += 1
+        #     print(failed_elms,number_of_failed_elms)
         
         finish_time=time.time()
         rem_time=(finish_time-start_time)*(len(elm_index)-index_elm+1)

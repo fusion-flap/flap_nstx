@@ -749,7 +749,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                            save_data_for_publication=save_data_for_publication,
                                                                            **contour_mutual_settings)
                         
-                    elif str_finding_method == 'watershed' or str_finding_method == 'randomwalker':
+                    elif str_finding_method == 'watershed':# or str_finding_method == 'randomwalker':
                         
                         watershed_mutual_settings={                             "exp_id":exp_id,                             #Shot number (if data_object is not used)
                                                                                 "spatial":not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
@@ -758,7 +758,7 @@ def calculate_nstx_gpi_frame_by_frame_velocity(exp_id=None,                     
                                                                                 "threshold_method":'otsu',
                                                                                 "test":False,                             #Test the contours and the structures before any kind of processing
                                                                                 "nlevel":51,
-                                                                                "try_random_walker": str_finding_method == 'randomwalker',
+                                                                                #"try_random_walker": str_finding_method == 'randomwalker',
                             }
                         if structures2_vel is None:
                             structures1_vel=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME_1_STR_VEL',

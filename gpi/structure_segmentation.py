@@ -19,13 +19,14 @@ fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 #Scientific library imports  
 
-from flap_nstx.tools import Polygon, FitEllipse
+from flap_nstx.tools import Polygon, FitEllipse, FitGaussian
 
 import cv2
 
 import imutils
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 import numpy as np
 #import sys
@@ -54,6 +55,8 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                                       test_result=False,                      #Test the result only (plot the contour and the found structures)
                                       test=False,                             #Test the contours and the structures before any kind of processing
                                       save_data_for_publication=False,
+                                      ellipse_method='linalg',                #linalg or skimage
+                                      fit_shape='ellipse'
                                       ):
     
     """
@@ -154,7 +157,24 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         plt.cla()
     structures=[]
     one_structure={'Paths':[None], 
-                   'Levels':[None]}
+                   'Levels':[None],
+                   'Born':False,
+                   'Died':False,
+                   'Label':[],
+                   }
+    
+    # structures.append({'Polygon':full_polygon,
+    #                     'Vertices':full_polygon.vertices,
+    #                     'Half path':Path(max_contour_looped,codes),
+    #                     'X coord':full_polygon.x_data,
+    #                     'Y coord':full_polygon.y_data,
+    #                     'Data':full_polygon.data,
+    #                     'Born':False,
+    #                     'Died':False,
+    #                     'Parent':None,
+    #                     'Label':None,
+    #                     })
+    
     if test:
         print('Plotting levels')
     else:
@@ -284,44 +304,77 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                 polygon_intensities[i_path]=polygon_areas[i_path]*str_levels[i_path]
             else:
                 polygon_intensities[i_path]=(polygon_areas[i_path]-polygon_areas[i_path-1])*str_levels[i_path]
-                
-        intensity=np.sum(polygon_intensities)
-        center_of_gravity=np.asarray([np.sum(polygon_intensities*polygon_centroids[:,0])/np.sum(polygon_intensities),
-                                      np.sum(polygon_intensities*polygon_centroids[:,1])/np.sum(polygon_intensities)])
         
         half_coords=structures[i_str]['Paths'][ind_at_half].to_polygons()[0]
         
         half_polygon=flap_nstx.tools.Polygon(half_coords[:,0],half_coords[:,1])
-        
+        x_data=[]
+        y_data=[]
+        int_data=[]
+        coords_2d=[]
+        data_inside_half=[]
+
+        x_inds_of_half=list(np.where(np.logical_and(x_coord[:,0] >= np.min(half_coords[:,0]),
+                                                    x_coord[:,0] <= np.max(half_coords[:,0])))[0])
+        y_inds_of_half=list(np.where(np.logical_and(y_coord[0,:] >= np.min(half_coords[:,1]),
+                                                    y_coord[0,:] <= np.max(half_coords[:,1])))[0])
+        for i_coord_x in x_inds_of_half:
+            for j_coord_y in y_inds_of_half:
+                coords_2d.append([x_coord[:,0][i_coord_x],y_coord[0,:][j_coord_y]])
+                data_inside_half.append(data_thres[i_coord_x,j_coord_y])
+                
+        coords_2d=np.asarray(coords_2d)
+        data_inside_half=np.asarray(data_inside_half)
+        ind_inside_half_path=structures[i_str]['Paths'][ind_at_half].contains_points(coords_2d)
+        x_data=coords_2d[ind_inside_half_path,0]
+        y_data=coords_2d[ind_inside_half_path,1]
+        int_data=data_inside_half[ind_inside_half_path]
+        """
+        Polygon calculations
+        """
+        half_polygon=Polygon(x=half_coords[:,0],
+                             y=half_coords[:,1],
+                             x_data=np.asarray(x_data),
+                             y_data=np.asarray(y_data),
+                             data=np.asarray(int_data),
+                             test=test_result)
+            
         structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
+        
         structures[i_str]['Half level']=half_level
         structures[i_str]['Centroid']=half_polygon.centroid
         structures[i_str]['Area']=half_polygon.area
-        structures[i_str]['Intensity']=intensity
-        structures[i_str]['Center of gravity']=center_of_gravity
+        structures[i_str]['Intensity']=half_polygon.intensity
+        structures[i_str]['Center of gravity']=half_polygon.center_of_gravity
         
-        try:
-            ellipse=flap_nstx.tools.FitEllipse(half_coords[:,0],half_coords[:,1])
-            structures[i_str]['Center']=ellipse.center
-            size=ellipse.size
-            structures[i_str]['Size']=size
-            structures[i_str]['Angle']=ellipse.angle_of_rotation
-            structures[i_str]['Elongation']=(size[0]-size[1])/(size[0]+size[1])
+        structures[i_str]['Polygon']=half_polygon
+        structures[i_str]['Vertices']=half_polygon.vertices
+        structures[i_str]['X coord']=half_polygon.x_data
+        structures[i_str]['Y coord']=half_polygon.y_data
+        structures[i_str]['Data']=half_polygon.data
             
-            if test_result or test:
-                structures[i_str]['Ellipse']=ellipse
-            else:
-                structures[i_str]['Ellipse']=None
-        except:
-            print('Ellipse fitting failed.')
+        ellipse=FitEllipse(x=half_coords[:,0],
+                           y=half_coords[:,1],
+                           method=ellipse_method)
+        structures[i_str]['Ellipse']=ellipse
+        
+        gaussian=FitGaussian(x=x_data,
+                             y=y_data,
+                             data=np.asarray(int_data))
+        structures[i_str]['Gaussian']=gaussian
+        
+        if fit_shape=='ellipse':
+            structure=ellipse
+        elif fit_shape=='gaussian':
+            structure=gaussian
 
-            structures[i_str]['Center']=None
-            structures[i_str]['Size']=None
-            structures[i_str]['Angle']=None
-            structures[i_str]['Elongation']=None
-            
-            structures[i_str]['Ellipse']=None
-            
+        structures[i_str]['Axes length']=structure.axes_length
+        structures[i_str]['Center']=structure.center
+        structures[i_str]['Size']=structure.size
+        structures[i_str]['Angle']=structure.angle
+        structures[i_str]['Elongation']=structure.elongation
+        
+        
     fitted_structures=[]        
     for i_str in range(len(structures)):
         if structures[i_str]['Size'] is not None:
@@ -329,20 +382,21 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             
     structures=fitted_structures
     if test_result:
-        
         #fig,ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54/1.62))
         fig,ax=plt.subplots(figsize=(10,10))
         ax.set_aspect(1.0)
-        plt.contourf(x_coord, y_coord, data)
+        
+        plt.contourf(x_coord, y_coord, data, levels=nlevel)
         plt.colorbar()  
         if len(structures) > 0:
             #Parametric reproduction of the Ellipse
             R=np.arange(0,2*np.pi,0.01)
             for i_structure in range(len(structures)):
                 structure=structures[i_structure]
-                if structure['Half path'] is not None:
+                if structure['Half path'] is not None and structure['Ellipse'] is not None:
                     phi=structure['Angle']
                     a,b=structure['Ellipse'].axes_length
+                    
                     x=structure['Half path'].to_polygons()[0][:,0]
                     y=structure['Half path'].to_polygons()[0][:,1]
                     xx = structure['Center'][0] + \
@@ -351,12 +405,26 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                     yy = structure['Center'][1] + \
                          a*np.cos(R)*np.sin(phi) + \
                          b*np.sin(R)*np.cos(phi)
+                    
+                    # a,b=structure['Ellipse'].axes_length
+                    # ell=Ellipse(structure['Center'][1],a*2.,b*2.,phi)
+                    # ell_coord=ell.get_verts()
+                    # x=ell_coord[:,0]
+                    # y=ell_coord[:,1]
+                    
                     plt.plot(x,y)    #Plot the half path polygon
                     plt.plot(xx,yy)  #Plot the ellipse
+                    plt.plot([structure['Center'][0]-structure['Axes length'][0]*np.cos(structure['Angle']),
+                              structure['Center'][0]+structure['Axes length'][0]*np.cos(structure['Angle'])],
+                             [structure['Center'][1]-structure['Axes length'][0]*np.sin(structure['Angle']),
+                              structure['Center'][1]+structure['Axes length'][0]*np.sin(structure['Angle'])],
+                             color='magenta')
+                    
                     plt.scatter(structure['Centroid'][0],
                                 structure['Centroid'][1], color='yellow')
                     plt.scatter(structure['Center of gravity'][0],
                                 structure['Center of gravity'][1], color='red')
+                    
                     if save_data_for_publication:
                         exp_id=data_object.exp_id
                         time=data_object.coordinate('Time')[0][0,0]
@@ -373,11 +441,11 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                             file1.write(str(xx[i])+'\t'+str(yy[i])+'\n')
                         file1.close()
                         
-                plt.xlabel('Image x')
-                plt.ylabel('Image y')
-                plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
-                plt.show()
-                plt.pause(0.001)
+            plt.xlabel('Image x')
+            plt.ylabel('Image y')
+            plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
+            plt.show()
+            plt.pause(0.001)
                 
         if save_data_for_publication:
             exp_id=data_object.exp_id
@@ -395,9 +463,6 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                 
     return structures
 
-
-
-
 def nstx_gpi_watershed_structure_finder(data_object=None,                       #Name of the FLAP.data_object
                                         exp_id='*',                             #Shot number (if data_object is not used)
                                         time=None,                              #Time when the structures need to be evaluated (when exp_id is used)
@@ -411,14 +476,16 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                                                                                 #if set, the value is subtracted from the data and contours are found after that. 
                                                                                 #Negative values are substituted with 0.
                                         ignore_side_structure=True,
-                                        
+                                        ignore_large_structure=True,
                                         test_result=False,                      #Test the result only (plot the contour and the found structures)
                                         test=False,                             #Test the contours and the structures before any kind of processing
                                         nlevel=51,                              #Number of contour levels for plotting
                                         
                                         save_data_for_publication=False,
                                         plot_full=False,
-                                        try_random_walker=False,
+                                        ellipse_method='linalg',
+                                        fit_shape='ellipse',
+                                        # try_random_walker=False,
                                         ):
     
     """
@@ -500,7 +567,8 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
             return None
         data_thresholded = data - threshold_level
         data_thresholded[np.where(data_thresholded < 0)] = 0.
-        
+    else:
+        data_thresholded = data
     """
     ----------------------
     Finding the structures
@@ -528,8 +596,8 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
     
     labels = watershed(-data_thresholded, markers, mask=binary)
     
-    if try_random_walker:
-        labels = random_walker(data_thresholded, markers, beta=10, mode='bf')
+    # if try_random_walker:
+    #     labels = random_walker(data_thresholded, markers, beta=10, mode='bf')
         
     structures=[]
     
@@ -551,6 +619,7 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
         if spatial:
             max_contour=np.asarray([x_coord[max_contour[:,0,1],max_contour[:,0,0]],
                                     y_coord[max_contour[:,0,1],max_contour[:,0,0]]])
+            
         from matplotlib.path import Path
         
         if max_contour.shape[0] != 1:
@@ -580,8 +649,7 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                                'Data':full_polygon.data,
                                'Born':False,
                                'Died':False,
-                               'Parent':None,
-                               'Label':None,
+                               'Label':[],
                                })
             
     
@@ -608,77 +676,63 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
     for i_str in range(len(structures)):
 
                 # Create x and y indices
-        x = structures[i_str]['X coord']
-        y = structures[i_str]['Y coord']
-        xdata=np.vstack((x.ravel(),y.ravel()))
-        
-        structures[i_str]['Centroid']=structures[i_str]['Polygon'].centroid
-        
+        x_str = structures[i_str]['X coord']
+        y_str = structures[i_str]['Y coord']
         data_str=structures[i_str]['Data']
-        fwhm_to_sigma=(2*np.sqrt(2*np.log(2)))
-        
-        cog=np.asarray([np.sum(x*data_str)/np.sum(data_str),
-                        np.sum(y*data_str)/np.sum(data_str)])
-        
-        initial_guess=[data_str.max(),                      #Amplitude
-                       np.sum(x*data_str)/np.sum(data_str),     #x0
-                       np.sum(y*data_str)/np.sum(data_str),     #y0
-                       (x.max()-x.min())/2/fwhm_to_sigma,         #Sigma_x
-                       (y.max()-y.min())/2/fwhm_to_sigma,         #Sigma_y
-                       np.pi/2,                         #Angle
-                       0.                               #Offset
-                       ]
 
-        try:
-        #if True:
-            popt, pcov = scipy.optimize.curve_fit(Gaussian2D, 
-                                                  xdata, 
-                                                  data_str.ravel(), 
-                                                  p0=initial_guess)
+        gaussian=FitGaussian(x=x_str,
+                                 y=y_str,
+                                 data=data_str)
+        ellipse=FitEllipse(x=structures[i_str]['Vertices'][:,0],
+                               y=structures[i_str]['Vertices'][:,1],
+                               method=ellipse_method)
                         
-            size=np.abs(np.asarray([popt[3],popt[4]])*fwhm_to_sigma)
-            center=np.asarray([popt[1],popt[2]])
+        if fit_shape=='ellipse':
+            structure=ellipse
+        elif fit_shape=='gaussian':
+            structure=gaussian
             
-            if size[0] > x_coord.max()-x_coord.min() or size[1] > y_coord.max()-y_coord.min():
-                raise Exception('Size is larger than the frame size.')
-            print(x_coord.min(), x_coord.max(), y_coord.min(), y_coord.max())
-            if ignore_side_structure:
-                if (center[0] < x_coord.min() or 
-                    center[0] > x_coord.max() or 
-                    center[1] < y_coord.min() or 
-                    center[1] > y_coord.max()
-                    ):
-                    raise Exception('Structure is outside the frame.')
-            if ignore_side_structure:
-                if (np.sum(structures[i_str]['X coord'] == x_coord.min()) != 0 or
-                    np.sum(structures[i_str]['X coord'] == x_coord.max()) != 0 or
-                    np.sum(structures[i_str]['Y coord'] == y_coord.min()) != 0 or
-                    np.sum(structures[i_str]['Y coord'] == y_coord.max()) != 0
-                    ):
-                    raise Exception('Structure is at the border of the frame.')
-            
-            
-            structures[i_str]['Angle']=popt[5]
-            structures[i_str]['Area']=structures[i_str]['Polygon'].area
-            structures[i_str]['Center of gravity']=cog
-            structures[i_str]['Center']=center
-            structures[i_str]['Elongation']=(size[0]-size[1])/(size[0]+size[1])
-            structures[i_str]['Half level']=(popt[0]-popt[6])/2
-            structures[i_str]['Intensity']=popt[0]
-            structures[i_str]['Size']=size            
-            
-        except:
-            print('Gaussian fitting failed.')
+        size=structure.size
+        center=structure.center
+        
+        if ignore_large_structure:
+            if (size[0] > x_coord.max()-x_coord.min() or 
+                size[1] > y_coord.max()-y_coord.min()):
+                print('Size is larger than the frame size.')
+                structure.set_invalid()
 
-            structures[i_str]['Angle']=None
-            structures[i_str]['Area']=None
-            structures[i_str]['Center of gravity']=None
-            structures[i_str]['Center']=None
-            structures[i_str]['Elongation']=None
-            structures[i_str]['Half level']=None
-            structures[i_str]['Intensity']=None
-            structures[i_str]['Size']=None
+        if ignore_side_structure:
+            if (np.sum(structures[i_str]['X coord'] == x_coord.min()) != 0 or
+                np.sum(structures[i_str]['X coord'] == x_coord.max()) != 0 or
+                np.sum(structures[i_str]['Y coord'] == y_coord.min()) != 0 or
+                np.sum(structures[i_str]['Y coord'] == y_coord.max()) != 0 or
+                
+                center[0] < x_coord.min() or 
+                center[0] > x_coord.max() or 
+                center[1] < y_coord.min() or 
+                center[1] > y_coord.max()
+                ):
+                print('Structure is at the border of the frame.')
+                
+                structure.set_invalid()
+        
+        structures[i_str]['Gaussian']=gaussian
+        structures[i_str]['Ellipse']=ellipse
             
+        #Structure parameters
+        structures[i_str]['Axes length']=structure.axes_length
+        structures[i_str]['Angle']=structure.angle
+        structures[i_str]['Center']=structure.center
+        structures[i_str]['Size']=structure.size
+        structures[i_str]['Elongation']=structure.elongation
+        
+        #Polygon parameters
+        polygon=structures[i_str]['Polygon']
+        structures[i_str]['Intensity']=polygon.intensity
+        structures[i_str]['Area']=polygon.area
+        structures[i_str]['Centroid']=polygon.centroid
+        structures[i_str]['Center of gravity']=polygon.center_of_gravity
+        
     fitted_structures=[]
     for i_str in range(len(structures)):
         if structures[i_str]['Size'] is not None:
@@ -722,116 +776,33 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                 for j_y in range(2):
                     if len(structures) > 0:
                         #Parametric reproduction of the Ellipse
-                        R=np.arange(0,2*np.pi,0.01)
-                        for i_str in range(len(structures)):
-                            structure=structures[i_str]
-                            phi=-structure['Angle']
-                            try:
-                                a=structures[i_str]['Size'][0]/2
-                                b=structures[i_str]['Size'][1]/2
-                                x=structures[i_str]['Vertices'][:,0]
-                                y=structures[i_str]['Vertices'][:,1]
-                                
-                                xx = structure['Center'][0] + \
-                                     a*np.cos(R)*np.cos(phi) - \
-                                     b*np.sin(R)*np.sin(phi)
-                                yy = structure['Center'][1] + \
-                                     a*np.cos(R)*np.sin(phi) + \
-                                     b*np.sin(R)*np.cos(phi)
-                                plt.subplot(gs[i_x,j_y])
-                                plt.plot(x,y, color='magenta')    #Plot the half path polygon
-                                plt.plot(xx,yy)  #Plot the ellipse
-                                
-                                plt.scatter(structure['Centroid'][0],
-                                            structure['Centroid'][1], color='yellow')
-                                plt.scatter(structure['Center'][0],
-                                            structure['Center'][1], color='red')
-                            except:
-                                pass
-                            
-                            if save_data_for_publication:
-                                exp_id=data_object.exp_id
-                                time=data_object.coordinate('Time')[0][0,0]
-                                wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-                                filename=wd+'/'+str(exp_id)+'_'+str(time)+'_half_path_no.'+str(i_str)+'.txt'
-                                file1=open(filename, 'w+')
-                                for i in range(len(x)):
-                                    file1.write(str(x[i])+'\t'+str(y[i])+'\n')
-                                file1.close()
-                                
-                                filename=wd+'/'+str(exp_id)+'_'+str(time)+'_fit_ellipse_no.'+str(i_str)+'.txt'
-                                file1=open(filename, 'w+')
-                                for i in range(len(xx)):
-                                    file1.write(str(xx[i])+'\t'+str(yy[i])+'\n')
-                                file1.close()
-                                    
-                            plt.xlabel('Image x')
-                            plt.ylabel('Image y')
-                            plt.xlim([x_coord.min(),x_coord.max()])
-                            plt.ylim([y_coord.min(),y_coord.max()])
-                            #plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
+                        plt.subplot(gs[i_x,j_y])
+                        plot_structures_for_testing(structures=structures,
+                                                    save_data_for_publication=save_data_for_publication,
+                                                    data_object=data_object)
+            plt.xlabel('Image x')
+            plt.ylabel('Image y')
+            plt.xlim([x_coord.min(),x_coord.max()])
+            plt.ylim([y_coord.min(),y_coord.max()])
             plt.show()
             plt.pause(0.01)
         else:
             fig,ax=plt.subplots(figsize=(10,10))
             plt.cla()
             ax.set_aspect(1.0)
-            
             plt.contourf(x_coord, y_coord, data, levels=levels)
             plt.title('data')
             
-            for i_x in range(2):
-                for j_y in range(2):
-                    if len(structures) > 0:
-                        #Parametric reproduction of the Ellipse
-                        R=np.arange(0,2*np.pi,0.01)
-                        for i_str in range(len(structures)):
-                            structure=structures[i_str]
-                            phi=-structure['Angle']
-                            try:
-                                a=structures[i_str]['Size'][0]/2
-                                b=structures[i_str]['Size'][1]/2
-                                x=structures[i_str]['Vertices'][:,0]
-                                y=structures[i_str]['Vertices'][:,1]
-                                
-                                xx = structure['Center'][0] + \
-                                     a*np.cos(R)*np.cos(phi) - \
-                                     b*np.sin(R)*np.sin(phi)
-                                yy = structure['Center'][1] + \
-                                     a*np.cos(R)*np.sin(phi) + \
-                                     b*np.sin(R)*np.cos(phi)
-
-                                plt.plot(x,y, color='magenta')    #Plot the half path polygon or the full for watershed
-                                plt.plot(xx,yy)  #Plot the ellipse
-                                
-                                plt.scatter(structure['Centroid'][0],
-                                            structure['Centroid'][1], color='yellow')
-                                plt.scatter(structure['Center'][0],
-                                            structure['Center'][1], color='red')
-                            except:
-                                pass
-                            
-                            if save_data_for_publication:
-                                exp_id=data_object.exp_id
-                                time=data_object.coordinate('Time')[0][0,0]
-                                wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-                                filename=wd+'/'+str(exp_id)+'_'+str(time)+'_half_path_no.'+str(i_str)+'.txt'
-                                file1=open(filename, 'w+')
-                                for i in range(len(x)):
-                                    file1.write(str(x[i])+'\t'+str(y[i])+'\n')
-                                file1.close()
-                                
-                                filename=wd+'/'+str(exp_id)+'_'+str(time)+'_fit_ellipse_no.'+str(i_str)+'.txt'
-                                file1=open(filename, 'w+')
-                                for i in range(len(xx)):
-                                    file1.write(str(xx[i])+'\t'+str(yy[i])+'\n')
-                                file1.close()
-                                    
-                            plt.xlabel('Image x')
-                            plt.ylabel('Image y')
-                            plt.xlim([x_coord.min(),x_coord.max()])
-                            plt.ylim([y_coord.min(),y_coord.max()])
-                            #plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
+            if len(structures) > 0:
+                #Parametric reproduction of the Ellipse
+                plot_structures_for_testing(structures=structures,
+                                            save_data_for_publication=save_data_for_publication,
+                                            data_object=data_object)
+            plt.xlabel('Image x')
+            plt.ylabel('Image y')
+            plt.xlim([x_coord.min(),x_coord.max()])
+            plt.ylim([y_coord.min(),y_coord.max()])
+            #plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))
             plt.show()
             plt.pause(0.01)
             
@@ -853,15 +824,58 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                 
     return structures
 
-def Gaussian2D(x, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
-    # print(args)
-    # amplitude, xo, yo, sigma_x, sigma_y, theta, offset = args
-    x,y=x
-    xo = float(xo)
-    yo = float(yo)    
-    a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
-    b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
-    c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
-    g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) 
-                            + c*((y-yo)**2)))
-    return g.ravel()
+def plot_structures_for_testing(structures=None,
+                                save_data_for_publication=False,
+                                data_object=None
+                                ):
+    if structures is None or data_object is None:
+        raise ValueError('structures and data_object need to be set.')
+    
+    R=np.arange(0,2*np.pi,0.01)
+    for i_str in range(len(structures)):
+        structure=structures[i_str]
+        phi=structure['Angle']
+        try:
+            a=structures[i_str]['Axes length'][0]
+            b=structures[i_str]['Axes length'][1]
+            x=structures[i_str]['Vertices'][:,0]
+            y=structures[i_str]['Vertices'][:,1]
+            
+            xx = structure['Center'][0] + \
+                 a*np.cos(R)*np.cos(phi) - \
+                 b*np.sin(R)*np.sin(phi)
+            yy = structure['Center'][1] + \
+                 a*np.cos(R)*np.sin(phi) + \
+                 b*np.sin(R)*np.cos(phi)
+            
+            plt.plot(x,y, color='magenta')    #Plot the half path polygon
+            plt.plot(xx,yy)  #Plot the ellipse
+            plt.plot([structure['Center'][0]-structure['Axes length'][0]*np.cos(structure['Angle']),
+                      structure['Center'][0]+structure['Axes length'][0]*np.cos(structure['Angle'])],
+                     [structure['Center'][1]-structure['Axes length'][0]*np.sin(structure['Angle']),
+                      structure['Center'][1]+structure['Axes length'][0]*np.sin(structure['Angle'])],
+                     color='magenta')
+            
+            plt.scatter(structure['Centroid'][0],
+                        structure['Centroid'][1], color='yellow')
+            plt.scatter(structure['Center'][0],
+                        structure['Center'][1], color='red')
+        except:
+            pass
+        
+        if save_data_for_publication:
+            exp_id=data_object.exp_id
+            time=data_object.coordinate('Time')[0][0,0]
+            wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+            filename=wd+'/'+str(exp_id)+'_'+str(time)+'_half_path_no.'+str(i_str)+'.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(x)):
+                file1.write(str(x[i])+'\t'+str(y[i])+'\n')
+            file1.close()
+            
+            filename=wd+'/'+str(exp_id)+'_'+str(time)+'_fit_ellipse_no.'+str(i_str)+'.txt'
+            file1=open(filename, 'w+')
+            for i in range(len(xx)):
+                file1.write(str(xx[i])+'\t'+str(yy[i])+'\n')
+            file1.close()
+        #plt.title(str(exp_id)+' @ '+str(data_object.coordinate('Time')[0][0,0]))

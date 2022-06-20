@@ -11,7 +11,7 @@ import scipy
 
 
 class Polygon:
-    
+
     def __init__(self,
                  x=None,
                  y=None,
@@ -21,15 +21,15 @@ class Polygon:
                  upsample=False,
                  test=False,
                  path_order=3):
-        
+
         if ((x is not None and y is not None) and  (len(x) == len(y))):
             self.x=np.asarray(x)
             self.y=np.asarray(y)
         else:
             raise ValueError('The input x and y has to be defined and must have the same length.')
 
-        if (x_data is not None and 
-            y_data is not None and 
+        if (x_data is not None and
+            y_data is not None and
             data is not None):
             if (x_data.shape != y_data.shape or
                x_data.shape != data.shape):
@@ -43,20 +43,21 @@ class Polygon:
             self.y_data=None
             self.data=None
             self.polygon_with_data=False
-            
+
         self._path=None
         self.path_order=path_order
         self.test=test
-        
-        # if upsample:
-        #     upsampled_xy=self.path.to_polygons(closed_only=True)[0]
-        #     self.x=upsampled_xy[:,0]
-        #     self.y=upsampled_xy[:,1]
-            
+
+    @property
+    def intensity(self):
+        if self.polygon_with_data:
+            return np.sum(self.data)
+        else:
+            raise ValueError('The polygon needs to have data to integrate the intensity')
     @property
     def vertices(self):
         return np.asarray([self.x,self.y]).transpose()
-        
+
     @property
     def path(self):
         """
@@ -77,14 +78,14 @@ class Polygon:
                 codes.append(Path.LINETO)
             else:
                 raise ValueError('Polygon.path_order cannot be higher than 3. Returning...')
-                
-        if self.path_order == 3 or self.path_order == 2:        
+
+        if self.path_order == 3 or self.path_order == 2:
             codes.append(Path.CURVE3)
         elif self.path_order == 1:
             codes.append(Path.LINETO)
-                
+
         codes.append(Path.CLOSEPOLY)
-                    
+
         xy_looped=np.zeros([len(self.x)+1,2])
         xy_looped[0:-1,:]=np.asarray([self.x, self.y]).transpose()
         xy_looped[-1,:]=[self.x[0], self.y[0]]
@@ -95,12 +96,12 @@ class Polygon:
     def area(self):
         """
         Returns the area of the polygon based on the so called shoelace formula.
-        Sources: 
+        Sources:
             https://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates
             https://en.wikipedia.org/wiki/Shoelace_formula
         """
         return 0.5*np.abs(np.dot(self.x,np.roll(self.y,1))-np.dot(self.y,np.roll(self.x,1)))
-    
+
     @property
     def signed_area(self):
         return 0.5*(np.dot(self.x,np.roll(self.y,1))-np.dot(self.y,np.roll(self.x,1)))
@@ -111,7 +112,7 @@ class Polygon:
         Source: https://en.wikipedia.org/wiki/Polygon
         Coding based on the area's convention.
         """
-        
+
         if self.test:
             print('area', self.signed_area)
             print('x',self.x)
@@ -125,7 +126,7 @@ class Polygon:
         if self.test:
             print('centroid', [x_center,y_center])
         return np.asarray([x_center,y_center])
-    
+
     @property
     def convex_hull(self):
         '''
@@ -138,11 +139,12 @@ class Polygon:
 
         '''
         points=np.asarray([self.x,self.y]).transpose()
-        if len(self.x) > 2:
+
+        try:
             hull = scipy.spatial.ConvexHull(points)
             x_hull = points[hull.vertices,0]
             y_hull = points[hull.vertices,1]
-        else:
+        except:
             x_hull=self.x
             y_hull=self.y
         return Polygon(x=x_hull,
@@ -150,7 +152,7 @@ class Polygon:
     @property
     def perimeter(self):
         '''
-        Returns the perimeter of the polygon calculated from the 
+        Returns the perimeter of the polygon calculated from the
         Eucledian distance between the vertices. Assumes that the polygon's
         coordinates are in order.'
 
@@ -169,52 +171,60 @@ class Polygon:
     @property
     def roundness(self):
         return 4*np.pi*self.area/(self.convex_hull.perimeter)**2
-    
+
     @property
     def convexity(self):
         return self.convex_hull.perimeter/self.perimeter
-    
+
     @property
     def solidity(self):
         return self.area/self.convex_hull.area
-    
+
     @property
     def second_central_moment(self):
         if not self.polygon_with_data:
             raise ValueError('The polygon doesn\'t contain data. Please provide x_data, y_data and data to Polygon()')
         mu=np.zeros([2,2])
-        if not np.isnan(self.centroid[0]):
-            mu[0,0]=np.sum(self.data*(self.x_data-self.centroid[0])**2)
-            mu[0,1]=np.sum(self.data*(self.x_data-self.centroid[0])*(self.y_data-self.centroid[1]))
+        cog=self.center_of_gravity
+
+        if not np.isnan(cog[0]):
+            mu[0,0]=np.sum(self.data*(self.y_data-cog[1])**2)
+            mu[0,1]=-np.sum(self.data*(self.x_data-cog[0])*(self.y_data-cog[1]))
             mu[1,0]=mu[0,1]
-            mu[1,1]=np.sum(self.data*(self.y_data-self.centroid[1])**2)
+            mu[1,1]=np.sum(self.data*(self.x_data-cog[0])**2)
+        else:
+            mu[:,:]=np.nan
+
         if self.test:
             print('mu',mu)
             print('data',self.data)
             print('x_data',self.x_data)
             print('y_data',self.x_data)
-            print('centroid',self.centroid)
+            print('cog',self.centroid)
         return mu
 
-        
+
     @property
     def principal_axes_angle(self):
         if not self.polygon_with_data:
             raise ValueError('The polygon doesn\'t have data within, please add data and x_data,y_data coordinates. Returning...')
+
         if self.test:
             print('centroid', self.centroid)
             print('central moment',self.second_central_moment)
+
         if not np.isnan(self.centroid[0]):
             mu=self.second_central_moment
             eigvalues,eigvectors=np.linalg.eig(mu)
-            if eigvalues[0] < eigvalues[1]:
-                eig_ind=0
-            else:
-                eig_ind=1
-            return np.arctan2(eigvectors[1,eig_ind],eigvectors[0,eig_ind])
+            eig_ind=np.argmax(eigvalues)
+            angle=np.arctan(eigvectors[1,eig_ind]/
+                            eigvectors[0,eig_ind])
+            return np.arcsin(np.sin(angle))
+            # return np.arctan2(eigvectors[1,eig_ind],
+            #                   eigvectors[0,eig_ind])
         else:
             return np.nan
-        
+
     @property
     def center_of_gravity(self):
         if not self.polygon_with_data:
@@ -222,7 +232,7 @@ class Polygon:
         x_cog=np.sum(self.x_data*self.data)/np.sum(self.data)
         y_cog=np.sum(self.y_data*self.data)/np.sum(self.data)
         return np.asarray([x_cog,y_cog]).transpose()
-    
+
     @property
     def curvature(self):
         """
@@ -237,10 +247,10 @@ class Polygon:
         if self.x[0] == self.x[-1] and self.y[0] == self.y[-1]:
             x_looped=self.x
             y_looped=self.y
-        else:    
+        else:
             x_looped=np.append(self.x,self.x[0])
             y_looped=np.append(self.y,self.y[0])
-        
+
         dsx=np.diff(x_looped)
         dsy=np.diff(y_looped)
         ds=np.sqrt(dsx**2+dsy**2)
@@ -261,7 +271,7 @@ class Polygon:
         if self.test:
             print('curvature', curvature)
         return curvature
-    
+
     @property
     def curvature_vector(self):
         try:
@@ -269,15 +279,15 @@ class Polygon:
         except:
             self.curvature
             return self._curvature_vector
-        
+
     @property
     def total_curvature(self):
         return np.mean(np.abs(self.curvature))
-        
+
     @property
     def bending_energy(self):
         return (self.curvature)**2
-    
+
     @property
     def total_bending_energy(self):
-        return np.mean(self.bending_energy) 
+        return np.mean(self.bending_energy)

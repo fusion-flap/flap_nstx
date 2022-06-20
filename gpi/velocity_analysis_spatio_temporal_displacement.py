@@ -126,13 +126,13 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
         
         ccorr_n=np.zeros([x_range[1]-x_range[0]+1,
                           y_range[1]-y_range[0]+1,
-                          x_range[1]-x_range[0]+2*x_search+1,
-                          y_range[1]-y_range[0]+2*y_search+1])
+                          2*x_search+1,
+                          2*y_search+1])
             
         ccorr_p=np.zeros([x_range[1]-x_range[0]+1,
                           y_range[1]-y_range[0]+1,
-                          x_range[1]-x_range[0]+2*x_search+1,
-                          y_range[1]-y_range[0]+2*y_search+1])
+                          2*x_search+1,
+                          2*y_search+1])
         #Moving average frames should be created first for the entire frame so it could be used during the cross-correlation
         #moving_average_data = np.convolve(d.data, np.ones(fbin*2), 'valid') / fbin*2
         #offset_subtracted_data=
@@ -162,31 +162,26 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
                                      i0+x_range[0],
                                      j0+y_range[0]]                             #oN=pointer*nt*nx*ny*nxs*nys
                     frame_ref=frame_ref-np.mean(frame_ref)                      #oN=2*2fbin*nt*nx*ny
+
+                    frame_n=d.data[t0-fbin-1:t0+fbin-1,
+                                   i0+x_range[0]-x_search:2*x_search+1+i0+x_range[0]-x_search,
+                                   j0+y_range[0]-y_search:2*y_search+1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
+                    frame_n=frame_n-np.mean(frame_n,axis=0)[None,:,:]                    #oN=2*2fbin*nt*nx*ny*nxs*nys
                     
-                    for i1 in range(2*x_search+1):
-                        for j1 in range(2*y_search+1):
-                            frame_n=d.data[t0-fbin-1:t0+fbin-1,
-                                           i1+i0+x_range[0]-x_search,
-                                           j1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
-                            frame_n=frame_n-np.mean(frame_n)                    #oN=2*2fbin*nt*nx*ny*nxs*nys
-                            
-                            frame_p=d.data[t0-fbin+1:t0+fbin+1,
-                                           i1+i0+x_range[0]-x_search,
-                                           j1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
-                            frame_p=frame_p-np.mean(frame_p)                    #oN=2*2fbin*nt*nx*ny*nxs*nys #mean should come from the mean array, it is calculated multiple times
-                            
-                            ccorr_n[i0,j0,i1,j1]=np.sum(frame_ref*frame_n)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    These could be generated with rolling
-                            ccorr_p[i0,j0,i1,j1]=np.sum(frame_ref*frame_p)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    correlation calculation getting rid of one fbin order
-                            
+                    frame_p=d.data[t0-fbin+1:t0+fbin+1,
+                                   i0+x_range[0]-x_search:2*x_search+1+i0+x_range[0]-x_search,
+                                   j0+y_range[0]-y_search:2*y_search+1+j0+y_range[0]-y_search]           #oN=pointer*nt*nx*ny*nxs*nys
+                    frame_p=frame_p-np.mean(frame_p,axis=0)[None,:,:]                    #oN=2*2fbin*nt*nx*ny*nxs*nys #mean should come from the mean array, it is calculated multiple times
+                    
+                    ccorr_n[i0,j0,:,:]=np.sum(frame_ref[:,None,None]*frame_n, axis=0)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    These could be generated with rolling
+                    ccorr_p[i0,j0,:,:]=np.sum(frame_ref[:,None,None]*frame_p, axis=0)      #oN=2*fbin*fbin*nt*nx*ny*nxs*nys    correlation calculation getting rid of one fbin order
+            
             #Calculating the actual cross-correlation coefficients       
             for i0 in range(x_range[1]-x_range[0]+1):
                 for j0 in range(y_range[1]-y_range[0]+1):
-                    vcorr_p=np.zeros([2*x_search+1,2*y_search+1])
-                    vcorr_n=np.zeros([2*x_search+1,2*y_search+1])
-                    for i1 in range(2*x_search+1):
-                        for j1 in range(2*y_search+1):
-                            vcorr_p[i1,j1]=ccorr_p[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_p[i0+i1,j0+j1]) #2*nt*nx*ny*nxs*nys         This could be morphed to
-                            vcorr_n[i1,j1]=ccorr_n[i0,j0,i1,j1]/(acorr_pix_ref[i0,j0]*acorr_pix_n[i0+i1,j0+j1]) #2*nt*nx*ny*nxs*nys         matrix calculations.
+
+                    vcorr_p=ccorr_p[i0,j0,:,:]/(acorr_pix_ref[i0,j0]*acorr_pix_p[i0:i0+2*x_search+1,j0:j0+2*y_search+1]) #2*nt*nx*ny*nxs*nys         This could be morphed to
+                    vcorr_n=ccorr_n[i0,j0,:,:]/(acorr_pix_ref[i0,j0]*acorr_pix_n[i0:i0+2*x_search+1,j0:j0+2*y_search+1]) #2*nt*nx*ny*nxs*nys         matrix calculations.
                             
                     #Calculating the displacement in pixel coordinates
                     index_p=np.unravel_index(np.argmax(vcorr_p),shape=vcorr_p.shape)
@@ -211,9 +206,6 @@ def nstx_gpi_velocity_analysis_spatio_temporal_displacement(exp_id=None,        
             vpol_tot = (vpol_p - vpol_n)/2.	 	# Average p and n correlations
             vrad_tot = (vrad_p - vrad_n)/2.     # This is non causal
             #print((t0-fbin)/(count-2*(fbin+1))*100,'% done from the calculation for shot '+str(exp_id))
-            
-            
-
         
         #Averaging in an fbin long time window
         for t0 in range(int(fbin/2),count-int(fbin/2)):
