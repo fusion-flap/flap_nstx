@@ -15,6 +15,4 @@ from .plot_video import show_nstx_gpi_video, show_nstx_gpi_video_frames, show_ns
 from .velocity_analysis_spatio_temporal_displacement import nstx_gpi_velocity_analysis_spatio_temporal_displacement
 from .velocity_analysis import calculate_nstx_gpi_avg_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_filament_velocity
 
-
-
-
+from .analyze_gpi_structures import analyze_gpi_structures
