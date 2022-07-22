@@ -227,7 +227,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         (not test and not plot and structure_pdf_save and test_structures)):
         import matplotlib
         matplotlib.use('agg')
-        import matplotlib.pyplot as plt
+    #    import matplotlib.pyplot as plt
 
     if structure_pdf_save:
         filename=flap_nstx.tools.filename(exp_id=exp_id,
@@ -1152,11 +1152,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         if plot:
             import matplotlib
             matplotlib.use('QT5Agg')
-            import matplotlib.pyplot as plt
+            #import matplotlib.pyplot as plt
         else:
             import matplotlib
             matplotlib.use('agg')
-            import matplotlib.pyplot as plt
+           # import matplotlib.pyplot as plt
 
         if plot_time_range is not None:
             if plot_time_range[0] < time_range[0] or plot_time_range[1] > time_range[1]:
