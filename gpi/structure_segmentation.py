@@ -59,6 +59,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                                       fit_shape='ellipse',                    #ellipse or gaussian
                                       str_size_lower_thres=4*0.00375,         #lower threshold for structures
                                       elongation_threshold=0.1,               #Threshold for angle definition, the angle of circular structures cannot be determined.
+                                      skip_gaussian=True,
                                       ):
 
     """
@@ -88,6 +89,9 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         data_object=flap.get_data_object_ref(data_object, exp_id=exp_id)
         if len(data_object.data.shape) != 2:
             raise IOError('The inpud data_object is not 2D. The method only processes 2D data.')
+
+    if skip_gaussian and fit_shape=='gaussian':
+        raise ValueError('If the gaussian fitting is skipped, the fitting shape cannot be gaussian...')
 
     if data_object is None:
         if (exp_id is None) or ((time is None) and (sample is None)):
@@ -165,6 +169,8 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                    'Split':False,
                    'Merged':False,
                    'Label':None,
+                   'Parent':[],
+                   'Child':[],
                    }
 
     # structures.append({'Polygon':full_polygon,
@@ -361,12 +367,13 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                            y=half_coords[:,1],
                            method=ellipse_method)
         structures[i_str]['Ellipse']=ellipse
-
-        gaussian=FitGaussian(x=x_data,
-                             y=y_data,
-                             data=np.asarray(int_data))
-        structures[i_str]['Gaussian']=gaussian
-
+        if not skip_gaussian:
+            gaussian=FitGaussian(x=x_data,
+                                 y=y_data,
+                                 data=np.asarray(int_data))
+            structures[i_str]['Gaussian']=gaussian
+        else:
+            structures[i_str]['Gaussian']=False
         if fit_shape=='ellipse':
             structure=ellipse
         elif fit_shape=='gaussian':
@@ -501,6 +508,7 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                                         fit_shape='ellipse',                    #ellipse or gaussian
                                         str_size_lower_thres=4*0.00375,
                                         elongation_threshold=0.1,
+                                        skip_gaussian=False
                                         # try_random_walker=False,
                                         ):
 
@@ -528,6 +536,9 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
     READING THE DATA
     ----------------
     """
+
+    if skip_gaussian and fit_shape=='gaussian':
+        raise ValueError('If the gaussian fitting is skipped, the fitting shape cannot be gaussian...')
 
     if type(data_object) is str:
         data_object=flap.get_data_object_ref(data_object, exp_id=exp_id)
@@ -665,9 +676,11 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                                'Data':full_polygon.data,
                                'Born':False,
                                'Died':False,
-                               'Split':False,
-                               'Merged':False,
+                               'Splits':False,
+                               'Merges':False,
                                'Label':None,
+                               'Parent':[],
+                               'Child':[],
                                })
 
 
@@ -697,10 +710,12 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
         x_str = structures[i_str]['X coord']
         y_str = structures[i_str]['Y coord']
         data_str=structures[i_str]['Data']
-
-        gaussian=FitGaussian(x=x_str,
-                                 y=y_str,
-                                 data=data_str)
+        if not skip_gaussian:
+            gaussian=FitGaussian(x=x_str,
+                                     y=y_str,
+                                     data=data_str)
+        else:
+            gaussian=None
         ellipse=FitEllipse(x=structures[i_str]['Vertices'][:,0],
                                y=structures[i_str]['Vertices'][:,1],
                                method=ellipse_method)
@@ -712,6 +727,9 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
 
         size=structure.size
         center=structure.center
+        if np.iscomplex(size[0]) or np.iscomplex(size[1]):
+            print('Size is complex')
+            structure.set_invalid()
 
         if ignore_large_structure:
             if (size[0] > x_coord.max()-x_coord.min() or
@@ -733,8 +751,11 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
                 print('Structure is at the border of the frame.')
 
                 structure.set_invalid()
+        if not skip_gaussian:
+            structures[i_str]['Gaussian']=gaussian
+        else:
+            structures[i_str]['Gaussian']=None
 
-        structures[i_str]['Gaussian']=gaussian
         structures[i_str]['Ellipse']=ellipse
 
         #Structure parameters

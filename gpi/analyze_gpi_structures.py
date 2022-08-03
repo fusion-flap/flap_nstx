@@ -13,6 +13,9 @@ import os
 import copy
 import cv2
 
+import warnings
+warnings.filterwarnings("ignore")
+
 import flap
 import flap_nstx
 flap_nstx.register('NSTX_GPI')
@@ -619,6 +622,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                                       ellipse_method=ellipse_method,
                                                                       str_size_lower_thres=str_size_lower_thres,
                                                                       elongation_threshold=elongation_threshold,
+                                                                      skip_gaussian=True,
                                                                       )
 
                 elif str_finding_method == 'watershed':# or str_finding_method == 'randomwalker':
@@ -636,6 +640,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                                         ignore_large_structure=True,
                                                                         str_size_lower_thres=str_size_lower_thres,
                                                                         elongation_threshold=elongation_threshold,
+                                                                        skip_gaussian=True,
                                                                         #try_random_walker= str_finding_method == 'randomwalker',
                                                                         )
                 frame_properties['structures'].append(structures_dict)
@@ -815,8 +820,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 frame_properties['data']['Frame COG poloidal']['max'][i_frames]=np.nan
                # frame_properties['Structures'][i_frames]=None
 
-        highest_label=0.
-        no_structure_yet=True
+        highest_label=0
         for i_frames in range(1,n_frames):
             structures_1=frame_properties['structures'][i_frames-1]
             structures_2=frame_properties['structures'][i_frames]
@@ -832,13 +836,14 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 valid_structure_2=False
 
             if valid_structure_1 and valid_structure_2:
-                if no_structure_yet:
-                    for j_str1 in range(len(structures_1)):
-                        structures_1[j_str1]['Label']=j_str1
+
+                for j_str1 in range(len(structures_1)):
+                    if structures_1[j_str1]['Label'] is None:
+                        structures_1[j_str1]['Label']=highest_label+1
                         structures_1[j_str1]['Born']=True
                         structures_1[j_str1]['Died']=False
-                    no_structure_yet=False
-                    highest_label=j_str1
+                        highest_label += 1
+
                 n_str1_overlap=np.zeros(len(structures_1))
                 #Calculating the averages based on the input setting
                 n_str1=len(structures_1)
@@ -905,14 +910,14 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
 
                 """
-                example str_overlap_matrix = |0,0,0,0| dead
+                example str_overlap_matrix = |0,0,0,1| lives
                                              |1,0,1,1| splits into three
                                              |0,0,1,0| lives
-                                             |0,0,1,0| lives
+                                             |0,0,0,0| dies
                                               ^ split into
                                                 ^ is born
                                                   ^ merges into
-                                                    ^
+                                                    ^ merges into
 
                 """
 
@@ -930,28 +935,44 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                         ind_str1=np.where(merging_indices == 1)[0]
                         #One and only one overlap
                         if np.sum(str_overlap_matrix[ind_str1,:]) == 1:
-                            if structures_1[int(ind_str1)]['Label'] is not None:
-                                structures_2[j_str2]['Label'] = structures_1[int(ind_str1)]['Label']
-                            else:
-                                structures_2[j_str2]['Label']=highest_label+1
-                                highest_label += 1
+                            #if structures_1[int(ind_str1)]['Label'] is not None:
+                            structures_2[j_str2]['Label'] = structures_1[int(ind_str1)]['Label']
+                            #else:
+                            #    structures_2[j_str2]['Label']=highest_label+1
+                            #    highest_label += 1
                         #If splitting is happening, that's handled later.
                         else:
                             pass
-                    #Previous structures merger
+                    #Previous structures merge
                     elif np.sum(merging_indices) > 1:
                         ind_merge=np.where(merging_indices == 1)[0]
                         #There is merging, but there is no splitting
+
+                        #Should be done differently, maybe it should be iterated over all merging indices and look for 1's in the columns
+                        #The number of ones in the colums should match the number of ones in merging indices. respectively It's 2:22am and couldn't
+                        #come up with the solution. Sowwy
+
                         if np.sum(str_overlap_matrix[ind_merge,:]) == np.sum(merging_indices):
                             ind_high=ind_merge[0]
                             for j_str1 in range(len(ind_merge)):
                                 if structures_1[int(ind_high)]['Intensity'] < structures_1[int(ind_merge[j_str1])]['Intensity']:
                                     ind_high=ind_merge[j_str1]
-                            if structures_1[int(ind_high)]['Label'] is not None:
-                                structures_2[j_str2]['Label']=structures_1[int(ind_high)]['Label']
-                            else:
-                                structures_2[j_str2]['Label']=highest_label+1
-                                highest_label += 1
+                            #if structures_1[int(ind_high)]['Label'] is not None:
+                            print("1 ",structures_2[j_str2]['Label'])
+                            structures_2[j_str2]['Label']=structures_1[int(ind_high)]['Label']
+                            for j_str1 in range(len(ind_merge)):
+                                structures_2[j_str2]['Parent'].append(structures_1[int(ind_merge[j_str1])]['Label'])
+                                structures_1[int(ind_merge[j_str1])]['Merges']=True
+                                structures_1[int(ind_merge[j_str1])]['Child'].append(structures_2[j_str2]['Label'])
+                            # else:
+                            #     structures_2[j_str2]['Label']=highest_label+1
+                            #     structures_2[j_str2]['Parent']=highest_label+1
+
+                            #     structures_1[int(ind_high)]['Label']=highest_label+1
+                            #     structures_1[int(ind_high)]['Merges']=True
+                            #     structures_1[int(ind_high)]['Child'].append(structures_2[j_str2]['Parent'])
+                            #     highest_label += 1
+
                         else:
                             #This is a weird situation where merges and splits occur at the same time
                             #Should be handled correctly, possibly assigning new labels to everything
@@ -973,18 +994,25 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     #Previous structures are splitting into more new structures
                     elif np.sum(splitting_indices) > 1:
                         ind_split=np.where(splitting_indices == 1)[0]
+                        print(ind_split)
+                        print(str_overlap_matrix[:,ind_split])
                         if np.sum(str_overlap_matrix[:,ind_split]) == np.sum(splitting_indices):
                             ind_high=ind_split[0]
                             for j_str2 in range(len(ind_split)):
                                 if structures_2[int(ind_high)]['Intensity'] < structures_2[int(ind_split[j_str2])]['Intensity']:
                                     ind_high=ind_split[j_str2]
                             for j_str2 in range(len(ind_split)):
-                                if (j_str2 == ind_high and
-                                    structures_1[j_str1]['Label'] is not None):
+                                print("2", structures_2[j_str2]['Label'])
+                                if (j_str2 == ind_high
+                                    #and structures_1[j_str1]['Label'] is not None
+                                    ):
                                     structures_2[j_str2]['Label']=structures_1[j_str1]['Label']
                                 else:
                                     structures_2[j_str2]['Label']=highest_label+1
                                     highest_label += 1
+                                structures_2[j_str2]['Parent'].append(structures_1[j_str1]['Label'])
+                                structures_1[j_str1]['Child'].append(structures_2[j_str2]['Label'])
+                            structures_1[j_str1]['Splits']=True
                         else:
                             #This is a weird situation where merges and splits occur at the same time
                             #Should be handled correctly, possibly assigning new labels to everything
