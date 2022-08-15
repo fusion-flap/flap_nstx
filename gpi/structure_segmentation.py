@@ -37,6 +37,7 @@ from skimage.feature import peak_local_max
 from skimage.filters import threshold_otsu
 from skimage.segmentation import watershed
 
+
 def nstx_gpi_contour_structure_finder(data_object=None,                       #Name of the FLAP.data_object
                                       exp_id='*',                             #Shot number (if data_object is not used)
                                       time=None,                              #Time when the structures need to be evaluated (when exp_id is used)
@@ -166,8 +167,8 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                    'Levels':[None],
                    'Born':False,
                    'Died':False,
-                   'Split':False,
-                   'Merged':False,
+                   'Splits':False,
+                   'Merges':False,
                    'Label':None,
                    'Parent':[],
                    'Child':[],
@@ -277,14 +278,17 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             half_level=(structures[i_str]['Levels'][-1]+structures[i_str]['Levels'][0])/2.
             ind_at_half=np.argmin(np.abs(structures[i_str]['Levels']-half_level))
             paths_at_half.append(structures[i_str]['Paths'][ind_at_half])
+
         #Process the structures which are embedded (cut the inner one)
         if remove_interlaced_structures:
             structures_to_be_removed=[]
             for ind_path1 in range(len(paths_at_half)):
-                for ind_path2 in range(len(paths_at_half)):
+                for ind_path2 in range(ind_path1,len(paths_at_half),1):
                     if ind_path1 != ind_path2:
                         if paths_at_half[ind_path2].contains_path(paths_at_half[ind_path1]):
                             structures_to_be_removed.append(ind_path1)
+                        if paths_at_half[ind_path2] == paths_at_half[ind_path1]:
+                            structures_to_be_removed.append(ind_path2)
             structures_to_be_removed=np.unique(structures_to_be_removed)
             cut_structures=[]
             for i_str in range(len(structures)):
@@ -407,7 +411,6 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         ax.set_aspect(1.0)
 
         plt.contourf(x_coord, y_coord, data, levels=nlevel)
-        plt.imshow(data)
         plt.colorbar()
         if len(structures) > 0:
             #Parametric reproduction of the Ellipse
