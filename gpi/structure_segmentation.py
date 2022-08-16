@@ -356,10 +356,17 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
         structures[i_str]['Half path']=structures[i_str]['Paths'][ind_at_half]
 
         structures[i_str]['Half level']=half_level
+
         structures[i_str]['Centroid']=half_polygon.centroid
+        structures[i_str]['Centroid radial']=half_polygon.centroid[0]
+        structures[i_str]['Centroid poloidal']=half_polygon.centroid[1]
+
         structures[i_str]['Area']=half_polygon.area
         structures[i_str]['Intensity']=half_polygon.intensity
+
         structures[i_str]['Center of gravity']=half_polygon.center_of_gravity
+        structures[i_str]['Center of gravity radial']=half_polygon.center_of_gravity[0]
+        structures[i_str]['Center of gravity poloidal']=half_polygon.center_of_gravity[1]
 
         structures[i_str]['Polygon']=half_polygon
         structures[i_str]['Vertices']=half_polygon.vertices
@@ -384,8 +391,17 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             structure=gaussian
 
         structures[i_str]['Axes length']=structure.axes_length
+        structures[i_str]['Axes length minor']=structure.axes_length[0]
+        structures[i_str]['Axes length major']=structure.axes_length[1]
         structures[i_str]['Center']=structure.center
+        structures[i_str]['Center radial']=structure.center[0]
+        structures[i_str]['Center poloidal']=structure.center[1]
+        structures[i_str]['Position']=structure.center
+        structures[i_str]['Position radial']=structure.center[0]
+        structures[i_str]['Position poloidal']=structure.center[1]
         structures[i_str]['Size']=structure.size
+        structures[i_str]['Size radial']=structure.size[0]
+        structures[i_str]['Size poloidal']=structure.size[1]
         structures[i_str]['Angle']=structure.angle
         structures[i_str]['Elongation']=structure.elongation
 
@@ -763,9 +779,22 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
 
         #Structure parameters
         structures[i_str]['Axes length']=structure.axes_length
+        structures[i_str]['Axes length minor']=structure.axes_length[0]
+        structures[i_str]['Axes length major']=structure.axes_length[1]
+
         structures[i_str]['Angle']=structure.angle
         structures[i_str]['Center']=structure.center
+        structures[i_str]['Center radial']=structure.center[0]
+        structures[i_str]['Center poloidal']=structure.center[1]
+
+        structures[i_str]['Position']=structure.center
+        structures[i_str]['Position radial']=structure.center[0]
+        structures[i_str]['Position poloidal']=structure.center[1]
+
         structures[i_str]['Size']=structure.size
+        structures[i_str]['Size radial']=structure.size[0]
+        structures[i_str]['Size poloidal']=structure.size[1]
+
         structures[i_str]['Elongation']=structure.elongation
 
         #Polygon parameters
@@ -773,7 +802,11 @@ def nstx_gpi_watershed_structure_finder(data_object=None,                       
         structures[i_str]['Intensity']=polygon.intensity
         structures[i_str]['Area']=polygon.area
         structures[i_str]['Centroid']=polygon.centroid
+        structures[i_str]['Centroid radial']=polygon.centroid[0]
+        structures[i_str]['Centroid poloidal']=polygon.centroid[1]
         structures[i_str]['Center of gravity']=polygon.center_of_gravity
+        structures[i_str]['Center of gravity radial']=polygon.center_of_gravity[0]
+        structures[i_str]['Center of gravity poloidal']=polygon.center_of_gravity[1]
 
         if structures[i_str]['Axes length'][1]/structures[i_str]['Axes length'][0] < elongation_threshold:
             structures[i_str]['Angle']=np.nan

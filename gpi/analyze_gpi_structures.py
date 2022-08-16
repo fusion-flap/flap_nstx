@@ -98,7 +98,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            str_size_lower_thres=0.00375*4,        #Structures having sizes under this value are filtered out from the results. (Default is 4 pixels for both radial, poloidal)
                            elongation_threshold=0.1,             #Structures having major/minor_axis-1 lower than this value are set to angle=np.nan
                            remove_orphans=True,                  #Structures which
-
+                           calculate_rough_diff_velocities=False,
                             #Plot options:
                            plot=True,                            #Plot the results
                            pdf=False,                            #Print the results into a PDF
@@ -114,6 +114,8 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            plot_time_range=None,                 #Plot the results in a different time range than the data is read from
                            plot_for_publication=False,           #Modify the plot sizes to single column sizes and golden ratio axis ratios
                            plot_vertical_line_at=None,
+                           plot_str_by_str=False,
+
                             #File input/output options
                            filename=None,                        #Filename for restoring data
                            save_results=True,                    #Save the results into a .pickle file to filename+.pickle
@@ -350,7 +352,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                    }
 
         frame_properties={'shot':exp_id,
-                          'time':time,
+                          'Time':time,
                           'data':{},
                           'derived':{},
                           'structures':[],
@@ -551,7 +553,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             my_dpi=80
             plt.figure(figsize=(800/my_dpi, 600/my_dpi), dpi=my_dpi)
 
-        elm_time=(frame_properties['time'][-1]+frame_properties['time'][0])/2
+        elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
 
         R_sep=flap.get_data('NSTX_MDSPlus',
                             name='\EFIT02::\RBDRY',
@@ -847,8 +849,10 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                        'Angular velocity angle',
                        'Angular velocity ALI',
                        ]
-    sample_time=frame_properties['time'][1]-frame_properties['time'][0]
+
+    sample_time=frame_properties['Time'][1]-frame_properties['Time'][0]
     for i_frames in range(1,n_frames):
+
         structures_1=frame_properties['structures'][i_frames-1]
         structures_2=frame_properties['structures'][i_frames]
 
@@ -863,7 +867,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             valid_structure_2=False
 
         if valid_structure_1 and valid_structure_2:
-
             for j_str1 in range(len(structures_1)):
                 if structures_1[j_str1]['Label'] is None:
                     structures_1[j_str1]['Label']=highest_label+1
@@ -877,65 +880,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             n_str2=len(structures_2)
             str_overlap_matrix=np.zeros([n_str1,n_str2])
             for j_str2 in range(n_str2):
-                prev_str_weight=[]
-                for new_key in differential_keys:
-                    structures_2[j_str2][new_key]=[]
-
-                #Check the new frame if it has overlap with the old frame
                 for j_str1 in range(n_str1):
                     if structures_2[j_str2]['Half path'].intersects_path(structures_1[j_str1]['Half path']):
                         str_overlap_matrix[j_str1,j_str2]=1
-                        if prev_str_weighting == 'number':
-                            prev_str_weight.append(1.)
-                        elif prev_str_weighting == 'intensity':
-                            prev_str_weight.append(structures_1[j_str1]['Intensity'])
-                        elif prev_str_weighting == 'area':
-                            prev_str_weight.append(structures_1[j_str1]['Area'])
-                        elif prev_str_weighting == 'max_intensity':
-                            if np.argmax(intensities) == j_str1:
-                                prev_str_weight.append(1.)
-                            else:
-                                prev_str_weight.append(0.)
-
-                        structures_2[j_str2]['Velocity radial COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[0]-
-                                                                           structures_1[j_str1]['Polygon'].center_of_gravity[0])/sample_time)
-                        structures_2[j_str2]['Velocity poloidal COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[1]-
-                                                                             structures_1[j_str1]['Polygon'].center_of_gravity[1])/sample_time)
-
-                        structures_2[j_str2]['Velocity radial centroid'].append((structures_2[j_str2]['Polygon'].centroid[0]-
-                                                                                structures_1[j_str1]['Polygon'].centroid[0])/sample_time)
-                        structures_2[j_str2]['Velocity poloidal centroid'].append((structures_2[j_str2]['Polygon'].centroid[1]-
-                                                                                  structures_1[j_str1]['Polygon'].centroid[1])/sample_time)
-
-                        structures_2[j_str2]['Velocity radial position'].append((structures_2[j_str2][fit_shape].center[0]-
-                                                                                structures_1[j_str1][fit_shape].center[0])/sample_time)
-                        structures_2[j_str2]['Velocity poloidal position'].append((structures_2[j_str2][fit_shape].center[1]-
-                                                                                  structures_1[j_str1][fit_shape].center[1])/sample_time)
-
-                        structures_2[j_str2]['Expansion fraction area'].append(np.sqrt(structures_2[j_str2]['Polygon'].area/
-                                                                                       structures_1[j_str1]['Polygon'].area))
-                        structures_2[j_str2]['Expansion fraction axes'].append(np.sqrt(structures_2[j_str2][fit_shape].axes_length[0]/
-                                                                                       structures_1[j_str1][fit_shape].axes_length[0]*
-                                                                                       structures_2[j_str2][fit_shape].axes_length[1]/
-                                                                                       structures_1[j_str1][fit_shape].axes_length[1]))
-
-                        structures_2[j_str2]['Angular velocity angle'].append((structures_2[j_str2][fit_shape].angle-
-                                                                              structures_1[j_str1][fit_shape].angle)/sample_time)
-                        structures_2[j_str2]['Angular velocity ALI'].append((structures_2[j_str2]['Polygon'].principal_axes_angle-
-                                                                            structures_1[j_str1]['Polygon'].principal_axes_angle)/sample_time)
-
-                        n_str1_overlap[j_str1]+=1.
-
-                prev_str_weight=np.asarray(prev_str_weight)
-                prev_str_weight /= np.sum(prev_str_weight)
-
-                #structures_2[j_str2]['Label']=np.mean(structures_2[j_str2]['Label'])
-                for key in differential_keys:
-                    structures_2[j_str2][key] = np.sum(np.asarray(structures_2[j_str2][key])*prev_str_weight)
-                        #If the new frame's structure doesn't have overlap, set new label and birth
-#                    if structures_2[j_str2]['Label'] is None:
-
-
             """
             example str_overlap_matrix = |0,0,0,1| lives
                                          |1,0,1,1| splits into three
@@ -957,12 +904,18 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     highest_label += 1
                     structures_2[j_str2]['Born'] = True
 
+
                 #There is one overlap between the current and the previous
                 elif np.sum(merging_indices) == 1:
                     ind_str1=np.where(merging_indices == 1)
                     #One and only one overlap
                     if np.sum(str_overlap_matrix[ind_str1[0],:]) == 1:
                         structures_2[j_str2]['Label'] = structures_1[int(ind_str1[0])]['Label']
+                        structures_2[j_str2]=calculate_differential_keys(structure_2=structures_2[j_str2],
+                                                                          structure_1=structures_1[int(ind_str1[0])],
+                                                                          sample_time=sample_time,
+                                                                          fit_shape=fit_shape)
+
                     #If splitting is happening, that's handled later.
                     else:
                         pass
@@ -982,11 +935,15 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             if structures_1[int(ind_high)]['Intensity'] < structures_1[int(ind_str1)]['Intensity']:
                                 ind_high=ind_str1
                         structures_2[j_str2]['Label']=structures_1[int(ind_high)]['Label']
-
+                        structures_2[j_str2]=calculate_differential_keys(structure_2=structures_2[j_str2],
+                                                                          structure_1=structures_1[int(ind_high)],
+                                                                          sample_time=sample_time,
+                                                                          fit_shape=fit_shape)
                         for ind_str1 in ind_merge[0]:
                             structures_2[j_str2]['Parent'].append(structures_1[int(ind_str1)]['Label'])
                             structures_1[int(ind_str1)]['Merges']=True
                             structures_1[int(ind_str1)]['Child'].append(structures_2[j_str2]['Label'])
+
                     else:
                         ind_high1=ind_merge[0][0]
                         for ind_str1 in ind_merge[0]:
@@ -1013,6 +970,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                         structures_2[int(ind_str2)]['Parent']=structures_1[int(ind_high1)]['Label']
                                     else:
                                         structures_2[int(ind_high2)]['Label']=structures_1[int(ind_high1)]['Label']
+                                        structures_2[int(ind_high2)]=calculate_differential_keys(structure_2=structures_2[int(ind_high2)],
+                                                                                                  structure_1=structures_1[int(ind_high1)],
+                                                                                                  sample_time=sample_time,
+                                                                                                  fit_shape=fit_shape)
+
                                         structures_2[int(ind_high2)]['Parent']=structures_1[int(ind_high1)]['Label']
                                     structures_1[int(ind_str1)]['Child'].append(structures_2[ind_str2]['Label'])
                             structures_1[int(ind_str1)]['Merges']=True
@@ -1068,9 +1030,12 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                 print("2", structures_2[ind_str2]['Label'])
                                 raise ValueError('Something went horribly wrong. Go home...')
 
-                            if (ind_str2 == ind_high
-                                ):
+                            if ind_str2 == ind_high:
                                 structures_2[ind_str2]['Label']=structures_1[j_str1]['Label']
+                                structures_2[ind_str2]=calculate_differential_keys(structure_2=structures_2[ind_str2],
+                                                                                    structure_1=structures_1[j_str1],
+                                                                                    sample_time=sample_time,
+                                                                                    fit_shape=fit_shape)
                             else:
                                 structures_2[ind_str2]['Label']=highest_label+1
                                 highest_label += 1
@@ -1082,6 +1047,66 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                         pass
             frame_properties['structures'][i_frames-1]=structures_1
             frame_properties['structures'][i_frames]=structures_2
+
+            if calculate_rough_diff_velocities:
+                for j_str2 in range(n_str2):
+                    prev_str_weight=[]
+                    for new_key in differential_keys:
+                        structures_2[j_str2][new_key]=[]
+
+                    #Check the new frame if it has overlap with the old frame
+                    for j_str1 in range(n_str1):
+                        if structures_2[j_str2]['Half path'].intersects_path(structures_1[j_str1]['Half path']):
+                            if prev_str_weighting == 'number':
+                                prev_str_weight.append(1.)
+                            elif prev_str_weighting == 'intensity':
+                                prev_str_weight.append(structures_1[j_str1]['Intensity'])
+                            elif prev_str_weighting == 'area':
+                                prev_str_weight.append(structures_1[j_str1]['Area'])
+                            elif prev_str_weighting == 'max_intensity':
+                                if np.argmax(intensities) == j_str1:
+                                    prev_str_weight.append(1.)
+                                else:
+                                    prev_str_weight.append(0.)
+
+                            structures_2[j_str2]['Velocity radial COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[0]-
+                                                                               structures_1[j_str1]['Polygon'].center_of_gravity[0])/sample_time)
+                            structures_2[j_str2]['Velocity poloidal COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[1]-
+                                                                                 structures_1[j_str1]['Polygon'].center_of_gravity[1])/sample_time)
+
+                            structures_2[j_str2]['Velocity radial centroid'].append((structures_2[j_str2]['Polygon'].centroid[0]-
+                                                                                    structures_1[j_str1]['Polygon'].centroid[0])/sample_time)
+                            structures_2[j_str2]['Velocity poloidal centroid'].append((structures_2[j_str2]['Polygon'].centroid[1]-
+                                                                                      structures_1[j_str1]['Polygon'].centroid[1])/sample_time)
+
+                            structures_2[j_str2]['Velocity radial position'].append((structures_2[j_str2][fit_shape].center[0]-
+                                                                                    structures_1[j_str1][fit_shape].center[0])/sample_time)
+                            structures_2[j_str2]['Velocity poloidal position'].append((structures_2[j_str2][fit_shape].center[1]-
+                                                                                      structures_1[j_str1][fit_shape].center[1])/sample_time)
+
+                            structures_2[j_str2]['Expansion fraction area'].append(np.sqrt(structures_2[j_str2]['Polygon'].area/
+                                                                                           structures_1[j_str1]['Polygon'].area))
+                            structures_2[j_str2]['Expansion fraction axes'].append(np.sqrt(structures_2[j_str2][fit_shape].axes_length[0]/
+                                                                                           structures_1[j_str1][fit_shape].axes_length[0]*
+                                                                                           structures_2[j_str2][fit_shape].axes_length[1]/
+                                                                                           structures_1[j_str1][fit_shape].axes_length[1]))
+
+                            structures_2[j_str2]['Angular velocity angle'].append((structures_2[j_str2][fit_shape].angle-
+                                                                                  structures_1[j_str1][fit_shape].angle)/sample_time)
+                            structures_2[j_str2]['Angular velocity ALI'].append((structures_2[j_str2]['Polygon'].principal_axes_angle-
+                                                                                structures_1[j_str1]['Polygon'].principal_axes_angle)/sample_time)
+
+                            n_str1_overlap[j_str1]+=1.
+
+                    prev_str_weight=np.asarray(prev_str_weight)
+                    prev_str_weight /= np.sum(prev_str_weight)
+
+                    #structures_2[j_str2]['Label']=np.mean(structures_2[j_str2]['Label'])
+                    for key in differential_keys:
+                        structures_2[j_str2][key] = np.sum(np.asarray(structures_2[j_str2][key])*prev_str_weight)
+                            #If the new frame's structure doesn't have overlap, set new label and birth
+    #                    if structures_2[j_str2]['Label'] is None:
+
 
             """
             Frame property filling up
@@ -1113,13 +1138,22 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
             for key in differential_keys:
                 for j_str2 in range(len(structures_2)):
-                    frame_properties['derived'][key]['avg'][i_frames] += structures_2[j_str2][key]*weight[j_str2]
-                frame_properties['derived'][key]['max'][i_frames]=structures_2[ind_max][key]
+                    try:
+                        frame_properties['derived'][key]['avg'][i_frames] += structures_2[j_str2][key]*weight[j_str2]
+                    except:
+                        pass
+                try:
+                    frame_properties['derived'][key]['max'][i_frames]=structures_2[ind_max][key]
+                except:
+                    frame_properties['derived'][key]['max'][i_frames]=np.nan
+
         else:
             for key in differential_keys:
                 frame_properties['derived'][key]['avg'][i_frames]=np.nan
                 frame_properties['derived'][key]['max'][i_frames]=np.nan
 
+        #THIS IS DEFINITELY NOT WORKING CORRECTLY, NOR DOES ANYTHING ELSE, BUT IT'S
+        #3:06AM AND IT'S TIME TO SLEEP. FUTURE-MATE WILL FIX THIS PROBLEM.
 
         if remove_orphans:
             for i_frames in range(1,n_frames-1):
@@ -1185,17 +1219,20 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             time_range=plot_time_range
 
         plot_index_structure=np.logical_and(np.logical_not(np.isnan(frame_properties['data']['Elongation']['avg'])),
-                                            np.logical_and(frame_properties['time'] >= time_range[0],
-                                                           frame_properties['time'] <= time_range[1]))
+                                            np.logical_and(frame_properties['Time'] >= time_range[0],
+                                                           frame_properties['Time'] <= time_range[1]))
 
         #Plotting the radial velocity
         if pdf:
             wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
+            if plot_str_by_str:
+                comment+='_sbs'
             filename=flap_nstx.tools.filename(exp_id=exp_id,
                                               working_directory=wd+'/plots',
                                               time_range=time_range,
                                               purpose='ccf velocity',
                                               comment=comment)
+
             pdf_filename=filename+'.pdf'
             pdf_pages=PdfPages(pdf_filename)
 
@@ -1231,80 +1268,213 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
         keys=list(frame_properties['data'].keys())
 
-        for i in range(len(keys)):
-            fig, ax = plt.subplots(figsize=figsize)
-            if plot_vertical_line_at is not None:
-                ax.axvline(x=plot_vertical_line_at,
-                         color='red')
-            ax.plot(frame_properties['time'][plot_index_structure],
-                    frame_properties['data'][keys[i]]['max'][plot_index_structure],
-                    color='tab:blue')
-            if plot_scatter:
-                ax.scatter(frame_properties['time'][plot_index_structure],
-                           frame_properties['data'][keys[i]]['max'][plot_index_structure],
-                            s=5,
-                            marker='o',
-                            color='tab:blue')
-            if overplot_average:
-                ax.plot(frame_properties['time'][plot_index_structure],
-                        frame_properties['data'][keys[i]]['avg'][plot_index_structure],
-                        linewidth=0.5,
-                        color='red',)
+        if not plot_str_by_str:
+            for i in range(len(keys)):
+                fig, ax = plt.subplots(figsize=figsize)
+                if plot_vertical_line_at is not None:
+                    ax.axvline(x=plot_vertical_line_at,
+                             color='red')
+                ax.plot(frame_properties['Time'][plot_index_structure],
+                        frame_properties['data'][keys[i]]['max'][plot_index_structure],
+                        color='tab:blue')
+                if plot_scatter:
+                    ax.scatter(frame_properties['Time'][plot_index_structure],
+                               frame_properties['data'][keys[i]]['max'][plot_index_structure],
+                                s=5,
+                                marker='o',
+                                color='tab:blue')
+                if overplot_average:
+                    ax.plot(frame_properties['time'][plot_index_structure],
+                            frame_properties['data'][keys[i]]['avg'][plot_index_structure],
+                            linewidth=0.5,
+                            color='red',)
 
-            ax.set_xlabel('Time $[\mu s]$')
-            ax.set_ylabel(frame_properties['data'][keys[i]]['label']+' '+'['+frame_properties['data'][keys[i]]['unit']+']')
-            ax.set_xlim(time_range)
-            ax.set_title(str(keys[i])+ ' vs. time')
-            if plot_for_publication:
-                x1,x2=ax.get_xlim()
-                y1,y2=ax.get_ylim()
-                ax.set_aspect((x2-x1)/(y2-y1)/1.618)
-            fig.tight_layout(pad=0.1)
+                ax.set_xlabel('Time $[\mu s]$')
+                ax.set_ylabel(frame_properties['data'][keys[i]]['label']+' '+'['+frame_properties['data'][keys[i]]['unit']+']')
+                ax.set_xlim(time_range)
+                ax.set_title(str(keys[i])+ ' vs. time')
+                if plot_for_publication:
+                    x1,x2=ax.get_xlim()
+                    y1,y2=ax.get_ylim()
+                    ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+                fig.tight_layout(pad=0.1)
 
-            if pdf:
-                pdf_pages.savefig()
+                if pdf:
+                    pdf_pages.savefig()
 
-        keys=list(frame_properties['derived'].keys())
+            keys=list(frame_properties['derived'].keys())
 
-        for i in range(len(keys)):
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.plot(frame_properties['time'][plot_index_structure],
-                    frame_properties['derived'][keys[i]]['max'][plot_index_structure],
-                    color='tab:blue')
+            for i in range(len(keys)):
+                fig, ax = plt.subplots(figsize=figsize)
+                ax.plot(frame_properties['Time'][plot_index_structure],
+                        frame_properties['derived'][keys[i]]['max'][plot_index_structure],
+                        color='tab:blue')
 
-            if plot_scatter:
-                ax.scatter(frame_properties['time'][plot_index_structure],
-                           frame_properties['derived'][keys[i]]['max'][plot_index_structure],
-                            s=5,
-                            marker='o',
-                            color='tab:blue')
+                if plot_scatter:
+                    ax.scatter(frame_properties['Time'][plot_index_structure],
+                               frame_properties['derived'][keys[i]]['max'][plot_index_structure],
+                                s=5,
+                                marker='o',
+                                color='tab:blue')
 
-            if overplot_average:
-                ax.plot(frame_properties['time'][plot_index_structure],
-                        frame_properties['derived'][keys[i]]['avg'][plot_index_structure],
-                        linewidth=0.5,
-                        color='red',)
+                if overplot_average:
+                    ax.plot(frame_properties['Time'][plot_index_structure],
+                            frame_properties['derived'][keys[i]]['avg'][plot_index_structure],
+                            linewidth=0.5,
+                            color='red',)
 
-            ax.set_xlabel('Time $[\mu s]$')
-            ax.set_ylabel(frame_properties['derived'][keys[i]]['label']+' '+'['+frame_properties['derived'][keys[i]]['unit']+']')
-            ax.set_xlim(time_range)
-            ax.set_title(str(keys[i])+ ' vs. time')
+                ax.set_xlabel('Time $[\mu s]$')
+                ax.set_ylabel(frame_properties['derived'][keys[i]]['label']+' '+'['+frame_properties['derived'][keys[i]]['unit']+']')
+                ax.set_xlim(time_range)
+                ax.set_title(str(keys[i])+ ' vs. time')
 
-            if plot_for_publication:
-                x1,x2=ax.get_xlim()
-                y1,y2=ax.get_ylim()
-                ax.set_aspect((x2-x1)/(y2-y1)/1.618)
-            fig.tight_layout(pad=0.1)
+                if plot_for_publication:
+                    x1,x2=ax.get_xlim()
+                    y1,y2=ax.get_ylim()
+                    ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+                fig.tight_layout(pad=0.1)
 
-            if pdf:
-                pdf_pages.savefig()
+                if pdf:
+                    pdf_pages.savefig()
+        else:
+
+            frame_properties['structures'][i_frames]
+            max_str_label=0
+            for i_frames in range(len(frame_properties['structures'])):
+                if frame_properties['structures'][i_frames] is not None:
+                    for j_str in range(len(frame_properties['structures'][i_frames])):
+                        current_label=frame_properties['structures'][i_frames][j_str]['Label']
+                        if current_label is not None and current_label > max_str_label:
+                            max_str_label=current_label
+            struct_by_struct=[]
+            for ind in range(max_str_label):
+                struct_by_struct.append({'Time':[],}.copy())
+
+            analyzed_keys=['Centroid radial', 'Centroid poloidal',
+                           'Position radial', 'Position poloidal',
+                           'Position radial', 'Position poloidal',
+                           'Area',
+                           'Center of gravity radial', 'Center of gravity poloidal',
+
+                           'Axes length minor','Axes length major',
+                           'Size radial', 'Size poloidal',
+
+                           'Angle', 'Elongation',
+                           'Velocity radial COG', 'Velocity poloidal COG', 'Velocity radial centroid',
+                           'Velocity poloidal centroid', 'Velocity radial position',
+                           'Velocity poloidal position', 'Expansion fraction area',
+                           'Expansion fraction axes', 'Angular velocity angle', 'Angular velocity ALI'
+                           ]
+
+            for i_frames in range(len(frame_properties['structures'])):
+                if frame_properties['structures'][i_frames] is not None:
+                    for j_str in range(len(frame_properties['structures'][i_frames])):
+                        if (frame_properties['structures'][i_frames][j_str]['Label'] is not None and
+                            frame_properties['structures'][i_frames][j_str]['Label'] != []):
+
+                            ind_structure=int(frame_properties['structures'][i_frames][j_str]['Label'])-1
+                            print(ind_structure)
+                            for key_str in frame_properties['structures'][i_frames][j_str].keys():
+                                if key_str in analyzed_keys:
+                                    if key_str not in struct_by_struct[ind_structure].keys():
+                                        struct_by_struct[ind_structure][key_str]=[]
+                                    struct_by_struct[ind_structure][key_str].append(frame_properties['structures'][i_frames][j_str][key_str])
+
+                            struct_by_struct[ind_structure]['Time'].append(frame_properties['Time'][i_frames])
+
+            #return struct_by_struct
+
+            for key in analyzed_keys:
+                fig, ax = plt.subplots(figsize=figsize)
+
+                if key not in ['Velocity radial COG', 'Velocity poloidal COG', 'Velocity radial centroid',
+                               'Velocity poloidal centroid', 'Velocity radial position',
+                               'Velocity poloidal position', 'Expansion fraction area',
+                               'Expansion fraction axes', 'Angular velocity angle', 'Angular velocity ALI']:
+                    for ind_str in range(len(struct_by_struct)):
+                        try:
+                            if struct_by_struct[ind_str]['Time'] !=[]:
+                                ax.plot(struct_by_struct[ind_str]['Time'],
+                                        struct_by_struct[ind_str][key],
+                                        label=str(ind_str))
+
+                                if plot_scatter:
+                                    ax.scatter(struct_by_struct[ind_str]['Time'],
+                                               struct_by_struct[ind_str][key],
+                                               label=str(ind_str),
+                                               s=5,
+                                               marker='o')
+                        except:
+                            pass
+                    ax.set_ylabel(frame_properties['data'][key]['label']+' '+'['+frame_properties['data'][key]['unit']+']')
+                else:
+                    for ind_str in range(len(struct_by_struct)):
+                        try:
+                            if struct_by_struct[ind_str]['Time'] !=[]:
+                                ax.plot(struct_by_struct[ind_str]['Time'][1:],
+                                        struct_by_struct[ind_str][key],
+                                        label=str(ind_str))
+
+                                if plot_scatter:
+                                    ax.scatter(struct_by_struct[ind_str]['Time'][1:],
+                                               struct_by_struct[ind_str][key],
+                                               label=str(ind_str),
+                                               s=5,
+                                               marker='o')
+                        except:
+                            pass
+                    ax.set_ylabel(frame_properties['derived'][key]['label']+' '+'['+frame_properties['derived'][key]['unit']+']')
+
+                ax.set_xlabel('Time $[\mu s]$')
+                ax.set_xlim(time_range)
+                ax.set_title(str(key)+ ' vs. time')
+
+                if plot_for_publication:
+                    x1,x2=ax.get_xlim()
+                    y1,y2=ax.get_ylim()
+                    ax.set_aspect((x2-x1)/(y2-y1)/1.618)
+                fig.tight_layout(pad=0.1)
+
+                if pdf:
+                    pdf_pages.savefig()
+                plt.cla()
 
         if pdf:
            pdf_pages.close()
-
-    if plot_for_publication:
-        import matplotlib.style as pltstyle
-        pltstyle.use('default')
+        if plot_for_publication:
+            import matplotlib.style as pltstyle
+            pltstyle.use('default')
 
     if return_results:
         return frame_properties
+
+#Wrapper function for calculating differential key results.
+def calculate_differential_keys(structure_2=None,
+                                structure_1=None,
+                                sample_time=None,
+                                fit_shape='Ellipse',
+                                ):
+
+    structure_2['Velocity radial COG'] = (structure_2['Polygon'].center_of_gravity[0]-
+                                          structure_1['Polygon'].center_of_gravity[0])/sample_time
+    structure_2['Velocity poloidal COG'] = (structure_2['Polygon'].center_of_gravity[1]-
+                                            structure_1['Polygon'].center_of_gravity[1])/sample_time
+    structure_2['Velocity radial centroid']=(structure_2['Polygon'].centroid[0]-
+                                             structure_1['Polygon'].centroid[0])/sample_time
+    structure_2['Velocity poloidal centroid']=(structure_2['Polygon'].centroid[1]-
+                                               structure_1['Polygon'].centroid[1])/sample_time
+    structure_2['Velocity radial position']=(structure_2[fit_shape].center[0]-
+                                             structure_1[fit_shape].center[0])/sample_time
+    structure_2['Velocity poloidal position']=(structure_2[fit_shape].center[1]-
+                                               structure_1[fit_shape].center[1])/sample_time
+    structure_2['Expansion fraction area']=np.sqrt(structure_2['Polygon'].area/
+                                                   structure_1['Polygon'].area)
+    structure_2['Expansion fraction axes']=np.sqrt(structure_2[fit_shape].axes_length[0]/
+                                                   structure_1[fit_shape].axes_length[0]*
+                                                   structure_2[fit_shape].axes_length[1]/
+                                                   structure_1[fit_shape].axes_length[1])
+    structure_2['Angular velocity angle']=(structure_2[fit_shape].angle-
+                                           structure_1[fit_shape].angle)/sample_time
+    structure_2['Angular velocity ALI']=(structure_2['Polygon'].principal_axes_angle-
+                                         structure_1['Polygon'].principal_axes_angle)/sample_time
+    return structure_2
