@@ -1154,9 +1154,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 frame_properties['derived'][key]['avg'][i_frames]=np.nan
                 frame_properties['derived'][key]['max'][i_frames]=np.nan
 
-        #THIS IS DEFINITELY NOT WORKING CORRECTLY, NOR DOES ANYTHING ELSE, BUT IT'S
-        #3:06AM AND IT'S TIME TO SLEEP. FUTURE-MATE WILL FIX THIS PROBLEM.
-
     if remove_orphans:
         for i_frames in range(1,n_frames-1):
             try:
