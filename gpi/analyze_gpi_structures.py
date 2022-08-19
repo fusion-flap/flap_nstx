@@ -925,9 +925,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     ind_merge=np.where(merging_indices == 1)
                     #There is merging, but there is no splitting
 
-                    #Should be done differently, maybe it should be iterated over all merging indices and look for 1's in the columns
-                    #The number of ones in the colums should match the number of ones in merging indices. respectively It's 2:22am and couldn't
-                    #come up with the solution. Sowwy
 
                     if np.sum(str_overlap_matrix[ind_merge,:]) == np.sum(merging_indices):
 
@@ -946,6 +943,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             structures_1[int(ind_str1)]['Child'].append(structures_2[j_str2]['Label'])
 
                     else:
+                        #This is a weird situation where merges and splits occur at the same time
+                        #Should be handled correctly, possibly assigning new labels to everything
+                        #and not track anything. The merging/splitting labels should be assigned
+                        #that needs further modification of the structures_segmentation.py
+
                         ind_high1=ind_merge[0][0]
                         for ind_str1 in ind_merge[0]:
                             if structures_1[int(ind_high1)]['Intensity'] < structures_1[int(ind_str1)]['Intensity']:
@@ -981,10 +983,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             structures_1[int(ind_str1)]['Merges']=True
 
 
-                        #This is a weird situation where merges and splits occur at the same time
-                        #Should be handled correctly, possibly assigning new labels to everything
-                        #and not track anything. The merging/splitting labels should be assigned
-                        #that needs further modification of the structures_segmentation.py
                         print('Splitting and merging is occurring at the same time at frame #'+str(i_frames)+', t='+str(frame_properties['time'][i_frames]*1e3)+'ms')
                         if test:
                             print(str_overlap_matrix[ind_merge,:], merging_indices)
@@ -993,7 +991,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             print('str2 label ',[structures_2[i]['Label'] for i in range(len(structures_2))])
                             print('str1 child ',[structures_1[i]['Child'] for i in range(len(structures_1))])
                             print('str2 parent ',[structures_2[i]['Parent'] for i in range(len(structures_2))])
-#                            print('str1 keys ',[structures_1[i].keys() for i in range(len(structures_1))])
                             print('str1 splits ',[structures_1[i]['Splits'] for i in range(len(structures_1))])
                             print('str1 merges ',[structures_1[i]['Merges'] for i in range(len(structures_1))])
 
@@ -1029,7 +1026,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                                 print('ind_split', ind_split)
                                 print("2", structures_2[ind_str2]['Label'])
-                                raise ValueError('Something went horribly wrong. Go home...')
+                                raise ValueError('The code needs to be reworked because str2 should not have a label and it is a serious exception.')
 
                             if ind_str2 == ind_high:
                                 structures_2[ind_str2]['Label']=structures_1[j_str1]['Label']
@@ -1106,9 +1103,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     #structures_2[j_str2]['Label']=np.mean(structures_2[j_str2]['Label'])
                     for key in differential_keys:
                         structures_2[j_str2][key] = np.sum(np.asarray(structures_2[j_str2][key])*prev_str_weight)
-                            #If the new frame's structure doesn't have overlap, set new label and birth
-    #                    if structures_2[j_str2]['Label'] is None:
-
 
             """
             Frame property filling up
@@ -1184,10 +1178,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         cv2.destroyAllWindows()
         video.release()
         del video
-
-
-
-
 
     """
     PLOTTING THE RESULTS
