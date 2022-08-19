@@ -16,8 +16,8 @@ import pickle
 
 import flap
 import flap_nstx
-from flap_nstx.analysis import generate_displaced_gaussian, generate_displaced_random_noise, calculate_nstx_gpi_frame_by_frame_velocity
-from flap_nstx.analysis import show_nstx_gpi_video_frames
+from flap_nstx.gpi import generate_displaced_gaussian, generate_displaced_random_noise, calculate_nstx_gpi_frame_by_frame_velocity
+from flap_nstx.gpi import show_nstx_gpi_video_frames
 flap_nstx.register()
 
 thisdir = os.path.dirname(os.path.realpath(__file__))

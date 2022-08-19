@@ -11,9 +11,13 @@ import os
 from scipy.io import loadmat
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy.optimize import root_scalar
+import matplotlib.pyplot as plt
 
 import flap
 import flap_nstx
+from flap_nstx.tools import mtanh_func,mtanh_p_func,mtanh_pp_func
+
 flap_nstx.register()
 import flap_mdsplus
 
@@ -137,7 +141,8 @@ def read_ahmed_matlab_file(plot=False):
     return db_out    
         
         
-def read_ahmed_fit_parameters():
+def read_ahmed_fit_parameters(test=False):
+    
     
     db_ahmed=[]
     with open('/Users/mlampert/work/NSTX_workspace/WORK_MATE/Profile_fitsfur_Mate') as tsvfile:
@@ -177,9 +182,59 @@ def read_ahmed_fit_parameters():
     for key in ['Temperature','Density','Pressure']:
         db_dict[key]['grad_glob']=(db_dict[key]['h']-db_dict[key]['b'])/db_dict[key]['c']
         db_dict[key]['ped_height']=(db_dict[key]['h']-db_dict[key]['b'])
-        db_dict[key]['value_at_max_grad']=(db_dict[key]['h']+db_dict[key]['b'])/2
         db_dict[key]['ped_width']=db_dict[key]['c']
-    
+        
+        a=db_dict[key]['a']
+        b=db_dict[key]['b']
+        c=db_dict[key]['c']
+        h=db_dict[key]['h']
+        xo=db_dict[key]['xo']
+        
+        max_grad_value=np.zeros(len(a))
+        parameter_at_maxgrad=np.zeros(len(a))
+        max_grad_position=np.zeros(len(a))
+        if test:
+            plt.figure()
+        for ind in range(len(a)):
+            args=(a[ind],
+                  b[ind],
+                  c[ind],
+                  h[ind],
+                  xo[ind])
+            try:
+            #if True:
+                sol=root_scalar(mtanh_pp_func,
+                                args=args, 
+                                method='brentq', 
+                                bracket=[0.7,1.0])
+                max_grad_position[ind]=sol.root
+                max_grad_value[ind]=mtanh_p_func(sol.root, *args)
+                parameter_at_maxgrad[ind]=mtanh_func(sol.root, *args)
+                if test:
+                    plt.plot(np.arange(100)/99,mtanh_pp_func(np.arange(100)/99, *args))
+                    plt.pause(0.5)
+                    plt.cla()
+            except:
+                x=np.arange(3001)/10000+0.7
+                y=mtanh_pp_func(x,*args)
+                
+                ind_min=np.argmin(np.abs(y))
+                if x[ind_min] == 0.7 or x[ind_min] == 1.0:
+                    max_grad_position[ind]=np.nan
+                    max_grad_value[ind]=np.nan
+                    parameter_at_maxgrad[ind]=np.nan
+                else:
+                    max_grad_position[ind]=x[ind_min]
+                    max_grad_value[ind]=mtanh_p_func(x[ind_min], *args)
+                    parameter_at_maxgrad[ind]=mtanh_func(x[ind_min], *args)
+                
+        db_dict[key]['value_at_max_grad']=parameter_at_maxgrad
+        db_dict[key]['max_grad']=max_grad_value
+        db_dict[key]['max_grad_position']=max_grad_position
+        
+        db_dict[key]['max_grad_simple']=(db_dict[key]['h']-db_dict[key]['b'])/(4*db_dict[key]['c'])
+        db_dict[key]['max_grad_simple_position']=db_dict[key]['xo']
+        db_dict[key]['value_at_max_grad_simple']=(db_dict[key]['h']+db_dict[key]['b'])/2.
     
     """
     The model equation for this fitting is the following:

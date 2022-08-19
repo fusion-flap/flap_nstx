@@ -1,6 +1,6 @@
 from .calculate_angular_velocity import calculate_nstx_gpi_angular_velocity
 from .calculate_correlation_matrix import plot_all_parameters_vs_all_other
-from .structure_finder import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, Gaussian2D, FitEllipse
+from .structure_segmentation import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, FitEllipse, FitGaussian
 
 from .normalize_gpi import normalize_gpi
 
@@ -15,6 +15,4 @@ from .plot_video import show_nstx_gpi_video, show_nstx_gpi_video_frames, show_ns
 from .velocity_analysis_spatio_temporal_displacement import nstx_gpi_velocity_analysis_spatio_temporal_displacement
 from .velocity_analysis import calculate_nstx_gpi_avg_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_filament_velocity
 
-
-
-
+from .analyze_gpi_structures import analyze_gpi_structures

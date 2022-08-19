@@ -33,10 +33,11 @@ def get_data_thomson(exp_id=None,
                      coordinates=None, 
                      data_source=None):
         
-    default_options = {'Temperature': False,
-                       'Density': False,
-                       'Pressure': False,
+    default_options = {'temperature': False,
+                       'density': False,
+                       'pressure': False,
                        'test': False,
+                       
                        'output_name': None,
                        'add_flux_coordinates': False,
                        'spline_data': False,
@@ -45,9 +46,9 @@ def get_data_thomson(exp_id=None,
     
     _options = flap.config.merge_options(default_options,options,data_source=data_source)
     
-    temperature=_options['Temperature']
-    density=_options['Density']
-    pressure=_options['Pressure']
+    temperature=_options['temperature']
+    density=_options['density']
+    pressure=_options['pressure']
     test=_options['test']
     output_name=_options['output_name']
     add_flux_coordinates=_options['add_flux_coordinates']
@@ -92,7 +93,7 @@ def get_data_thomson(exp_id=None,
 
         thomson={}
         for name in mdsnames:
-            thomson[name]=conn.get('\TS_BEST:'+name).data()
+            thomson[name]=conn.get('\\TS_BEST:'+name).data()
             if name == 'ts_times' and type(thomson[name]) is str:
                 raise ValueError('No Thomson data available.')
         
@@ -113,8 +114,10 @@ def get_data_thomson(exp_id=None,
     else:
         thomson=pickle.load(open(filename, 'rb'))
     
-    thomson_time=thomson['ts_times']
-    
+    try:
+        thomson_time=thomson['TS_TIMES']
+    except:
+        thomson_time=thomson['ts_times']
     coord = []
 
     coord.append(copy.deepcopy(flap.Coordinate(name='Time',
@@ -173,56 +176,76 @@ def get_data_thomson(exp_id=None,
         plt.figure()
     if add_flux_coordinates:
         try:
-            psi_rz_obj=flap.get_data('NSTX_MDSPlus',
-                                     name='\EFIT02::\PSIRZ',
-                                     exp_id=exp_id,
-                                     object_name='PSIRZ_FOR_COORD')
-            psi_mag=flap.get_data('NSTX_MDSPlus',
+            psirz=flap.get_data('NSTX_MDSPlus',
+                                      name='\EFIT02::\PSIRZ',
+                                      exp_id=exp_id,
+                                      object_name='PSIRZ_FOR_COORD')
+            
+            ssimag=flap.get_data('NSTX_MDSPlus',
                                   name='\EFIT02::\SSIMAG',
                                   exp_id=exp_id,
                                   object_name='SSIMAG_FOR_COORD')
-            psi_bdry=flap.get_data('NSTX_MDSPlus',
-                                   name='\EFIT02::\SSIBRY',
-                                   exp_id=exp_id,
-                                   object_name='SSIBRY_FOR_COORD')
+            
+            ssibry=flap.get_data('NSTX_MDSPlus',
+                                    name='\EFIT02::\SSIBRY',
+                                    exp_id=exp_id,
+                                    object_name='SSIBRY_FOR_COORD')
+            
+            # R_data=flap.get_data('NSTX_MDSPlus',
+            #                      name='\EFIT02::\R',
+            #                      exp_id=exp_id,
+            #                      object_name='R_FOR_COORD')
+            # PSI_norm_data=flap.get_data('NSTX_MDSPlus',
+            #                          name='\EFIT02::\PSIN',
+            #                          exp_id=exp_id,
+            #                          object_name='PSIN')
+            
         except:
             raise ValueError("The PSIRZ MDSPlus node cannot be reached.")
-            
-        psi_values=psi_rz_obj.data[:,:,32]
-        psi_t_coord=psi_rz_obj.coordinate('Time')[0][:,0,0]
-        psi_r_coord=psi_rz_obj.coordinate('Device R')[0][:,:,32]            #midplane is the middle coordinate in the array
+        
+        psi_n=(psirz.data-ssimag.data[:,None,None])/(ssibry.data-ssimag.data)[:,None,None]
+        psi_n[np.isnan(psi_n)]=0.
+                   
+        psi_n=psi_n[:,32,:] #GTFO, psi_n is transposed originally
+        psi_t_coord=psirz.coordinate('Time')[0][:,0,0]
+        psi_r_coord=psirz.coordinate('Device R')[0][:,:,32]            #midplane is the middle coordinate in the array
         
         #Do the interpolation
-        psi_values_spat_interpol=np.zeros([thomson_r_coord.shape[0],
-                                           psi_t_coord.shape[0]])
+        #psi_values_spat_interpol=np.zeros([thomson_r_coord.shape[0],
+        #                                   psi_t_coord.shape[0]])
+        psi_values_ts=np.zeros([thomson_r_coord.shape[0],
+                                thomson_time.shape[0]])
         
-        for index_t in range(psi_t_coord.shape[0]):
-            norm_psi_values=(psi_values[index_t,:]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])
-            norm_psi_values[np.isnan(norm_psi_values)]=0.
-            psi_values_spat_interpol[:,index_t]=np.interp(thomson_r_coord,psi_r_coord[index_t,:],norm_psi_values)
+        for index_t in range(len(thomson_time)):
+            ind_t_efit=np.argmin(np.abs(psi_t_coord-thomson_time[index_t]))
+            psi_values_ts[:,index_t]=np.interp(thomson_r_coord,
+                                               psi_r_coord[ind_t_efit,:],
+                                               psi_n[ind_t_efit,:])
         
-        psi_values_total_interpol=np.zeros(data_arr.shape)
-
-        for index_r in range(data_arr.shape[0]):
-            psi_values_total_interpol[index_r,:]=np.interp(thomson_time,psi_t_coord,psi_values_spat_interpol[index_r,:])
-            
         if test:
             for index_t in range(len(thomson_time)):
                 plt.cla()
-                plt.plot(thomson_r_coord,psi_values_total_interpol[:,index_t])
+                plt.plot(thomson_r_coord,psi_values_ts[:,index_t])
+                # plt.plot(thomson_r_coord,psi_values_at_ts[:,index_t])
                 plt.pause(0.5)
             
-        psi_values_total_interpol[np.isnan(psi_values_total_interpol)]=0.
+        psi_values_ts[np.isnan(psi_values_ts)]=0.
         
         coord.append(copy.deepcopy(flap.Coordinate(name='Flux r',
                                    unit='',
                                    mode=flap.CoordinateMode(equidistant=False),
-                                   values=psi_values_total_interpol,
-                                   shape=psi_values_total_interpol.shape,
+                                   
+                                   values=psi_values_ts,
+                                   shape=psi_values_ts.shape,
+                                   
+                                   # values=psi_values_at_ts,
+                                   # shape=psi_values_at_ts.shape,
                                    dimension_list=[0,1]
                                    )))
     if test:
-        plt.plot(psi_values_total_interpol, data_arr)
+        plt.plot(psi_values_ts, data_arr)
+        # plt.plot(psi_values_at_ts, data_arr)
+        
     d = flap.DataObject(data_array=data_arr,
                         error=data_arr_err,
                         data_unit=data_unit,

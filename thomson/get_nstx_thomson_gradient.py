@@ -34,7 +34,8 @@ def get_nstx_thomson_gradient(exp_id=None,
                               spline_data=False,
                               output_name=None,
                               device_coordinates=True,
-                              flux_coordinates=False):
+                              flux_coordinates=False,
+                              force_mdsplus=False):
     
     #Data is RADIUS x TIME
     if pressure+density+temperature != 1:
@@ -49,11 +50,13 @@ def get_nstx_thomson_gradient(exp_id=None,
     #                                output_name='THOMSON_FOR_GRADIENT')
     thomson=flap.get_data('NSTX_THOMSON', 
                           exp_id=exp_id,
+                          name='',
                           object_name='THOMSON_FOR_GRADIENT', 
                           options={'pressure':pressure,
                                    'temperature':temperature,
                                    'density':density,
-                                   'force_mdsplus':True})
+                                   'force_mdsplus':force_mdsplus})
+    
     # thomson_spline=flap_nstx_thomson_data(exp_id, 
     #                                       pressure=pressure,
     #                                       temperature=temperature,
@@ -64,11 +67,12 @@ def get_nstx_thomson_gradient(exp_id=None,
     thomson_spline=flap.get_data('NSTX_THOMSON', 
                                  exp_id=exp_id,
                                  object_name=None, 
+                                 name='',
                                  options={'pressure':pressure,
                                           'temperature':temperature,
                                           'density':density,
                                           'spline_data':True,
-                                          'force_mdsplus':True})
+                                          'force_mdsplus':force_mdsplus})
     
     
     if device_coordinates:
@@ -87,14 +91,13 @@ def get_nstx_thomson_gradient(exp_id=None,
     data_gradient=np.asarray([(data[2:,i]-data[:-2,i])/(2*(radial_coordinate[2:]-radial_coordinate[:-2])) for i in range(len(time_vector))]).T
     data_gradient_error=np.asarray([(np.abs(error[2:,i])+np.abs(error[:-2,i]))/(2*(radial_coordinate[2:]-radial_coordinate[:-2])) for i in range(len(time_vector))]).T
     interp_data_gradient=np.asarray([(interp_data[2:,i]-interp_data[:-2,i])/(2*(spline_radial_coordinate[2:]-spline_radial_coordinate[:-2])) for i in range(len(time_vector))]).T
-    
     #Interpolation for the r_pos
     if r_pos is not None:
         r_pos_gradient=np.asarray([np.interp(r_pos, radial_coordinate[1:-1], data_gradient[:,i]) for i in range(len(time_vector))])
         r_pos_gradient_spline=np.asarray([np.interp(r_pos, spline_radial_coordinate[1:-1], interp_data_gradient[:,i]) for i in range(len(time_vector))])
     
         ind_r=np.argmin(np.abs(radial_coordinate[1:-1]-r_pos))
-        if radial_coordinate[ind_r] < r_pos:
+        if radial_coordinate[ind_r] < r_pos and ind_r+1 != radial_coordinate.shape[0]-2 :
             R1=radial_coordinate[1:-1][ind_r]
             R2=radial_coordinate[1:-1][ind_r+1]
             ind_R1=ind_r
@@ -104,6 +107,7 @@ def get_nstx_thomson_gradient(exp_id=None,
             R2=radial_coordinate[1:-1][ind_r]
             ind_R1=ind_r-1
             ind_R2=ind_r
+            
         #Result of error propagation (basically average biased error between the two neighboring radii)
         r_pos_gradient_error=np.abs((r_pos-R1)/(R2-R1))*data_gradient_error[ind_R2,:]+\
                              np.abs((r_pos-R2)/(R2-R1))*data_gradient_error[ind_R1,:]

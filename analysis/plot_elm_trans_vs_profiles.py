@@ -16,9 +16,8 @@ import pickle
 
 import flap
 import flap_nstx
-
 from flap_nstx.thomson import get_nstx_thomson_gradient, get_fit_nstx_thomson_profiles
-from flap_nstx.publications import read_ahmed_fit_parameters
+from flap_nstx.analysis import read_ahmed_fit_parameters
 
 from matplotlib.backends.backend_pdf import PdfPages
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -41,7 +40,13 @@ def get_all_thomson_data_for_elms():
         previous_shot=shot
         start_time=time.time()
         try:
-            flap.get_data('NSTX_THOMSON', exp_id=shot, options={'force_mdsplus':True})
+            thomson=flap.get_data('NSTX_THOMSON', 
+                                  exp_id=shot,
+                                  object_name='THOMSON_FOR_GRADIENT', 
+                                  options={'pressure':True,
+                                           'temperature':False,
+                                           'density':False,
+                                           'force_mdsplus':True})
         except:
             failed_shot.append({'Shot':shot})
             n_fail_shots+=1.
@@ -53,7 +58,8 @@ def get_all_thomson_data_for_elms():
 def get_elms_with_thomson_profile(before=False,
                                   after=False,
                                   entire=False,
-                                  time_window=2e-3):
+                                  time_window=2e-3,
+                                  reverse_db=False):
     if before+after+entire != 1:
         raise ValueError('Set one of the input variables.')
         
@@ -61,12 +67,25 @@ def get_elms_with_thomson_profile(before=False,
     thomson_dir='/Users/mlampert/work/NSTX_workspace/thomson_data/'
     db=pandas.read_csv(database_file, index_col=0)
     elm_index=list(db.index)
-    elms_with_thomson=[]
+    
+    if reverse_db:
+        elms_with_thomson={'shot':[], 
+                           'elm_time':[],
+                           'thomson_time':[],
+                           'index_elm':[],
+                           'index_ts':[],
+                           }
+    else:
+        elms_with_thomson=[]
+        
     for index_elm in range(len(elm_index)):
         shot=int(db.loc[elm_index[index_elm]]['Shot'])
         elm_time=db.loc[elm_index[index_elm]]['ELM time']/1000.
         thomson=pickle.load(open(thomson_dir+'nstx_mdsplus_thomson_'+str(shot)+'.pickle','rb'))
-        if before:
+        if type(time_window) is list and len(time_window) == 2:
+            start_time=elm_time+time_window[0]
+            end_time=elm_time+time_window[1]
+        elif before:
             start_time=elm_time-time_window
             end_time=elm_time
         elif after:
@@ -85,11 +104,24 @@ def get_elms_with_thomson_profile(before=False,
                 thomson_time=thomson['ts_times'][np.where(thomson['ts_times'] > elm_time)]
             if entire:
                 thomson_time=thomson['ts_times'][ind]
-            thomson_time=thomson_time[np.argmin(np.abs(thomson_time-elm_time))]
-            elms_with_thomson.append({'shot':shot, 
-                                      'elm_time':elm_time,
-                                      'thomson_time':thomson_time,
-                                      'index_elm':index_elm})
+            index_ts=np.argmin(np.abs(thomson_time-elm_time))
+            thomson_time=thomson_time[index_ts]
+            if reverse_db:
+                elms_with_thomson['shot'].append(shot)
+                elms_with_thomson['elm_time'].append(elm_time)
+                elms_with_thomson['thomson_time'].append(thomson_time)
+                elms_with_thomson['index_elm'].append(index_elm)
+                elms_with_thomson['index_ts'].append(index_ts)
+            else:
+                elms_with_thomson.append({'shot':shot, 
+                                          'elm_time':elm_time,
+                                          'thomson_time':thomson_time,
+                                          'index_elm':index_elm,
+                                          'index_ts':index_ts,
+                                          })
+    if reverse_db:
+        for key in elms_with_thomson.keys():
+            elms_with_thomson[key]=np.asarray(elms_with_thomson[key])
     return elms_with_thomson
 
 def plot_elm_properties_vs_gradient(elm_duration=100e-6,
@@ -217,6 +249,7 @@ def plot_elm_properties_vs_gradient(elm_duration=100e-6,
         import matplotlib
         matplotlib.use('agg')
         import matplotlib.pyplot as plt
+        
     if plot_preliminary:
         y_variables=[gpi_results_avg,gpi_results_max]
         title_addon=['(temporal avg)','(range max)']
@@ -636,9 +669,11 @@ def plot_elm_properties_vs_gradient_before_vs_after(elm_window=500e-6,
             gradient={'Pressure':[],
                       'Density':[],
                       'Temperature':[]}
+            
             gradient_error={'Pressure':[],
                             'Density':[],
                             'Temperature':[]}
+            
             gpi_results_avg={'Velocity ccf':[],
                              'Velocity str avg':[],
                              'Velocity str max':[],
@@ -1098,9 +1133,11 @@ def plot_elm_parameters_vs_ahmed_fitting(averaging='before',
         gradient={'Pressure':[],
                   'Density':[],
                   'Temperature':[]}
+        
         gradient_error={'Pressure':[],
                         'Density':[],
                         'Temperature':[]}
+        
         gpi_results_avg={'Velocity ccf':[],
                          'Velocity str avg':[],
                          'Velocity str max':[],
