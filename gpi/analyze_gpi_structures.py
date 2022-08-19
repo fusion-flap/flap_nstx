@@ -902,6 +902,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 if np.sum(merging_indices) == 0:
                     structures_2[j_str2]['Label'] = highest_label+1
                     highest_label += 1
+                    print('HL: ',highest_label)
                     structures_2[j_str2]['Born'] = True
 
 
@@ -1039,14 +1040,15 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             else:
                                 structures_2[ind_str2]['Label']=highest_label+1
                                 highest_label += 1
+                                print('HL: ',highest_label)
                             structures_2[ind_str2]['Parent'].append(structures_1[j_str1]['Label'])
                             structures_1[j_str1]['Child'].append(structures_2[ind_str2]['Label'])
                         structures_1[j_str1]['Splits']=True
                     else:
                         #This was handled in the previous case at the end of merging.
                         pass
-            frame_properties['structures'][i_frames-1]=structures_1
-            frame_properties['structures'][i_frames]=structures_2
+            frame_properties['structures'][i_frames-1]=structures_1.copy()
+            frame_properties['structures'][i_frames]=structures_2.copy()
 
             if calculate_rough_diff_velocities:
                 for j_str2 in range(n_str2):
@@ -1155,36 +1157,36 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         #THIS IS DEFINITELY NOT WORKING CORRECTLY, NOR DOES ANYTHING ELSE, BUT IT'S
         #3:06AM AND IT'S TIME TO SLEEP. FUTURE-MATE WILL FIX THIS PROBLEM.
 
-        if remove_orphans:
-            for i_frames in range(1,n_frames-1):
-                try:
-                    prev_structures=frame_properties['structures'][i_frames-1]
-                    prev_labels=[prev_structures[i_str_prev]['Label'] for i_str_prev in range(len(prev_structures))]
-                except:
-                    prev_labels=[]
-                try:
-                    curr_structures=frame_properties['structures'][i_frames]
-                    curr_labels=[curr_structures[i_str_curr]['Label'] for i_str_curr in range(len(curr_structures))]
-                except:
-                    curr_labels=[]
-                try:
-                    next_structures=frame_properties['structures'][i_frames+1]
-                    next_labels=[next_structures[i_str_next]['Label'] for i_str_next in range(len(next_structures))]
-                except:
-                    next_labels=[]
+    if remove_orphans:
+        for i_frames in range(1,n_frames-1):
+            try:
+                prev_structures=frame_properties['structures'][i_frames-1]
+                prev_labels=[prev_structures[i_str_prev]['Label'] for i_str_prev in range(len(prev_structures))]
+            except:
+                prev_labels=[]
+            try:
+                curr_structures=frame_properties['structures'][i_frames]
+                curr_labels=[curr_structures[i_str_curr]['Label'] for i_str_curr in range(len(curr_structures))]
+            except:
+                curr_labels=[]
+            try:
+                next_structures=frame_properties['structures'][i_frames+1]
+                next_labels=[next_structures[i_str_next]['Label'] for i_str_next in range(len(next_structures))]
+            except:
+                next_labels=[]
 
 
-                n_curr_labels=len(curr_labels)
-                for ind_label in range(n_curr_labels-1,-1,-1):
-                    if (curr_labels[ind_label] not in prev_labels and
-                        curr_labels[ind_label] not in next_labels):
-                        frame_properties['structures'][i_frames].pop(ind_label)
+            n_curr_labels=len(curr_labels)
+            for ind_label in range(n_curr_labels-1,-1,-1):
+                if (curr_labels[ind_label] not in prev_labels and
+                    curr_labels[ind_label] not in next_labels):
+                    frame_properties['structures'][i_frames].pop(ind_label)
 
 
-        if (structure_video_save):
-            cv2.destroyAllWindows()
-            video.release()
-            del video
+    if (structure_video_save):
+        cv2.destroyAllWindows()
+        video.release()
+        del video
 
 
 
