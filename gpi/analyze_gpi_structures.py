@@ -983,7 +983,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             structures_1[int(ind_str1)]['Merges']=True
 
 
-                        print('Splitting and merging is occurring at the same time at frame #'+str(i_frames)+', t='+str(frame_properties['time'][i_frames]*1e3)+'ms')
+                        print('Splitting and merging is occurring at the same time at frame #'+str(i_frames)+', t='+str(frame_properties['Time'][i_frames]*1e3)+'ms')
                         if test:
                             print(str_overlap_matrix[ind_merge,:], merging_indices)
 

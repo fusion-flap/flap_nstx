@@ -174,18 +174,6 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                    'Child':[],
                    }
 
-    # structures.append({'Polygon':full_polygon,
-    #                     'Vertices':full_polygon.vertices,
-    #                     'Half path':Path(max_contour_looped,codes),
-    #                     'X coord':full_polygon.x_data,
-    #                     'Y coord':full_polygon.y_data,
-    #                     'Data':full_polygon.data,
-    #                     'Born':False,
-    #                     'Died':False,
-    #                     'Parent':None,
-    #                     'Label':None,
-    #                     })
-
     if test:
         print('Plotting levels')
     else:
