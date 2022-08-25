@@ -214,12 +214,15 @@ class Polygon:
             print('central moment',self.second_central_moment)
 
         if not np.isnan(self.centroid[0]):
-            mu=self.second_central_moment
-            eigvalues,eigvectors=np.linalg.eig(mu)
-            eig_ind=np.argmax(eigvalues)
-            angle=np.arctan(eigvectors[1,eig_ind]/
-                            eigvectors[0,eig_ind])
-            return np.arcsin(np.sin(angle))
+            try:
+                mu=self.second_central_moment
+                eigvalues,eigvectors=np.linalg.eig(mu)
+                eig_ind=np.argmax(eigvalues)
+                angle=np.arctan(eigvectors[1,eig_ind]/
+                                eigvectors[0,eig_ind])
+                return np.arcsin(np.sin(angle))
+            except:
+                return np.nan
             # return np.arctan2(eigvectors[1,eig_ind],
             #                   eigvectors[0,eig_ind])
         else:

@@ -122,6 +122,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
     if pixel:
         x_coord_name='Image x'
         y_coord_name='Image y'
+
     if spatial:
         x_coord_name='Device R'
         y_coord_name='Device z'
@@ -239,13 +240,12 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             if len(structures[i_str]['Levels']) > filter_level:
                 cut_structures.append(structures[i_str])
     structures=cut_structures
-
     if test:
         print('Plotting structures')
         plt.cla()
         plt.set_aspect(1.0)
+        plt.contourf(x_coord, y_coord, data, levels=levels)
         for struct in structures:
-            plt.contourf(x_coord, y_coord, data, levels=levels)
             for path in struct['Paths']:
                 x=path.to_polygons()[0][:,0]
                 y=path.to_polygons()[0][:,1]
@@ -253,7 +253,7 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             plt.pause(0.001)
             plt.cla()
             #plt.axis('equal')
-            plt.set_aspect(1.0)
+        plt.set_aspect(1.0)
         plt.contourf(x_coord, y_coord, data, levels=levels)
         plt.colorbar()
 
@@ -327,7 +327,11 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
 
         coords_2d=np.asarray(coords_2d)
         data_inside_half=np.asarray(data_inside_half)
-        ind_inside_half_path=structures[i_str]['Paths'][ind_at_half].contains_points(coords_2d)
+        try:
+            ind_inside_half_path=structures[i_str]['Paths'][ind_at_half].contains_points(coords_2d)
+        except:
+            structures[i_str]['Size']=None
+            continue
         x_data=coords_2d[ind_inside_half_path,0]
         y_data=coords_2d[ind_inside_half_path,1]
         int_data=data_inside_half[ind_inside_half_path]
@@ -395,13 +399,19 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
 
         if structures[i_str]['Axes length'][1]/structures[i_str]['Axes length'][0] < elongation_threshold:
             structures[i_str]['Angle']=np.nan
-
+    if test: print('N before size thres:',len(structures))
     n_str=len(structures)
     for i_str in range(n_str):
         rev_ind=n_str-1-i_str
-        if (structures[rev_ind]['Size'][0] < str_size_lower_thres or
-            structures[rev_ind]['Size'][1] < str_size_lower_thres):
-            structures.pop(rev_ind)
+        if str_size_lower_thres is not None and structures[rev_ind]['Size'] is not None:
+            if (structures[rev_ind]['Size'][0] < str_size_lower_thres or
+                structures[rev_ind]['Size'][1] < str_size_lower_thres):
+                if test:
+                    print('sx',structures[rev_ind]['Size'][0])
+                    print('sy',structures[rev_ind]['Size'][1])
+                    print('thres',str_size_lower_thres)
+                structures.pop(rev_ind)
+    if test: print('N after size thres:',len(structures))
 
     fitted_structures=[]
     for i_str in range(len(structures)):
@@ -409,19 +419,21 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
             fitted_structures.append(structures[i_str])
 
     structures=fitted_structures
+
     if test_result:
         #fig,ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54/1.62))
         fig,ax=plt.subplots(figsize=(10,10))
-        ax.set_aspect(1.0)
 
         plt.contourf(x_coord, y_coord, data, levels=nlevel)
         plt.colorbar()
+        ax.set_aspect(1.0)
         if len(structures) > 0:
             #Parametric reproduction of the Ellipse
             R=np.arange(0,2*np.pi,0.01)
             for i_structure in range(len(structures)):
                 structure=structures[i_structure]
-                if structure['Half path'] is not None and structure['Ellipse'] is not None:
+                if (structure['Half path'] is not None and
+                    structure['Ellipse'] is not None):
                     phi=structure['Angle']
                     a,b=structure['Ellipse'].axes_length
 
@@ -433,12 +445,6 @@ def nstx_gpi_contour_structure_finder(data_object=None,                       #N
                     yy = structure['Center'][1] + \
                          a*np.cos(R)*np.sin(phi) + \
                          b*np.sin(R)*np.cos(phi)
-
-                    # a,b=structure['Ellipse'].axes_length
-                    # ell=Ellipse(structure['Center'][1],a*2.,b*2.,phi)
-                    # ell_coord=ell.get_verts()
-                    # x=ell_coord[:,0]
-                    # y=ell_coord[:,1]
 
                     plt.plot(x,y)    #Plot the half path polygon
                     plt.plot(xx,yy)  #Plot the ellipse

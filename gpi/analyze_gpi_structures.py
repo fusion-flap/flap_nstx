@@ -19,7 +19,11 @@ warnings.filterwarnings("ignore")
 import flap
 import flap_nstx
 flap_nstx.register('NSTX_GPI')
-from flap_nstx.gpi import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, normalize_gpi
+
+from flap_nstx.gpi import nstx_gpi_contour_structure_finder, \
+                          nstx_gpi_watershed_structure_finder, \
+                          normalize_gpi, identify_structures
+
 from flap_nstx.tools import detrend_multidim
 
 import flap_mdsplus
@@ -65,6 +69,7 @@ else:
 def analyze_gpi_structures(exp_id=None,                          #Shot number
                            time_range=None,                      #The time range for the calculation
                            data_object=None,                     #Input data object if available from outside (e.g. generated sythetic signal)
+
                            x_range=None,                       #X range for the calculation
                            y_range=None,                       #Y range for the calculation
 
@@ -79,18 +84,21 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                            #Input for size pre-processing
                            str_finding_method='contour',         # Contour or watershed based structure finding
+                           ellipse_method='linalg',
+                           fit_shape='ellipse',
                            normalize_for_size=True,              #Normalize the signal for the size calculation
                            subtraction_order_for_size=None,      #Polynomial subtraction order
                            remove_interlaced_structures=True,    #Merge the found structures which contain each other
                             #Inputs for size processing
                            nlevel=51,                            #Number of contour levels for the structure size and velocity calculation.
-                           filter_level=3,                       #Number of embedded paths to be identified as an individual structure
+                           filter_level=5,                       #Number of embedded paths to be identified as an individual structure
                            global_levels=False,                  #Set for having structure identification based on a global intensity level.
                            levels=None,                          #Levels of the contours for the entire dataset. If None, it equals data.min(),data.max() divided to nlevel intervals.
                            threshold_method='variance',          #variance or background for the size calculation
                            threshold_coeff=1.0,                  #Variance multiplier threshold for size determination
                            threshold_bg_range={'x':[54,65],      #For the background subtraction, ROI where the bg intensity is calculated
-                                                'y':[0,79]},
+                                               'y':[0,79]},
+
                            threshold_bg_multiplier=2.,           #Background multiplier for the thresholding
                            weighting='intensity',                #Weighting of the results based on the 'number' of structures, the 'intensity' of the structures or the 'area' of the structures (options are in '')
                            maxing='intensity',                   #Return the properties of structures which have the largest "area" or "intensity"
@@ -99,6 +107,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            elongation_threshold=0.1,             #Structures having major/minor_axis-1 lower than this value are set to angle=np.nan
                            remove_orphans=True,                  #Structures which
                            calculate_rough_diff_velocities=False,
+
                             #Plot options:
                            plot=True,                            #Plot the results
                            pdf=False,                            #Print the results into a PDF
@@ -108,9 +117,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                            overplot_average=True,
                            plot_scatter=False,
+
                            structure_video_save=False,           #Save the video of the overplot ellipses
                            structure_pdf_save=False,             #Save the struture finding algorithm's plot output into a PDF (can create very large PDF's, the number of pages equals the number of frames)
                            structure_pixel_calc=False,           #Calculate and plot the structure sizes in pixels
+
                            plot_time_range=None,                 #Plot the results in a different time range than the data is read from
                            plot_for_publication=False,           #Modify the plot sizes to single column sizes and golden ratio axis ratios
                            plot_vertical_line_at=None,
@@ -130,10 +141,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            test=False,                           #Test the results
                            test_structures=False,                #Test the structure size calculation
                            test_histogram=False,                 #Plot the poloidal velocity histogram
+                           test_new=False,
+
                            save_data_for_publication=False,
                            verbose=False,
-                           ellipse_method='linalg',
-                           fit_shape='ellipse'
+                           skip_mdsplus=False,
                            ):
 
     """
@@ -146,7 +158,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
     propagating in e.g. different direction or with different velocities, their
     effects are averaged over.
     """
-
+    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
     #Constants for the calculation
     #Using the spatial calibration to find the actual velocities.
     coeff_r=np.asarray([3.75, 0,    1402.8097])/1000. #The coordinates are in meters, the coefficients are in mm
@@ -173,24 +185,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         raise ValueError("Weighting can only be by the 'number', 'area' or 'intensity' of the structures.")
     if maxing not in ['area', 'intensity']:
         raise ValueError("Maxing can only be by the 'area' or 'intensity' of the structures.")
-
-    if data_object is not None and type(data_object) == str:
-        if exp_id is None:
-            exp_id='*'
-        d=flap.get_data_object(data_object,exp_id=exp_id)
-        time_range=[d.coordinate('Time')[0][0,0,0],
-                    d.coordinate('Time')[0][-1,0,0]]
-        exp_id=d.exp_id
-        flap.add_data_object(d, 'GPI_SLICED_FULL')
-        if x_range is None or y_range is None:
-            x_range=[0, d.data.shape[1]-1]
-            y_range=[0, d.data.shape[2]-1]
-
-        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-                 'Image x':flap.Intervals(x_range[0],x_range[1]),
-                 'Image y':flap.Intervals(y_range[0],y_range[1])}
-
-    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 
     """
     SETTING UP THE FILENAME FOR DATA SAVING
@@ -232,16 +226,15 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         (not test and not plot and structure_pdf_save and test_structures)):
         import matplotlib
         matplotlib.use('agg')
-    #    import matplotlib.pyplot as plt
 
     if not nocalc:
         if structure_pdf_save:
             filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                                 working_directory=wd+'/plots',
-                                                 time_range=time_range,
-                                                 purpose='found structures',
-                                                 comment=comment,
-                                                 extension='pdf')
+                                              working_directory=wd+'/plots',
+                                              time_range=time_range,
+                                              purpose='found structures',
+                                              comment=comment,
+                                              extension='pdf')
             pdf_structures=PdfPages(filename)
         """
         READING THE DATA
@@ -262,16 +255,52 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                 name='',
                                 object_name='GPI')
             if x_range is None or y_range is None:
-                    x_range=[0, d.data.shape[1]-1]
-                    y_range=[0, d.data.shape[2]-1]
+                x_range=[0, d.data.shape[1]-1]
+                y_range=[0, d.data.shape[2]-1]
+
+        elif type(data_object) == str:
+            if exp_id is None:
+                exp_id='*'
+
+            d=flap.get_data_object(data_object,
+                                   exp_id=exp_id)
+            time_range=[d.coordinate('Time')[0][0,0,0],
+                        d.coordinate('Time')[0][-1,0,0]]
+            exp_id=d.exp_id
+            flap.add_data_object(d, 'GPI_SLICED_FULL')
+            if x_range is None:
+                x_range=[0, d.data.shape[1]-1]
+
+            if y_range is None:
+                y_range=[0, d.data.shape[2]-1]
 
             slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
                      'Image x':flap.Intervals(x_range[0],x_range[1]),
                      'Image y':flap.Intervals(y_range[0],y_range[1])}
-            d=flap.slice_data('GPI',exp_id=exp_id,
-                              slicing=slicing,
-                              output_name='GPI_SLICED_FULL')
 
+        elif type(data_object) == type(flap.DataObject()):
+            d=copy.deepcopy(data_object)
+            flap.add_data_object(d, 'GPI')
+
+            if x_range is None:
+                x_range=[0, d.data.shape[1]-1]
+
+            if y_range is None:
+                y_range=[0, d.data.shape[2]-1]
+
+            if time_range is None:
+                time_range=[d.coordinate('Time')[0][:,0,0].min(),
+                            d.coordinate('Time')[0][:,0,0].max()]
+        else:
+            raise TypeError('Data object should be of type str or flap.DataObject and not '+str(type(data_object)))
+        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+                 'Image x':flap.Intervals(x_range[0],x_range[1]),
+                 'Image y':flap.Intervals(y_range[0],y_range[1])}
+
+        d=flap.slice_data('GPI',
+                          exp_id=exp_id,
+                          slicing=slicing,
+                          output_name='GPI_SLICED_FULL')
         """
         NORMALIZATION PROCESS
         """
@@ -281,6 +310,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         slicing_for_filtering=copy.deepcopy(slicing)
         slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
                                                      time_range[1]+1/normalize_f_high*10)
+
         slicing_time_only={'Time':flap.Intervals(time_range[0],
                                                  time_range[1])}
         if data_object is None:
@@ -288,6 +318,8 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             exp_id=exp_id,
                             slicing=slicing_for_filtering,
                             output_name='GPI_SLICED_FOR_FILTERING')
+        else:
+            flap.add_data_object(d,'GPI_SLICED_FOR_FILTERING')
 
         coefficient=normalize_gpi('GPI_SLICED_FOR_FILTERING',
                                   exp_id=exp_id,
@@ -299,9 +331,12 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                   output_name='GPI_GAS_CLOUD')
 
         if normalize_for_size:
-            data_obj=flap.get_data_object('GPI_SLICED_FULL', exp_id=exp_id)
+            data_obj=flap.get_data_object('GPI_SLICED_FULL',
+                                          exp_id=exp_id)
+
             if str_finding_method == 'contour':
                 data_obj.data = data_obj.data/coefficient
+
             elif str_finding_method == 'watershed':
                 #data_obj.data = data_obj.data-coefficient
                 data_obj.data = data_obj.data/coefficient
@@ -313,8 +348,10 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             d=detrend_multidim(object_name_str_size,
                                exp_id=exp_id,
                                order=subtraction_order_for_size,
-                               coordinates=['Image x', 'Image y'],
+                               coordinates=['Image x',
+                                            'Image y'],
                                output_name='GPI_DETREND_STR_SIZE')
+
             object_name_str_size='GPI_DETREND_STR_SIZE'
 
         if global_levels:
@@ -324,12 +361,19 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 max_data=d.data.max()
                 levels=np.arange(nlevel)/(nlevel-1)*(max_data-min_data)+min_data
 
-        thres_obj_str_size=flap.slice_data(object_name_str_size,
-                                           exp_id=exp_id,
-                                           summing={'Image x':'Mean',
-                                                    'Image y':'Mean'},
-                                                    output_name='GPI_SLICED_TIMETRACE')
-        intensity_thres_level_str_size=np.sqrt(np.var(thres_obj_str_size.data))*threshold_coeff+np.mean(thres_obj_str_size.data)
+        if threshold_method == 'variance':
+            thres_obj_str_size=flap.slice_data(object_name_str_size,
+                                               exp_id=exp_id,
+                                               summing={'Image x':'Mean',
+                                                        'Image y':'Mean'},
+                                                        output_name='GPI_SLICED_TIMETRACE')
+            intensity_thres_level_str_size=np.sqrt(np.var(thres_obj_str_size.data))*threshold_coeff+np.mean(thres_obj_str_size.data)
+        if threshold_method == 'background_average':
+            intensity_thres_level_str_size=threshold_bg_multiplier*np.mean(flap.slice_data(object_name_str_size,
+                                                                                  slicing={'Image x':flap.Intervals(threshold_bg_range['x'][0],
+                                                                                                                    threshold_bg_range['x'][1]),
+                                                                                           'Image y':flap.Intervals(threshold_bg_range['y'][0],
+                                                                                                                    threshold_bg_range['y'][1])}).data)
         """
             VARIABLE DEFINITION
         """
@@ -361,6 +405,12 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         """
         Frame characterizing parameters
         """
+        coordinate_names=[d.coordinates[i].unit.name for i in range(len(d.coordinates))]
+        for ind in range(len(coordinate_names)):
+            if coordinate_names[ind] == 'Time':
+                time_unit=d.coordinates[ind].unit.unit
+            if coordinate_names[ind] == 'Device R':
+                distance_unit=d.coordinates[ind].unit.unit
 
         key='Angle'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
@@ -375,37 +425,37 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         key='Area'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='Area'
-        frame_properties['data'][key]['unit']='$m^2$'
+        frame_properties['data'][key]['unit']='$'+distance_unit+'^2$'
 
         key='Axes length minor'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='a'
-        frame_properties['data'][key]['unit']='$mm$'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Axes length major'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='a'
-        frame_properties['data'][key]['unit']='$mm$'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Center of gravity radial'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$COG_{rad}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Center of gravity poloidal'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$COG_{pol}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Centroid radial'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='Centr. rad.'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Centroid poloidal'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='Centr. pol.'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Convexity'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
@@ -420,22 +470,22 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         key='Frame COG radial'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$COG_{frame,rad}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Frame COG poloidal'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$COG_{frame,rad}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Position radial'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='R'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Position poloidal'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='z'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Roundness'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
@@ -445,17 +495,17 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         key='Separatrix dist'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$r-r_{sep}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Size radial'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$d_{rad}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Size poloidal'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
         frame_properties['data'][key]['label']='$d_{pol}$'
-        frame_properties['data'][key]['unit']='m'
+        frame_properties['data'][key]['unit']=distance_unit
 
         key='Solidity'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
@@ -497,85 +547,85 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         key='Angular velocity angle'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
         frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']=''
+        frame_properties['derived'][key]['unit']='rad/'+time_unit
 
         key='Angular velocity ALI'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
         frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']=''
+        frame_properties['derived'][key]['unit']='rad/'+time_unit
 
         key='Expansion fraction area'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']=''
+        frame_properties['derived'][key]['label']='$f_E$'
+        frame_properties['derived'][key]['unit']='1/'+time_unit
 
         key='Expansion fraction axes'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']=''
+        frame_properties['derived'][key]['label']='$f_{E,area}$'
+        frame_properties['derived'][key]['unit']='1/'+time_unit
 
         key='Velocity radial position'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{rad,pos}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         key='Velocity poloidal position'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{pol,pos}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         key='Velocity radial COG'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{rad,COG}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         key='Velocity poloidal COG'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{pol,COG}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         key='Velocity radial centroid'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{rad,centroid}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         key='Velocity poloidal centroid'
         frame_properties['derived'][key]=copy.deepcopy(data_dict)
-        frame_properties['derived'][key]['label']=''
-        frame_properties['derived'][key]['unit']='m/s'
+        frame_properties['derived'][key]['label']='$v_{pol,centroid}$'
+        frame_properties['derived'][key]['unit']=distance_unit+'/'+time_unit
 
         #Inicializing for frame handling
         frame=None
         structures_dict=None
-        invalid_correlation_frame_counter=0.
 
         if test or test_structures or structure_pdf_save:
             my_dpi=80
             plt.figure(figsize=(800/my_dpi, 600/my_dpi), dpi=my_dpi)
 
         elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
+        if not skip_mdsplus:
+            R_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\RBDRY',
+                                exp_id=exp_id,
+                                object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
 
-        R_sep=flap.get_data('NSTX_MDSPlus',
-                            name='\EFIT02::\RBDRY',
-                            exp_id=exp_id,
-                            object_name='SEP R OBJ').slice_data(slicing={'Time':elm_time}).data
+            z_sep=flap.get_data('NSTX_MDSPlus',
+                                name='\EFIT02::\ZBDRY',
+                                exp_id=exp_id,
+                                object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
 
-        z_sep=flap.get_data('NSTX_MDSPlus',
-                            name='\EFIT02::\ZBDRY',
-                            exp_id=exp_id,
-                            object_name='SEP Z OBJ').slice_data(slicing={'Time':elm_time}).data
+            sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
+                                                np.logical_and(z_sep > coeff_z[2],
+                                                               z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
+            sep_GPI_ind=np.asarray(sep_GPI_ind[0])
+            sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
+            sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)
 
-        sep_GPI_ind=np.where(np.logical_and(R_sep > coeff_r[2],
-                                            np.logical_and(z_sep > coeff_z[2],
-                                                           z_sep < coeff_z[2]+79*coeff_z[0]+64*coeff_z[1])))
-        sep_GPI_ind=np.asarray(sep_GPI_ind[0])
-        sep_GPI_ind=np.insert(sep_GPI_ind,0,sep_GPI_ind[0]-1)
-        sep_GPI_ind=np.insert(sep_GPI_ind,len(sep_GPI_ind),sep_GPI_ind[-1]+1)
-        z_sep_GPI=z_sep[(sep_GPI_ind)]
-        R_sep_GPI=R_sep[sep_GPI_ind]
-        GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
-        R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
-        z_sep_GPI_interp=GPI_z_vert
+            z_sep_GPI=z_sep[(sep_GPI_ind)]
+            R_sep_GPI=R_sep[sep_GPI_ind]
+            GPI_z_vert=coeff_z[0]*np.arange(80)/80*64+coeff_z[1]*np.arange(80)+coeff_z[2]
+            R_sep_GPI_interp=np.interp(GPI_z_vert,np.flip(z_sep_GPI),np.flip(R_sep_GPI))
+            z_sep_GPI_interp=GPI_z_vert
 
         for i_frames in range(0,n_frames):
             """
@@ -597,18 +647,37 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             STRUCTURE SIZE CALCULATION AND MANIPULATION BASED ON STRUCTURE FINDING
             """
 
-            if normalize:
-                frame=flap.slice_data(object_name_str_size,
-                                      exp_id=exp_id,
-                                      slicing=slicing_frame,
-                                      output_name='GPI_FRAME')
 
-                frame.data=np.asarray(frame.data, dtype='float64')
+            frame=flap.slice_data(object_name_str_size,
+                                  exp_id=exp_id,
+                                  slicing=slicing_frame,
+                                  output_name='GPI_FRAME')
 
-                if structure_video_save or structure_pdf_save:
-                    plt.cla()
-                    test_structures=True
+            frame.data=np.asarray(frame.data, dtype='float64')
 
+            if structure_video_save or structure_pdf_save:
+                plt.cla()
+                test_structures=True
+            if test_new:
+                structures_dict = identify_structures(str_finding_method=str_finding_method,
+                                                      data_object='GPI_FRAME',
+                                                      threshold_level=intensity_thres_level_str_size,
+                                                      exp_id=exp_id,
+                                                      filter_level=filter_level,
+                                                      nlevel=nlevel,
+                                                      levels=levels,
+                                                      mfilter_range=5,
+                                                      spatial=not structure_pixel_calc,
+                                                      pixel=structure_pixel_calc,
+                                                      remove_interlaced_structures=remove_interlaced_structures,
+                                                      ellipse_method=ellipse_method,
+                                                      str_size_lower_thres=str_size_lower_thres,
+                                                      elongation_threshold=elongation_threshold,
+
+                                                      plot_result=test_structures,
+                                                      save_data_for_publication=save_data_for_publication,
+                                                      )
+            else:
                 if str_finding_method == 'contour':
                     structures_dict=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME',
                                                                       threshold_level=intensity_thres_level_str_size,
@@ -619,8 +688,8 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                                       nlevel=nlevel,
                                                                       levels=levels,
                                                                       spatial=not structure_pixel_calc,
-                                                                      remove_interlaced_structures=remove_interlaced_structures,
                                                                       pixel=structure_pixel_calc,
+                                                                      remove_interlaced_structures=remove_interlaced_structures,
                                                                       ellipse_method=ellipse_method,
                                                                       str_size_lower_thres=str_size_lower_thres,
                                                                       elongation_threshold=elongation_threshold,
@@ -637,66 +706,61 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                                         mfilter_range=5,                        #Range of the median filter
                                                                         threshold_method='otsu',
                                                                         test=False,                             #Test the contours and the structures before any kind of processing
-                                                                        nlevel=51,
+                                                                        nlevel=nlevel,
                                                                         ignore_side_structure=False,
-                                                                        ignore_large_structure=True,
+                                                                        ignore_large_structure=False,
                                                                         str_size_lower_thres=str_size_lower_thres,
                                                                         elongation_threshold=elongation_threshold,
                                                                         skip_gaussian=True,
-                                                                        #try_random_walker= str_finding_method == 'randomwalker',
                                                                         )
-                frame_properties['structures'].append(structures_dict)
+            frame_properties['structures'].append(structures_dict)
 
-                if not structure_video_save:
-                    #plt.pause(0.001)
-                    if structure_pdf_save:
-                        plt.title(str(exp_id)+' @ '+"{:.3f}".format(time[i_frames]*1e3)+'ms')
-                        plt.show()
-                        pdf_structures.savefig()
-                else:
-                    test_structures=False
-                    fig = plt.gcf()
+            if not structure_video_save:
+                #plt.pause(0.001)
+                if structure_pdf_save:
                     plt.title(str(exp_id)+' @ '+"{:.3f}".format(time[i_frames]*1e3)+'ms')
-                    fig.canvas.draw()
-                    # Get the RGBA buffer from the figure
-                    w,h = fig.canvas.get_width_height()
+                    plt.show()
+                    pdf_structures.savefig()
+            else:
+                test_structures=False
+                fig = plt.gcf()
+                plt.title(str(exp_id)+' @ '+"{:.3f}".format(time[i_frames]*1e3)+'ms')
+                fig.canvas.draw()
+                # Get the RGBA buffer from the figure
+                w,h = fig.canvas.get_width_height()
+                try:
+                    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+                    if buf.shape[0] == h*2 * w*2 * 3:
+                        buf.shape = ( h*2, w*2, 3 )
+                    else:
+                        buf.shape = ( h, w, 3 )
+                    buf = cv2.cvtColor(buf, cv2.COLOR_RGBA2BGR)
                     try:
-                        buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-                        if buf.shape[0] == h*2 * w*2 * 3:
-                            buf.shape = ( h*2, w*2, 3 )
-                        else:
-                            buf.shape = ( h, w, 3 )
-                        buf = cv2.cvtColor(buf, cv2.COLOR_RGBA2BGR)
-                        try:
-                            video
-                        except NameError:
-                            height = buf.shape[0]
-                            width = buf.shape[1]
-                            video_codec_code='mp4v'
-                            comment=str_finding_method+'_bgthr_'+str(threshold_bg_multiplier)
-                            filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                                              working_directory=wd+'/plots',
-                                                              time_range=time_range,
-                                                              purpose='fit structures',
-                                                              comment=comment)
-                            filename=wd+'/plots/NSTX_GPI_'+str(exp_id)+'_'+"{:.3f}".format(time[0]*1e3)+'_fit_structures_'+str_finding_method+'.mp4'
-                            video = cv2.VideoWriter(filename,
-                                                    cv2.VideoWriter_fourcc(*video_codec_code),
-                                                    float(24),
-                                                    (width,height),
-                                                    isColor=True)
-                        video.write(buf)
-                    except:
-                        print('Video frame cannot be saved. Passing...')
+                        video
+                    except NameError:
+                        height = buf.shape[0]
+                        width = buf.shape[1]
+                        video_codec_code='mp4v'
+                        comment=str_finding_method+'_bgthr_'+str(threshold_bg_multiplier)
+                        filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                                          working_directory=wd+'/plots',
+                                                          time_range=time_range,
+                                                          purpose='fit structures',
+                                                          comment=comment)
+                        filename=wd+'/plots/NSTX_GPI_'+str(exp_id)+'_'+"{:.3f}".format(time[0]*1e3)+'_fit_structures_'+str_finding_method+'.mp4'
+                        video = cv2.VideoWriter(filename,
+                                                cv2.VideoWriter_fourcc(*video_codec_code),
+                                                float(24),
+                                                (width,height),
+                                                isColor=True)
+                    video.write(buf)
+                except:
+                    print('Video frame cannot be saved. Passing...')
 
-                if structures_dict is not None and len(structures_dict) != 0:
-                    valid_structure_size=True
-                else:
-                    valid_structure_size=False
-
+            if structures_dict is not None and len(structures_dict) != 0:
+                valid_structure_size=True
             else:
                 valid_structure_size=False
-                if verbose: print('Invalid consecutive number of frames: '+str(invalid_correlation_frame_counter))
 
             """
             Structure size calculation based on the contours
@@ -793,21 +857,24 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 try:
                 # if True:
                     for key in ['max','avg']:
+                        if not skip_mdsplus:
                             frame_properties['data']['Separatrix dist'][key][i_frames]=np.min(np.sqrt((frame_properties['data']['Position radial'][key][i_frames]-R_sep_GPI_interp)**2 +
                                                                                                       (frame_properties['data']['Position poloidal'][key][i_frames]-z_sep_GPI_interp)**2))
-                            ind_z_min=np.argmin(np.abs(z_sep_GPI-frame_properties['data']['Position poloidal'][key][i_frames]))
-                            if z_sep_GPI[ind_z_min] >= frame_properties['data']['Position poloidal'][key][i_frames]:
-                                ind1=ind_z_min
-                                ind2=ind_z_min+1
-                            else:
-                                ind1=ind_z_min-1
-                                ind2=ind_z_min
+                        else:
+                            frame_properties['data']['Separatrix dist'][key][i_frames]=np.nan
+                        ind_z_min=np.argmin(np.abs(z_sep_GPI-frame_properties['data']['Position poloidal'][key][i_frames]))
+                        if z_sep_GPI[ind_z_min] >= frame_properties['data']['Position poloidal'][key][i_frames]:
+                            ind1=ind_z_min
+                            ind2=ind_z_min+1
+                        else:
+                            ind1=ind_z_min-1
+                            ind2=ind_z_min
 
-                            radial_distance=frame_properties['data']['Position radial'][key][i_frames]- \
-                                ((frame_properties['data']['Position poloidal'][key][i_frames]-z_sep_GPI[ind2])/ \
-                                 (z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
-                            if radial_distance < 0:
-                                frame_properties['data']['Separatrix dist'][key][i_frames]*=-1
+                        radial_distance=frame_properties['data']['Position radial'][key][i_frames]- \
+                            ((frame_properties['data']['Position poloidal'][key][i_frames]-z_sep_GPI[ind2])/ \
+                             (z_sep_GPI[ind1]-z_sep_GPI[ind2])*(R_sep_GPI[ind1]-R_sep_GPI[ind2])+R_sep_GPI[ind2])
+                        if radial_distance < 0:
+                            frame_properties['data']['Separatrix dist'][key][i_frames]*=-1
                 except:
                     frame_properties['data']['Separatrix dist'][key][i_frames]=np.nan
             else:
@@ -825,6 +892,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         if structure_pdf_save:
             pdf_structures.close()
         #Saving results into a pickle file
+
+        if (structure_video_save):
+            cv2.destroyAllWindows()
+            video.release()
+            del video
 
         pickle.dump(frame_properties,open(pickle_filename, 'wb'))
         if test:
@@ -881,6 +953,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             str_overlap_matrix=np.zeros([n_str1,n_str2])
             for j_str2 in range(n_str2):
                 for j_str1 in range(n_str1):
+                    #print(structures_2[j_str2]['Half path'],structures_1[j_str1]['Half path'])
                     if structures_2[j_str2]['Half path'].intersects_path(structures_1[j_str1]['Half path']):
                         str_overlap_matrix[j_str1,j_str2]=1
             """
@@ -1026,7 +1099,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                                 print('ind_split', ind_split)
                                 print("2", structures_2[ind_str2]['Label'])
-                                raise ValueError('The code needs to be reworked because str2 should not have a label and it is a serious exception.')
+#                                raise ValueError('The code needs to be reworked because str2 should not have a label and it is a serious exception.')
 
                             if ind_str2 == ind_high:
                                 structures_2[ind_str2]['Label']=structures_1[j_str1]['Label']
@@ -1173,12 +1246,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     curr_labels[ind_label] not in next_labels):
                     frame_properties['structures'][i_frames].pop(ind_label)
 
-
-    if (structure_video_save):
-        cv2.destroyAllWindows()
-        video.release()
-        del video
-
     """
     PLOTTING THE RESULTS
     """
@@ -1273,7 +1340,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                 marker='o',
                                 color='tab:blue')
                 if overplot_average:
-                    ax.plot(frame_properties['time'][plot_index_structure],
+                    ax.plot(frame_properties['Time'][plot_index_structure],
                             frame_properties['data'][keys[i]]['avg'][plot_index_structure],
                             linewidth=0.5,
                             color='red',)

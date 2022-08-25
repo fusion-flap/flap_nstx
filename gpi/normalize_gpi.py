@@ -15,9 +15,11 @@ def normalize_gpi(input_object,
                   normalize='roundtrip',
                   normalize_f_high=1e3,
                   normalize_f_kernel='Elliptic',
+
                   normalizer_object_name=None,
                   slicing_time=None,
                   output_name=None,
+
                   return_object='coefficient',                                  #Can be 'coefficint' or 'sub norm', 'div norm' for subtracted normalized and divided normalized
                   ):
 
@@ -101,6 +103,7 @@ def normalize_gpi(input_object,
 
     elif normalize is None:
         return None
+
     if return_object == 'coefficient':
         return coefficient
     else:

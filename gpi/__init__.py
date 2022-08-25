@@ -16,3 +16,5 @@ from .velocity_analysis_spatio_temporal_displacement import nstx_gpi_velocity_an
 from .velocity_analysis import calculate_nstx_gpi_avg_velocity, calculate_nstx_gpi_tde_velocity, calculate_nstx_gpi_filament_velocity
 
 from .analyze_gpi_structures import analyze_gpi_structures
+
+from .identify_structures import identify_structures
