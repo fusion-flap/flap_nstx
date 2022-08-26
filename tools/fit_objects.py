@@ -10,16 +10,16 @@ import numpy as np
 from numpy.linalg import eig, inv
 import scipy
 from skimage.measure import EllipseModel
-import matplotlib.pyplot as plt
 
 class FitEllipse:
 
     def __init__(self,
                  x=None,                                                        #The x coordinates of the input data as a numpy array
                  y=None,                                                        #The y coordinates of the input data as a numpy array
-                 method='linalg'                                                #Linalg or skimage
+                 method='linalg'                                                #Linalg, skimage, or leastsquare
                  ):
-        if method not in ['linalg','skimage']:
+
+        if method not in ['linalg','skimage','leastsquare']:
             raise ValueError('method needs to be either linalg or skimage!')
 
         """
@@ -49,13 +49,16 @@ class FitEllipse:
         self.xmean=np.mean(x)
         self.ymean=np.mean(y)
 
-        try:
+        #try:
+        if True:
             if method=='linalg':
-                self._fit_ellipse(x, y)
+                self._fit_ellipse_linalg(x, y)
             elif method=='skimage':
                 self._fit_ellipse_skimage(x, y)
-        except:
-            self.set_invalid()
+            elif method=='leastsquare':
+                self._fit_ellipse_leastsq(x,y)
+        #except:
+        #    self.set_invalid()
 
     def set_invalid(self):
 
@@ -64,7 +67,7 @@ class FitEllipse:
         self._center=np.asarray([np.nan,np.nan])
         self._parameters=np.asarray([np.nan]*6)
 
-    def _fit_ellipse(self,x,y):
+    def _fit_ellipse_linalg(self,x,y):
         """
         Wrapper class for fitting an Ellipse and returning its important features.
         It uses the least square approximation method combined with a Lagrangian
@@ -87,20 +90,21 @@ class FitEllipse:
         C = np.zeros([6,6])
         C[0,2] = C[2,0] = 2; C[1,1] = -1
         E, V =  eig(np.dot(inv(S), C))
-        #n = np.argmax(np.abs(E))
-        n = np.argmax(E)
+        n = np.argmax(np.abs(E))
+        #n = np.argmax(E)
 
         self._parameters = V[:,n]
         a,b=self._calculate_axes_length_linalg()
         theta=self._calculate_angle_linalg()
 
         self._center=self._calculate_center_linalg()
+
         if a < b:
             self._axes_length=np.asarray([a,b])
-            self._angle=np.arcsin(np.sin(theta))
+            self._angle=theta #np.arcsin(np.sin(theta))
         else:
             self._axes_length=np.asarray([b,a])
-            self._angle=np.arcsin(np.sin(theta-np.pi/2))
+            self._angle=theta #np.arcsin(np.sin(theta))+np.pi/2
 
     def _fit_ellipse_skimage(self,x,y):
 
@@ -115,10 +119,77 @@ class FitEllipse:
         self._center=np.asarray([xc,yc])
         if a < b:
             self._axes_length=np.asarray([a,b])
-            self._angle=np.arcsin(np.sin(theta))
+            self._angle=theta #np.arcsin(np.sin(theta))
         else:
             self._axes_length=np.asarray([b,a])
-            self._angle=np.arcsin(np.sin(theta-np.pi/2))
+            self._angle=theta #np.arcsin(np.sin(theta-np.pi/2))
+
+    def _fit_ellipse_leastsq(self,x,y):
+        """
+        Source: https://stackoverflow.com/questions/67537630/ellipse-fitting-to-determine-rotation-python
+
+        Realizes a simple least square fit. It needs to be tested, because there is no test for the
+        structure/fitting being a hyperbole.
+
+        Parameters
+        ----------
+        x : ndarray
+            x coordinates of the structure to be fit
+        y : ndarray
+            y coordinates of the structure to be fit
+
+        Returns
+        -------
+        None.
+
+        """
+
+        aat=np.zeros([5,5])
+
+        aat[0,:]=[np.sum(x**4),         np.sum(2 * x**3 * y),    np.sum(x**2 * y**2),  np.sum(2 * x**3),     np.sum(2 * x**2 * y)]
+        aat[1,:]=[np.sum(2 * x**3 * y), np.sum(4 * x**2 * y**2), np.sum(2 * x * y**3), np.sum(4 * x**2 * y), np.sum(4 * x * y**2)]
+        aat[2,:]=[np.sum(x**2 * y**2),  np.sum(2 * x * y**3),    np.sum(y**4),         np.sum(2 * x * y**2), np.sum(2 * y**3)]
+        aat[3,:]=[np.sum(2 * x**3),     np.sum(4 * x**2 * y),    np.sum(2 * x * y**2), np.sum(4 * x**2),     np.sum(4 * x * y)]
+        aat[4,:]=[np.sum(2 * x**2 * y), np.sum(4 * x * y**2),    np.sum(2 * y**3),     np.sum(4 * x * y),    np.sum(4 * y**2)]
+
+        coord_vec=np.asarray([np.sum(x**2), np.sum(2*x*y), np.sum(y**2), np.sum(2*x), np.sum(2*y)])
+
+        self._parameters=np.matmul(np.linalg.inv(aat), coord_vec)
+
+        self._axes_length=self._calculate_axes_length_leastsq()
+        self._angle=self._calculate_angle_leastsq()
+        self._center=self._calculate_center_leastsq()
+        print('parameters', self._parameters)
+        print('axes',self._axes_length)
+        print('angle',self._angle)
+        print('center',self._center)
+
+    def _calculate_angle_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f = p[0],p[1],p[2],p[3],p[4]
+
+        return np.pi/2 + 0.5*np.arctan2(2*b,a-c)
+
+    def _calculate_center_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f = p[0],p[1],p[2],p[3],p[4]
+
+        x0=(c*d-b*f)/(b**2 - a*c)
+        y0=(a*f-b*d)/(b**2 - a*c)
+        return np.array([x0,y0])
+
+    def _calculate_axes_length_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f,g = p[0],p[1],p[2],p[3],p[4],-1
+
+
+        nom=2*(a*f**2 + c*d**2 + g*b**2 - 2*b*d*f - a*c*g)
+        denom_1=(b**2 - a*c) * (np.sqrt((a-c)**2 + 4 * b**2) - (a+c))
+        A=np.sqrt(nom/denom_1)
+        denom_2=(b**2 - a*c) * (-np.sqrt((a-c)**2 + 4 * b**2) - (a+c))
+        B=np.sqrt(nom/denom_2)
+
+        return np.asarray([A,B])
 
     def _calculate_angle_linalg(self):
         p=self._parameters
@@ -204,7 +275,7 @@ class FitEllipse:
         # xsize=np.sqrt(bx**2-4*ax*cx)/np.abs(ax)
         # ysize=np.sqrt(by**2-4*ay*cy)/np.abs(ay)
 
-        if np.imag(xsize) != 0 or np.imag(xsize) !=0:
+        if np.imag(xsize) != 0 or np.imag(ysize) !=0:
             print('size is complex')
             xsize=np.nan
             ysize=np.nan
