@@ -24,7 +24,7 @@ from flap_nstx.gpi import nstx_gpi_contour_structure_finder, \
                           nstx_gpi_watershed_structure_finder, \
                           normalize_gpi, identify_structures
 
-from flap_nstx.tools import detrend_multidim
+from flap_nstx.tools import detrend_multidim, FitEllipse, FitGaussian
 
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
