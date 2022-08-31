@@ -35,13 +35,22 @@ def export_gpi_data(exp_id=None,
                     subtraction_order=2,
                     output_format='pickle',
                     filename=None,
+                    export_separatrix=True,
+                    export_raw=False,
                     ):
+
+    if export_raw:
+        normalize=False
+        subtraction_order=None
+        gaussian_blur=False
 
     data_obj=flap.get_data('NSTX_GPI',exp_id=exp_id, name='GPI', object_name='GPI_RAW')
     slicing_original={'Time':flap.Intervals(time_range[0],
                                              time_range[1])}
     comment=''
-    data_obj_sliced=flap.slice_data('GPI_RAW', slicing=slicing_original)
+    data_obj_sliced=flap.slice_data('GPI_RAW',
+                                    exp_id=exp_id,
+                                    slicing=slicing_original)
     if normalize:
         slicing_for_filtering_only={'Time':flap.Intervals(time_range[0]-10/normalize_f_high,
                                                           time_range[1]+10/normalize_f_high)}
@@ -50,7 +59,7 @@ def export_gpi_data(exp_id=None,
                              'GPI_SLICED_FOR_FILTERING')
 
         flap_nstx.gpi.normalize_gpi('GPI_SLICED_FOR_FILTERING',
-                                    exp_id=139901,
+                                    exp_id=exp_id,
                                     slicing_time=slicing_original,
                                     normalizer_object_name='GPI_LPF_INTERVAL',
                                     output_name='GPI_NORMALIZED',
@@ -65,15 +74,15 @@ def export_gpi_data(exp_id=None,
                                                          output_name='GPI_DETREND')
         comment+='_detrend_o'+str(subtraction_order)
 
-    data=data_obj_sliced.data
-    time=data_obj_sliced.coordinate('Time')[0][:,0,0]
-    r_coord=data_obj_sliced.coordinate('Device R')[0][0,:,:]
-    z_coord=data_obj_sliced.coordinate('Device z')[0][0,:,:]
-
     if gaussian_blur:
         for ind_frames in range(len(data_obj_sliced.data[:,0,0])):
             data_obj_sliced.data[ind_frames,:,:] = scipy.ndimage.median_filter(data_obj_sliced.data[ind_frames,:,:], 5)
         comment+='_gb5'
+
+    data=data_obj_sliced.data
+    time=data_obj_sliced.coordinate('Time')[0][:,0,0]
+    r_coord=data_obj_sliced.coordinate('Device R')[0][0,:,:]
+    z_coord=data_obj_sliced.coordinate('Device z')[0][0,:,:]
 
     if output_format == 'pickle':
         if filename==None:
@@ -89,3 +98,25 @@ def export_gpi_data(exp_id=None,
                      'R':r_coord,
                      'z':z_coord,},
                     open(filename,'wb'))
+    if export_separatrix:
+        export_separatrix_data(time=(time_range[1]+time_range[0])/2,
+                               exp_id=exp_id)
+
+def export_separatrix_data(exp_id=None,
+                           time=None,
+                           ):
+
+    r_bdry_obj=flap.get_data('NSTX_MDSPlus',
+                             name='\EFIT01::\RBDRY',
+                             exp_id=exp_id,
+                             object_name='SEP X OBJ'
+                             )
+    z_bdry_obj=flap.get_data('NSTX_MDSPlus',
+                             name='\EFIT01::\ZBDRY',
+                             exp_id=exp_id,
+                             object_name='SEP Y OBJ'
+                             )
+    r_bdry_obj=r_bdry_obj.slice_data(slicing={'Time':time})
+    z_bdry_obj=z_bdry_obj.slice_data(slicing={'Time':time})
+
+    pickle.dump({'R sep':r_bdry_obj.data, 'z sep':z_bdry_obj.data}, open(wd+'/'+str(exp_id)+'_'+str(time)+'_separatrix_data.pickle', 'wb'))
