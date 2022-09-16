@@ -11,6 +11,7 @@ import os
 import copy
 #Importing and setting up the FLAP environment
 import flap
+
 import flap_nstx
 flap_nstx.register()
 
@@ -137,15 +138,17 @@ def identify_structures(#General inputs
 
     elif spatial:
         x_coord_name='Device R'
-        x_unit_name=''
+        x_unit_name='[m]'
         y_coord_name='Device z'
-        y_unit_name=''
+        y_unit_name='[m]'
     else:
         raise TypeError('Cannot do pixel and spatial calculation at the same time.')
 
     x_coord=data_object.coordinate(x_coord_name)[0]
     y_coord=data_object.coordinate(y_coord_name)[0]
 
+    if test:
+        print(x_coord.shape,y_coord.shape)
     structures=[]
 
     one_structure={'Polygon':None,  #Calculated during segmentation
@@ -282,8 +285,8 @@ def identify_structures(#General inputs
                     plt.plot(x,y)
                 plt.pause(0.001)
                 plt.cla()
-                #plt.axis('equal')
-            plt.set_aspect(1.0)
+
+            plt.axis('equal')
             plt.contourf(x_coord, y_coord, data, levels=levels)
             plt.colorbar()
 
@@ -409,36 +412,44 @@ def identify_structures(#General inputs
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,  cv2.CHAIN_APPROX_SIMPLE)
 
             cnts = imutils.grab_contours(cnts)
-            max_contour = max(cnts, key=cv2.contourArea)
+            max_contour_prelim = max(cnts, key=cv2.contourArea)
+            max_contour = np.squeeze(max_contour_prelim)
+            try:
+                if spatial:
+                    max_contour=np.asarray([x_coord[max_contour[:,1],max_contour[:,0]],
+                                            y_coord[max_contour[:,1],max_contour[:,0]]])
+                else:
+                    max_contour=max_contour.T
 
-            if spatial:
-                max_contour=np.asarray([x_coord[max_contour[:,0,1],max_contour[:,0,0]],
-                                        y_coord[max_contour[:,0,1],max_contour[:,0,0]]])
+                from matplotlib.path import Path
 
-            from matplotlib.path import Path
+                if max_contour.shape[0] != 1:
+                    indices=np.where(labels == label)
+                    codes=[Path.MOVETO]
+                    for i_code in range(1,len(max_contour.transpose()[:,0])):
+                        codes.append(Path.CURVE4)
+                    codes.append(Path.CLOSEPOLY)
 
-            if max_contour.shape[0] != 1:
-                indices=np.where(labels == label)
-                codes=[Path.MOVETO]
-                for i_code in range(1,len(max_contour.transpose()[:,0])):
-                    codes.append(Path.CURVE4)
-                codes.append(Path.CLOSEPOLY)
+                    max_contour_looped=np.zeros([max_contour.shape[1]+1,
+                                                 max_contour.shape[0]])
+                    max_contour_looped[0:-1,:]=max_contour.transpose()
+                    max_contour_looped[-1,:]=max_contour[:,0]
+                    vertices=copy.deepcopy(max_contour_looped)
 
-                max_contour_looped=np.zeros([max_contour.shape[1]+1,max_contour.shape[0]])
-                max_contour_looped[0:-1,:]=max_contour.transpose()
-                max_contour_looped[-1,:]=max_contour[:,0]
-                vertices=copy.deepcopy(max_contour_looped)
+                    full_polygon=Polygon(x=vertices[:,0],
+                                         y=vertices[:,1],
+                                         x_data=x_coord[indices],
+                                         y_data=y_coord[indices],
+                                         data=data[indices],
+                                         test=test)
 
-                full_polygon=Polygon(x=vertices[:,0],
-                                     y=vertices[:,1],
-                                     x_data=x_coord[indices],
-                                     y_data=y_coord[indices],
-                                     data=data[indices],
-                                     test=test)
+                    structures.append(copy.deepcopy(one_structure))
+                    structures[-1]['Half path']=Path(max_contour_looped,codes)
+                    structures[-1]['Polygon']=full_polygon
+            except Exception as e:
+                print(e)
+                continue
 
-                structures.append(copy.deepcopy(one_structure))
-                structures[-1]['Half path']=Path(max_contour_looped,codes)
-                structures[-1]['Polygon']=full_polygon
 
     #Calculate the ellipse and its properties for the half level contours
 

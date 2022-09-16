@@ -16,7 +16,8 @@ class FitEllipse:
     def __init__(self,
                  x=None,                                                        #The x coordinates of the input data as a numpy array
                  y=None,                                                        #The y coordinates of the input data as a numpy array
-                 method='linalg'                                                #Linalg, skimage, or leastsquare
+                 method='linalg',                                                #linalg, skimage, leastsquare, or linalg_v0 (deprecated)
+                 elongation_base='size',                                        #size or axes
                  ):
 
         if method not in ['linalg','linalg_v2','skimage','leastsquare']:
@@ -48,17 +49,17 @@ class FitEllipse:
             #raise ValueError('There should be at least 6 points defining the ellipse.')
         self._xmean=np.mean(x)
         self._ymean=np.mean(y)
-        self._elongation_base='size'
+        self._elongation_base=elongation_base
         try:
         #if True:
-            if method=='linalg':
+            if method=='linalg_v0':
+                self._fit_ellipse_linalg_v0(x, y)
+            elif method=='linalg':
                 self._fit_ellipse_linalg(x, y)
-            elif method=='linalg_v2':
-                self._fit_ellipse_linalg_v2(x, y)
             elif method=='skimage':
                 self._fit_ellipse_skimage(x, y)
             elif method=='leastsquare':
-                self._fit_ellipse_leastsq(x,y)
+                self._fit_ellipse_leastsq(x, y)
         except:
             self.set_invalid()
 
@@ -69,7 +70,9 @@ class FitEllipse:
         self._center=np.asarray([np.nan,np.nan])
         self._parameters=np.asarray([np.nan]*6)
 
-    def _fit_ellipse_linalg(self,x,y):
+        print('Ellipse fitting failed')
+
+    def _fit_ellipse_linalg_v0(self,x,y):
         """
         Wrapper class for fitting an Ellipse and returning its important features.
         It uses the least square approximation method combined with a Lagrangian
@@ -80,6 +83,11 @@ class FitEllipse:
             Proc. of the 13th Internation Conference on Pattern Recognition, pp 253–257, Vienna, 1996
         Rewritten as an object, np.argmax(np.abs(E)) modified to np.argmax(E).
         """
+
+        raise DeprecationWarning("This version of the ellipse fitting is deprecated \
+                                 because of the 90degree angle fitting issue. \
+                                 Please use method='linalg' instead of linalg_v0")
+
 
         xnew=x-self._xmean
         ynew=y-self._ymean
@@ -97,13 +105,12 @@ class FitEllipse:
 
         self._parameters = V[:,n]
 
-        self._fix_linalg_fitting()
 
-        a,b=self._calculate_axes_length_linalg()
-        #theta=self._calculate_angle_linalg()
-
-        self._center=self._calculate_center_linalg()
+        a,b=self._calculate_axes_length_linalg_v0()
+        theta=self._calculate_angle_linalg_v0()
+        self._center=self._calculate_center_linalg_v0()
         theta=self._angle
+
         if a < b:
             self._axes_length=np.asarray([a,b])
             self._angle=np.arcsin(np.sin(theta))
@@ -111,7 +118,7 @@ class FitEllipse:
             self._axes_length=np.asarray([b,a])
             self._angle=np.arcsin(np.sin(theta))+np.pi/2
 
-    def _calculate_angle_linalg(self):
+    def _calculate_angle_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         if b == 0:
@@ -119,7 +126,7 @@ class FitEllipse:
         else:
             return np.arctan(2*b/(a-c))/2.
 
-    def _calculate_axes_length_linalg(self):
+    def _calculate_axes_length_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         up = 2*(a*f*f + c*d*d + g*b*b - 2*b*d*f - a*c*g)
@@ -129,7 +136,7 @@ class FitEllipse:
         res2=np.sqrt(up/down2)
         return np.array([res1, res2])
 
-    def _calculate_center_linalg(self):
+    def _calculate_center_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         num = b*b-a*c
@@ -137,7 +144,7 @@ class FitEllipse:
         y0=(a*f-b*d)/num+self._ymean
         return np.array([x0,y0])
 
-    def _fit_ellipse_linalg_v2(self, x, y):
+    def _fit_ellipse_linalg(self, x, y):
         """
 
         Fit the coefficients a,b,c,d,e,f, representing an ellipse described by
@@ -147,6 +154,7 @@ class FitEllipse:
         Based on the algorithm of Halir and Flusser, "Numerically stable direct
         least squares fitting of ellipses'.
 
+        https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
 
         """
 
@@ -164,11 +172,11 @@ class FitEllipse:
         ak = eigvec[:, np.nonzero(con > 0)[0]]
         self._parameters=np.concatenate((ak, T @ ak)).ravel()
 
-        self._center=self._calculate_center_linalg_v2()
-        self._axes_length=self._calculate_axes_length_linalg_v2()
-        self._angle=self._calculate_angle_linalg_v2()
+        self._center=self._calculate_center_linalg()
+        self._axes_length=self._calculate_axes_length_linalg()
+        self._angle=self._calculate_angle_linalg()
 
-    def _calculate_angle_linalg_v2(self):
+    def _calculate_angle_linalg(self):
         p=self._parameters
         a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
 
@@ -187,10 +195,16 @@ class FitEllipse:
             # Ensure that phi is the angle to rotate to the semi-major axis.
             phi += np.pi/2
         phi = phi % np.pi
+        #Adjustment to be between [-pi/2,pi/2]
+        if phi > np.pi/2:
+            phi -= np.pi
+        if phi < -np.pi/2:
+            phi += np.pi
+
         return phi
 
 
-    def _calculate_axes_length_linalg_v2(self):
+    def _calculate_axes_length_linalg(self):
         p=self._parameters
         a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
         den = b**2 - a*c
@@ -212,7 +226,7 @@ class FitEllipse:
             ap, bp = bp, ap
         return np.asarray([ap,bp])
 
-    def _calculate_center_linalg_v2(self):
+    def _calculate_center_linalg(self):
         p=self._parameters
         a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
 

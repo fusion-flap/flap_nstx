@@ -20,13 +20,11 @@ import flap
 import flap_nstx
 flap_nstx.register('NSTX_GPI')
 
-from flap_nstx.gpi import nstx_gpi_contour_structure_finder, \
-                          nstx_gpi_watershed_structure_finder, \
-                          normalize_gpi, identify_structures
-
-from flap_nstx.tools import detrend_multidim, FitEllipse, FitGaussian
+from flap_nstx.gpi import normalize_gpi, identify_structures
+from flap_nstx.tools import detrend_multidim
 
 import flap_mdsplus
+
 flap_mdsplus.register('NSTX_MDSPlus')
 
 thisdir = os.path.dirname(os.path.realpath(__file__))
@@ -86,10 +84,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            str_finding_method='contour',         # Contour or watershed based structure finding
                            ellipse_method='linalg',
                            fit_shape='ellipse',
-                           normalize_for_size=True,              #Normalize the signal for the size calculation
-                           subtraction_order_for_size=None,      #Polynomial subtraction order
+                           subtraction_order=None,      #Polynomial subtraction order
                            remove_interlaced_structures=True,    #Merge the found structures which contain each other
-                            #Inputs for size processing
+                           #Inputs for size processing
                            nlevel=51,                            #Number of contour levels for the structure size and velocity calculation.
                            filter_level=5,                       #Number of embedded paths to be identified as an individual structure
                            global_levels=False,                  #Set for having structure identification based on a global intensity level.
@@ -106,12 +103,12 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            str_size_lower_thres=0.00375*4,        #Structures having sizes under this value are filtered out from the results. (Default is 4 pixels for both radial, poloidal)
                            elongation_threshold=0.1,             #Structures having major/minor_axis-1 lower than this value are set to angle=np.nan
                            remove_orphans=True,                  #Structures which
-                           calculate_rough_diff_velocities=False,
+                           calculate_rough_diff_velocities=False,#Calculate velocities from average or maximum structuers (deprecated)
+                           structure_pixel_calc=False,           #Calculate and plot the structure sizes in pixels
 
-                            #Plot options:
+                           #Plot options:
                            plot=True,                            #Plot the results
                            pdf=False,                            #Print the results into a PDF
-                           plot_gas=False,#NOT WORKING, NEEDS TO BE CHECKED                      #Plot the gas cloud parameters on top of the other results from the structure size calculation
                            plot_error=False,                     #Plot the errorbars of the velocity calculation based on the line fitting and its RMS error
                            error_window=4.,                      #Plot the average signal with the error bars calculated from the normalized variance.
 
@@ -120,7 +117,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                            structure_video_save=False,           #Save the video of the overplot ellipses
                            structure_pdf_save=False,             #Save the struture finding algorithm's plot output into a PDF (can create very large PDF's, the number of pages equals the number of frames)
-                           structure_pixel_calc=False,           #Calculate and plot the structure sizes in pixels
 
                            plot_time_range=None,                 #Plot the results in a different time range than the data is read from
                            plot_for_publication=False,           #Modify the plot sizes to single column sizes and golden ratio axis ratios
@@ -141,7 +137,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                            test=False,                           #Test the results
                            test_structures=False,                #Test the structure size calculation
                            test_histogram=False,                 #Plot the poloidal velocity histogram
-                           test_new=False,
 
                            save_data_for_publication=False,
                            verbose=False,
@@ -192,18 +187,27 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
     if filename is None:
         comment=''
-        if normalize_for_size:
+        if normalize is not None:
             comment+='_ns'
 
         if remove_interlaced_structures:
             comment+='_nointer'
         comment+='_'+str_finding_method
+        if data_object is not None:
+            try:
+                if type(data_object) == type(flap.DataObject):
+                    exp_id=data_object.exp_id
+                elif type(data_object) == str:
+                    exp_id=flap.get_data_object_ref(data_object).exp_id
+            except:
+                exp_id=0
 
         filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                             working_directory=wd+'/processed_data',
-                                             time_range=time_range,
-                                             purpose='structure char',
-                                             comment=comment)
+                                          working_directory=wd+'/processed_data',
+                                          time_range=time_range,
+                                          purpose='structure char',
+                                          comment=comment)
+
         filename_was_none=True
     else:
         filename_was_none=False
@@ -258,6 +262,15 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 x_range=[0, d.data.shape[1]-1]
                 y_range=[0, d.data.shape[2]-1]
 
+            slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
+                     'Image x':flap.Intervals(x_range[0],x_range[1]),
+                     'Image y':flap.Intervals(y_range[0],y_range[1])}
+
+            d=flap.slice_data('GPI',
+                              exp_id=exp_id,
+                              slicing=slicing,
+                              output_name='GPI_SLICED_FULL')
+
         elif type(data_object) == str:
             if exp_id is None:
                 exp_id='*'
@@ -267,20 +280,21 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             time_range=[d.coordinate('Time')[0][0,0,0],
                         d.coordinate('Time')[0][-1,0,0]]
             exp_id=d.exp_id
-            flap.add_data_object(d, 'GPI_SLICED_FULL')
+            object_name='GPI_SLICED_FULL'
+            flap.add_data_object(d, object_name)
+
             if x_range is None:
                 x_range=[0, d.data.shape[1]-1]
 
             if y_range is None:
                 y_range=[0, d.data.shape[2]-1]
 
-            slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-                     'Image x':flap.Intervals(x_range[0],x_range[1]),
-                     'Image y':flap.Intervals(y_range[0],y_range[1])}
+
 
         elif type(data_object) == type(flap.DataObject()):
             d=copy.deepcopy(data_object)
-            flap.add_data_object(d, 'GPI')
+            object_name='GPI'
+            flap.add_data_object(d, object_name)
 
             if x_range is None:
                 x_range=[0, d.data.shape[1]-1]
@@ -293,83 +307,72 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             d.coordinate('Time')[0][:,0,0].max()]
         else:
             raise TypeError('Data object should be of type str or flap.DataObject and not '+str(type(data_object)))
-        slicing={'Time':flap.Intervals(time_range[0],time_range[1]),
-                 'Image x':flap.Intervals(x_range[0],x_range[1]),
-                 'Image y':flap.Intervals(y_range[0],y_range[1])}
 
-        d=flap.slice_data('GPI',
-                          exp_id=exp_id,
-                          slicing=slicing,
-                          output_name='GPI_SLICED_FULL')
         """
         NORMALIZATION PROCESS
         """
 
-        normalizer_object_name='GPI_LPF_INTERVAL'
+        if normalize is not None and data_object is None:
 
-        slicing_for_filtering=copy.deepcopy(slicing)
-        slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
-                                                     time_range[1]+1/normalize_f_high*10)
+            slicing_for_filtering=copy.deepcopy(slicing)
+            slicing_for_filtering['Time']=flap.Intervals(time_range[0]-1/normalize_f_high*10,
+                                                         time_range[1]+1/normalize_f_high*10)
 
-        slicing_time_only={'Time':flap.Intervals(time_range[0],
-                                                 time_range[1])}
-        if data_object is None:
+            slicing_time_only={'Time':flap.Intervals(time_range[0],
+                                                     time_range[1])}
+
+
             flap.slice_data('GPI',
                             exp_id=exp_id,
                             slicing=slicing_for_filtering,
                             output_name='GPI_SLICED_FOR_FILTERING')
-        else:
-            flap.add_data_object(d,'GPI_SLICED_FOR_FILTERING')
 
-        coefficient=normalize_gpi('GPI_SLICED_FOR_FILTERING',
-                                  exp_id=exp_id,
-                                  slicing_time=slicing_time_only,
-                                  normalize=normalize,
-                                  normalize_f_high=normalize_f_high,
-                                  normalize_f_kernel=normalize_f_kernel,
-                                  normalizer_object_name=normalizer_object_name,
-                                  output_name='GPI_GAS_CLOUD')
+            object_name='GPI_SLICED_FOR_FILTERING'
+            coefficient=normalize_gpi(object_name,
+                                      exp_id=exp_id,
+                                      slicing_time=slicing_time_only,
+                                      normalize=normalize,
+                                      normalize_f_high=normalize_f_high,
+                                      normalize_f_kernel=normalize_f_kernel,
+                                      normalizer_object_name='GPI_LPF_INTERVAL',
+                                      output_name='GPI_GAS_CLOUD')
 
-        if normalize_for_size:
             data_obj=flap.get_data_object('GPI_SLICED_FULL',
                                           exp_id=exp_id)
 
-            if str_finding_method == 'contour':
-                data_obj.data = data_obj.data/coefficient
 
-            elif str_finding_method == 'watershed':
-                #data_obj.data = data_obj.data-coefficient
-                data_obj.data = data_obj.data/coefficient
+            data_obj.data = data_obj.data/coefficient
             flap.add_data_object(data_obj, 'GPI_SLICED_DENORM_STR_SIZE')
-            object_name_str_size='GPI_SLICED_DENORM_STR_SIZE'
+            object_name='GPI_SLICED_DENORM_STR_SIZE'
 
-        if subtraction_order_for_size is not None:
+        if subtraction_order is not None:
             if verbose: print("*** Subtracting the trend of the data ***")
-            d=detrend_multidim(object_name_str_size,
+            d=detrend_multidim(object_name,
                                exp_id=exp_id,
-                               order=subtraction_order_for_size,
+                               order=subtraction_order,
                                coordinates=['Image x',
                                             'Image y'],
                                output_name='GPI_DETREND_STR_SIZE')
 
-            object_name_str_size='GPI_DETREND_STR_SIZE'
+            object_name='GPI_DETREND_STR_SIZE'
 
         if global_levels:
             if levels is None:
-                d=flap.get_data_object_ref(object_name_str_size)
+                d=flap.get_data_object_ref(object_name)
                 min_data=d.data.min()
                 max_data=d.data.max()
                 levels=np.arange(nlevel)/(nlevel-1)*(max_data-min_data)+min_data
 
         if threshold_method == 'variance':
-            thres_obj_str_size=flap.slice_data(object_name_str_size,
+            thres_obj_str_size=flap.slice_data(object_name,
                                                exp_id=exp_id,
                                                summing={'Image x':'Mean',
                                                         'Image y':'Mean'},
                                                         output_name='GPI_SLICED_TIMETRACE')
             intensity_thres_level_str_size=np.sqrt(np.var(thres_obj_str_size.data))*threshold_coeff+np.mean(thres_obj_str_size.data)
+
         if threshold_method == 'background_average':
-            intensity_thres_level_str_size=threshold_bg_multiplier*np.mean(flap.slice_data(object_name_str_size,
+            intensity_thres_level_str_size=threshold_bg_multiplier*np.mean(flap.slice_data(object_name,
                                                                                   slicing={'Image x':flap.Intervals(threshold_bg_range['x'][0],
                                                                                                                     threshold_bg_range['x'][1]),
                                                                                            'Image y':flap.Intervals(threshold_bg_range['y'][0],
@@ -406,11 +409,14 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
         Frame characterizing parameters
         """
         coordinate_names=[d.coordinates[i].unit.name for i in range(len(d.coordinates))]
+        distance_unit='pix'
+        time_unit='sample'
         for ind in range(len(coordinate_names)):
             if coordinate_names[ind] == 'Time':
                 time_unit=d.coordinates[ind].unit.unit
             if coordinate_names[ind] == 'Device R':
                 distance_unit=d.coordinates[ind].unit.unit
+
 
         key='Angle'
         frame_properties['data'][key]=copy.deepcopy(data_dict)
@@ -602,8 +608,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             my_dpi=80
             plt.figure(figsize=(800/my_dpi, 600/my_dpi), dpi=my_dpi)
 
-        elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
-        if not skip_mdsplus:
+        if not skip_mdsplus and data_object is None:
+            elm_time=(frame_properties['Time'][-1]+frame_properties['Time'][0])/2
+
             R_sep=flap.get_data('NSTX_MDSPlus',
                                 name='\EFIT02::\RBDRY',
                                 exp_id=exp_id,
@@ -628,27 +635,13 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             z_sep_GPI_interp=GPI_z_vert
 
         for i_frames in range(0,n_frames):
-            """
-            STRUCTURE VELOCITY CALCULATION BASED ON CCF CALCULATION
-            """
 
             print(str(int(i_frames/(n_frames-1)*100.))+"% done from the calculation.")
 
             slicing_frame={'Sample':sample_0+i_frames}
 
-            frame=flap.slice_data('GPI_SLICED_FULL',
-                                  exp_id=exp_id,
-                                  slicing=slicing_frame,
-                                  output_name='GPI_FRAME')
 
-            frame.data=np.asarray(frame.data, dtype='float64')
-
-            """
-            STRUCTURE SIZE CALCULATION AND MANIPULATION BASED ON STRUCTURE FINDING
-            """
-
-
-            frame=flap.slice_data(object_name_str_size,
+            frame=flap.slice_data(object_name,
                                   exp_id=exp_id,
                                   slicing=slicing_frame,
                                   output_name='GPI_FRAME')
@@ -658,61 +651,25 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
             if structure_video_save or structure_pdf_save:
                 plt.cla()
                 test_structures=True
-            if test_new:
-                structures_dict = identify_structures(str_finding_method=str_finding_method,
-                                                      data_object='GPI_FRAME',
-                                                      threshold_level=intensity_thres_level_str_size,
-                                                      exp_id=exp_id,
-                                                      filter_level=filter_level,
-                                                      nlevel=nlevel,
-                                                      levels=levels,
-                                                      mfilter_range=5,
-                                                      spatial=not structure_pixel_calc,
-                                                      pixel=structure_pixel_calc,
-                                                      remove_interlaced_structures=remove_interlaced_structures,
-                                                      ellipse_method=ellipse_method,
-                                                      str_size_lower_thres=str_size_lower_thres,
-                                                      elongation_threshold=elongation_threshold,
 
-                                                      plot_result=test_structures,
-                                                      save_data_for_publication=save_data_for_publication,
-                                                      )
-            else:
-                if str_finding_method == 'contour':
-                    structures_dict=nstx_gpi_contour_structure_finder(data_object='GPI_FRAME',
-                                                                      threshold_level=intensity_thres_level_str_size,
-                                                                      test_result=test_structures,
-                                                                      save_data_for_publication=save_data_for_publication,
-                                                                      exp_id=exp_id,
-                                                                      filter_level=filter_level,
-                                                                      nlevel=nlevel,
-                                                                      levels=levels,
-                                                                      spatial=not structure_pixel_calc,
-                                                                      pixel=structure_pixel_calc,
-                                                                      remove_interlaced_structures=remove_interlaced_structures,
-                                                                      ellipse_method=ellipse_method,
-                                                                      str_size_lower_thres=str_size_lower_thres,
-                                                                      elongation_threshold=elongation_threshold,
-                                                                      skip_gaussian=True,
-                                                                      )
+            structures_dict = identify_structures(str_finding_method=str_finding_method,
+                                                                data_object='GPI_FRAME',
+                                                                threshold_level=intensity_thres_level_str_size,
+                                                                exp_id=exp_id,
+                                                                filter_level=filter_level,
+                                                                nlevel=nlevel,
+                                                                levels=levels,
+                                                                mfilter_range=5,
+                                                                spatial=not structure_pixel_calc,
+                                                                pixel=structure_pixel_calc,
+                                                                remove_interlaced_structures=remove_interlaced_structures,
+                                                                ellipse_method=ellipse_method,
+                                                                str_size_lower_thres=str_size_lower_thres,
+                                                                elongation_threshold=elongation_threshold,
+                                                                test=test,
+                                                                plot_result=test_structures,
+                                                                save_data_for_publication=save_data_for_publication)
 
-                elif str_finding_method == 'watershed':# or str_finding_method == 'randomwalker':
-                    structures_dict=nstx_gpi_watershed_structure_finder(data_object='GPI_FRAME',
-                                                                        threshold_level=intensity_thres_level_str_size,
-                                                                        test_result=test_structures,
-                                                                        exp_id=exp_id,                             #Shot number (if data_object is not used)
-                                                                        spatial=not structure_pixel_calc,                          #Calculate the results in real spatial coordinates
-                                                                        pixel=structure_pixel_calc,                            #Calculate the results in pixel coordinates
-                                                                        mfilter_range=5,                        #Range of the median filter
-                                                                        threshold_method='otsu',
-                                                                        test=False,                             #Test the contours and the structures before any kind of processing
-                                                                        nlevel=nlevel,
-                                                                        ignore_side_structure=False,
-                                                                        ignore_large_structure=False,
-                                                                        str_size_lower_thres=str_size_lower_thres,
-                                                                        elongation_threshold=elongation_threshold,
-                                                                        skip_gaussian=True,
-                                                                        )
             frame_properties['structures'].append(structures_dict)
 
             if not structure_video_save:
@@ -844,9 +801,16 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 frame_properties['data']['Total bending energy']['max'][i_frames]=polygon_cur.total_bending_energy
 
                 #The center of gravity for the entire frame
-                frame_properties['data']['Frame COG radial']['max'][i_frames]=np.sum(frame.coordinate('Device R')[0]*frame.data)/np.sum(frame.data)
+                if structure_pixel_calc:
+                    frame_properties['data']['Frame COG radial']['max'][i_frames]=np.sum(frame.coordinate('Image x')[0]*frame.data)/np.sum(frame.data)
+                else:
+                    frame_properties['data']['Frame COG radial']['max'][i_frames]=np.sum(frame.coordinate('Device R')[0]*frame.data)/np.sum(frame.data)
                 frame_properties['data']['Frame COG radial']['avg'][i_frames]=frame_properties['data']['Frame COG radial']['max'][i_frames]
-                frame_properties['data']['Frame COG poloidal']['max'][i_frames]=np.sum(frame.coordinate('Device z')[0]*frame.data)/np.sum(frame.data)
+
+                if structure_pixel_calc:
+                    frame_properties['data']['Frame COG radial']['max'][i_frames]=np.sum(frame.coordinate('Image y')[0]*frame.data)/np.sum(frame.data)
+                else:
+                    frame_properties['data']['Frame COG poloidal']['max'][i_frames]=np.sum(frame.coordinate('Device z')[0]*frame.data)/np.sum(frame.data)
                 frame_properties['data']['Frame COG poloidal']['avg'][i_frames]=frame_properties['data']['Frame COG poloidal']['max'][i_frames]
 
                 #The number of structures in a frame
@@ -975,7 +939,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                 if np.sum(merging_indices) == 0:
                     structures_2[j_str2]['Label'] = highest_label+1
                     highest_label += 1
-                    print('HL: ',highest_label)
                     structures_2[j_str2]['Born'] = True
 
 
