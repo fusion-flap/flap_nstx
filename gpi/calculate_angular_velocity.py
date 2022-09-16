@@ -8,10 +8,13 @@ Created on Mon Mar 22 12:55:24 2021
 #Core modules
 import os
 import copy
+import pickle
 
 import flap
 import flap_nstx
+
 flap_nstx.register()
+from flap_nstx.tools import phase_cross_correlation_mod_ml
 
 import flap_mdsplus
 flap_mdsplus.register('NSTX_MDSPlus')
@@ -21,46 +24,19 @@ fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
 #Scientific modules
-import matplotlib.style as pltstyle
+
 import matplotlib.pyplot as plt
+
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MaxNLocator
 
 import numpy as np
-import pickle
 
-from skimage.registration import phase_cross_correlation, phase_cross_correlation_mod_ml
-
+from skimage.filters import window, difference_of_gaussians
+from skimage.registration import phase_cross_correlation
 from skimage.transform import warp_polar, rotate, rescale
 #from skimage.util import img_as_float                                      #It's questionable if this has to be used or not
 
-from skimage.filters import window, difference_of_gaussians
-
-#Plot settings for publications
-publication=False
-
-if publication:
-
-    plt.rcParams['lines.linewidth'] = 4
-    plt.rcParams['axes.linewidth'] = 4
-    plt.rcParams['axes.labelsize'] = 28
-    plt.rcParams['axes.titlesize'] = 28
-    plt.rcParams['xtick.labelsize'] = 30
-    plt.rcParams['xtick.major.size'] = 10
-    plt.rcParams['xtick.major.width'] = 4
-    plt.rcParams['xtick.major.size'] = 6
-    plt.rcParams['xtick.minor.width'] = 2
-    plt.rcParams['xtick.minor.size'] = 4
-    plt.rcParams['ytick.labelsize'] = 30
-    plt.rcParams['ytick.major.width'] = 4
-    plt.rcParams['ytick.major.size'] = 6
-    plt.rcParams['ytick.minor.width'] = 2
-    plt.rcParams['ytick.minor.size'] = 4
-    plt.rcParams['legend.fontsize'] = 28
-
-else:
-    pltstyle.use('default')
 global act_plot_id, gca_invalid
 
 def calculate_nstx_gpi_angular_velocity(exp_id=None,                                #Shot number
@@ -148,6 +124,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
     #Input error handling
     if exp_id is None and data_object is None:
         raise ValueError('Either exp_id or data_object needs to be set for the calculation.')
+
     if data_object is None:
         if time_range is None and filename is None:
             raise ValueError('It takes too much time to calculate the entire shot, please set a time_range.')
@@ -1059,6 +1036,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                      color='green')
             ax.set_title('$\omega$')
             ax.legend()
+
         ax.xaxis.set_major_locator(MaxNLocator(5))
         ax.yaxis.set_major_locator(MaxNLocator(5))
         ax.set_xticks(ticks=[-500,-250,0,250,500])
@@ -1148,8 +1126,8 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                           'derived':{},
                           'structures':[],
                           }
+
         for key in list(frame_properties_old.keys()):
-            key_split=key.split(' ')
 
             key_avgmax='raw'
             key_new=key
@@ -1200,6 +1178,7 @@ def plot_angular_velocity_calc_test(test=False,
         plt.pause(0.1)
         plt.show()
         #flap.plot('GPI_FRAME_2_FFT_POLAR', plot_type='contour', axes=['Angle', 'Radius'])
+
     if test_into_pdf and sample_number in sample_to_plot:
         ind_sample_to_plot=int(np.where(np.asarray(sample_to_plot) == sample_number)[0])
 
@@ -1216,10 +1195,12 @@ def plot_angular_velocity_calc_test(test=False,
         ax.set_xlabel('x [pix]')
         ax.set_ylabel('y [pix]')
         ax.set_aspect('equal')
+
         if sample_number == sample_to_plot[0]:
             corner_str='(a)'
         else:
             corner_str='(b)'
+
         ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
 
         # ax.xaxis.set_major_locator(MaxNLocator(5))
@@ -1237,6 +1218,7 @@ def plot_angular_velocity_calc_test(test=False,
             file1.close()
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
+
         ax=axs[1,ind_sample_to_plot]
         ax.contourf(np.arange(frame2_fft.shape[0])-frame2_fft.shape[0]//2,
                     np.arange(frame2_fft.shape[1])-frame2_fft.shape[1]//2,
@@ -1248,10 +1230,12 @@ def plot_angular_velocity_calc_test(test=False,
         ax.set_ylim([-40,40])
         ax.set_title('FFT magnitude #'+str(ind_sample_to_plot+1))
         ax.set_aspect('equal')
+
         if sample_number == sample_to_plot[0]:
             corner_str='(c)'
         else:
             corner_str='(d)'
+
         ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
         # ax.xaxis.set_major_locator(MaxNLocator(5))
         # ax.yaxis.set_major_locator(MaxNLocator(5))
@@ -1278,6 +1262,7 @@ def plot_angular_velocity_calc_test(test=False,
                 string+='\n'
                 file1.write(string)
             file1.close()
+
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
 
@@ -1323,6 +1308,7 @@ def plot_angular_velocity_calc_test(test=False,
                 string+='\n'
                 file1.write(string)
             file1.close()
+
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
 
@@ -1342,8 +1328,6 @@ def plot_angular_velocity_ccf(sample_to_plot=None,
                               plot_for_publication=False,
                               save_data_for_publication=True,
                               data_filename=None):
-
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
     if sample_number in sample_to_plot:
         fig, ax=plt.subplots(figsize=(8.5/2.54, 8.5/2.54))
@@ -1368,6 +1352,7 @@ def plot_angular_velocity_ccf(sample_to_plot=None,
         ax.indicate_inset_zoom(axins, edgecolor="black")
         fig.colorbar(im)
         plt.tight_layout()
+
         if pdf:
             pdf_object.savefig()
         plt.cla()
@@ -1392,5 +1377,6 @@ def plot_angular_velocity_ccf(sample_to_plot=None,
                 string+='\n'
                 file1.write(string)
             file1.close()
+
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
