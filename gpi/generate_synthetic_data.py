@@ -258,8 +258,10 @@ def generate_displaced_gaussian(exp_id=0,
 
     if rotation_frequency is not None:
         angle_per_frame=2*np.pi*rotation_frequency*sampling_time
+
     if angular_velocity is not None:
-        angle_per_frame=angular_velocity*sampling_time
+        angle_per_frame=angular_velocity*sampling_time*180./np.pi
+
     size_arg_x=size[0]/(2*np.sqrt(2*np.log(2)))
     size_arg_y=size[1]/(2*np.sqrt(2*np.log(2)))
     for i_frames in range(n_frames):

@@ -97,7 +97,7 @@ def show_nstx_gpi_video(exp_id=None,                                            
 
     if normalize is not None:
         print("**** Normalizing GPI ****")
-        d=flap.get_data_object_ref(object_name)
+        d=flap.get_data_object(object_name, exp_id=exp_id)
         if normalize in ['Time averaged','Time dependent', 'Simple']:
             if normalize == 'Time averaged':
                 coefficient=flap_nstx.tools.calculate_nstx_gpi_norm_coeff(exp_id=exp_id,
@@ -284,18 +284,25 @@ def show_nstx_gpi_video_frames(exp_id=None,
                                save_data_for_publication=False,
                                data_filename=None,
                                overplot_points=None,
+
+                               pdf=False,
+                               pdf_filename=None,
                                ):
 
     if time_range is None and start_time is None:
         print('time_range is None, the entire shot is plotted.')
+
     if time_range is not None:
         if (type(time_range) is not list and len(time_range) != 2):
             raise TypeError('time_range needs to be a list with two elements.')
+
     if start_time is not None:
         if type(start_time) is not int and type(start_time) is not float:
             raise TypeError('start_time needs to be a number.')
+
     if not cache_data: #This needs to be enhanced to actually cache the data no matter what
         flap.delete_data_object('*')
+
     if exp_id is not None:
         print("\n------- Reading NSTX GPI data --------")
         if cache_data:
@@ -313,6 +320,9 @@ def show_nstx_gpi_video_frames(exp_id=None,
 
     if time_range is None:
         time_range=[start_time,start_time+n_frame*2.5e-6]
+
+    if pdf:
+        save_pdf=True
 
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 
@@ -497,10 +507,13 @@ def show_nstx_gpi_video_frames(exp_id=None,
             #plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')
             plt.title(f"{actual_time*1000:.3f}"+'ms')
     if save_pdf:
-        if time_range is not None:
-            plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
+        if pdf_filename is None:
+            if time_range is not None:
+                plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(time_range[0])+'_'+str(time_range[1])+'_nf_'+str(n_frame)+'.pdf')
+            else:
+                plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
         else:
-            plt.savefig(wd+'/plots/NSTX_GPI_video_frames_'+str(exp_id)+'_'+str(start_time)+'_nf_'+str(n_frame)+'.pdf')
+            plt.savefig(pdf_filename)
 
 def show_nstx_gpi_timetrace(exp_id=None,
                             plot_filtered=False,

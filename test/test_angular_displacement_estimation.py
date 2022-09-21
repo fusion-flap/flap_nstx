@@ -106,6 +106,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                          nocalc=False,
                                          plot=True,
                                          pdf=False,
+                                         pdf_filename=None,
 
                                          publication=False,                     #Plot in publication quality
 
@@ -135,10 +136,14 @@ def test_angular_displacement_estimation(size_angle=False,                      
         comment_str='_scaling_factor_angle'
     elif elongation_angle:
         comment_str='_elongation_angle'
+    else:
+        comment_str=''
 
     general_filename_appendix='angular_test'+comment_str+'_'+interpolation+'_'+method+'_'+angle_method
     pickle_filename=wd+'/processed_data/'+general_filename_appendix+'.pickle'
-    pdf_filename=wd+'/plots/'+general_filename_appendix+'.pdf'
+
+    if pdf_filename is None:
+        pdf_filename=wd+'/plots/'+general_filename_appendix+'.pdf'
 
     if save_data_filename is None:
         text_filename=wd+'/processed_data/'+general_filename_appendix+'_data_accessibility.txt'
@@ -648,13 +653,13 @@ def test_angular_displacement_estimation(size_angle=False,                      
         if plot or pdf:
             if pdf:
                 pdf_pages=PdfPages(pdf_filename)
-            plt.figure()
+            fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+            #plt.figure()
             plt.contourf(angle_rot_vec,
-                         elongation_vec,
-                         result_vec_angle.transpose()-angle_rot_vec[None,:],
-                         levels=51,
-                         cmap='jet')
-
+                        elongation_vec,
+                        result_vec_angle.transpose()-angle_rot_vec[None,:],
+                        levels=51,
+                        cmap='jet')
             plt.colorbar()
             plt.xlabel('Angle rotation [deg]')
             plt.ylabel('Elongation')
@@ -701,42 +706,43 @@ def test_angular_displacement_estimation(size_angle=False,                      
 
     if plot_sample_gaussian:
         if pdf:
-            pdf=PdfPages(wd+'/plots/synthetic_gaussian_sample_and_ccf.pdf')
+            if pdf_filename is None:
+                pdf_filename=wd+'/plots/synthetic_gaussian_sample_and_ccf.pdf'
+                print('lofasz')
+            pdf_obj=PdfPages(pdf_filename)
+
         generate_displaced_gaussian(displacement=[0,10],
-                            r0=[30,40],
-                            frame_size=[64,80],
-                            size=[15,15],
-                            size_velocity=[0,0],
-                            rotation_frequency=0.,
-                            output_name='gaussian',
-                            n_frames=3)
+                                    r0=[30,40],
+                                    frame_size=[64,80],
+                                    size=[15,30],
+                                    size_velocity=[0,0],
+                                    angle_per_frame=15.,
+                                    output_name='gaussian',
+                                    n_frames=3)
+
         result=calculate_nstx_gpi_angular_velocity(exp_id=0,
                                                    data_object='gaussian',
                                                    normalize=None,
-                                                   normalize_for_size=False,
-                                                   normalize_for_velocity=False,
-                                                   skip_structure_calculation=True,
                                                    plot=False,
                                                    nocalc=False,
                                                    return_results=True,
                                                    subtraction_order_for_velocity=1)
         plt.figure()
         flap.plot('gaussian', plot_type='contour', slicing={'Sample':0}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf.savefig()
+        pdf_obj.savefig()
         plt.figure()
         flap.plot('gaussian', plot_type='contour', slicing={'Sample':1}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf.savefig()
+        pdf_obj.savefig()
         plt.figure()
         flap.plot('GPI_FRAME_12_CCF', plot_type='contour', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
-        pdf.savefig()
-        pdf.close()
+        pdf_obj.savefig()
+        pdf_obj.close()
 
 
     if plot_example_event:
         calculate_nstx_gpi_angular_velocity(exp_id=141319,
                                             time_range=[0.552,0.553],
                                             normalize='roundtrip',
-                                            normalize_for_size=True,
                                             skip_structure_calculation=False,
                                             plot=True,
                                             pdf=True,

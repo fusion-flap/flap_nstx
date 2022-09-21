@@ -75,6 +75,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                         #Plot options:
                                         plot=True,                                  #Plot the results
                                         pdf=False,                                  #Print the results into a PDF
+                                        pdf_filename=None,
                                         plot_gas=True,                              #Plot the gas cloud parameters on top of the other results from the structure size calculation
                                         plot_error=False,                           #Plot the errorbars of the velocity calculation based on the line fitting and its RMS error
                                         error_window=4.,                            #Plot the average signal with the error bars calculated from the normalized variance.
@@ -134,6 +135,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             if filename is None and len(time_range) != 2:
                 raise ValueError('time_range should be a list of two elements.')
 
+    wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 
     if data_object is not None and type(data_object) == str:
         if exp_id is None:
@@ -156,7 +158,6 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
 
 
     if filename is None:
-        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
         filename=flap_nstx.tools.filename(exp_id=exp_id,
                                           working_directory=wd+'/processed_data',
                                           time_range=time_range,
@@ -181,24 +182,28 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
     if test_into_pdf:
         import matplotlib
         matplotlib.use('agg')
-        wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
-        filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                          working_directory=wd+'/plots',
-                                          time_range=time_range,
-                                          purpose='ccf ang velocity testing',
-                                          comment=comment+'_ct_'+str(correlation_threshold))
-        pdf_filename=filename+'.pdf'
-        pdf_test=PdfPages(pdf_filename)
+        if pdf_filename is None:
+            filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                              working_directory=wd+'/plots',
+                                              time_range=time_range,
+                                              purpose='ccf ang velocity testing',
+                                              comment=comment+'_ct_'+str(correlation_threshold))
+            pdf_filename_test=filename+'.pdf'
+            pdf_test=PdfPages(pdf_filename_test)
+        else:
+            pdf_test=PdfPages(pdf_filename)
     else:
         pdf_test=None
+
     if plot_ccf:
         if pdf:
-            pdf_filename=flap_nstx.tools.filename(exp_id=exp_id,
-                                                  working_directory=wd+'/plots',
-                                                  time_range=time_range,
-                                                  purpose='ang vel ccf',
-                                                  comment=comment+'_ct_'+str(correlation_threshold),
-                                                  extension='pdf')
+            if pdf_filename is None:
+                pdf_filename=flap_nstx.tools.filename(exp_id=exp_id,
+                                                      working_directory=wd+'/plots',
+                                                      time_range=time_range,
+                                                      purpose='ang vel ccf',
+                                                      comment=comment+'_ct_'+str(correlation_threshold),
+                                                      extension='pdf')
             pdf_object_ccf=PdfPages(pdf_filename)
     import matplotlib.pyplot as plt
 
