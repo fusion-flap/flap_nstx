@@ -16,12 +16,16 @@ def normalize_gpi(input_object,
                   normalize_f_high=1e3,
                   normalize_f_kernel='Elliptic',
 
-                  normalizer_object_name=None,
+                  normalizer_object_name='GPI_NORMALIZER',
                   slicing_time=None,
                   output_name=None,
 
                   return_object='coefficient',                                  #Can be 'coefficint' or 'sub norm', 'div norm' for subtracted normalized and divided normalized
                   ):
+
+    """
+    return_object can be 'coefficint' or 'data subtract', 'data divide' for subtracted normalized and divided normalized
+    """
 
     if normalize == 'simple':
         flap.filter_data(input_object,
@@ -110,9 +114,9 @@ def normalize_gpi(input_object,
         data_obj_orig=flap.get_data_object_ref(input_object)
         data_obj_normalized=data_obj_orig.slice_data(slicing=slicing_time)
 
-        if return_object == 'sub norm':
+        if return_object == 'data subtract':
             data_obj_normalized.data=data_obj_normalized.data-coefficient
-        if return_object == 'div norm':
+        if return_object == 'data divide':
             data_obj_normalized.data=data_obj_normalized.data/coefficient
 
         if output_name is not None:

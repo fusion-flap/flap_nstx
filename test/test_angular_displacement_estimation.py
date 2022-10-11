@@ -28,7 +28,7 @@ thisdir = os.path.dirname(os.path.realpath(__file__))
 fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 
-styled=True
+styled=False
 if styled:
     plt.rc('font', family='serif', serif='Helvetica')
     labelsize=9.
@@ -76,6 +76,8 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                          calculate_half_fft=False,
                                          interpolation='parabola',              #Parabola or bicubic
                                          gaussian_blur=False,
+                                         sigma_low=1,
+                                         sigma_high=None,
                                          hann_window=False,
 
                                          #Gaussian analysis settings
@@ -115,6 +117,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
 
                                          plot_example_event=False,
                                          plot_example_event_frames=False,
+                                         plot_contour_values=False,
 
                                          save_data_into_txt=False,
                                          save_data_filename=None,
@@ -180,7 +183,8 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                                                    data_object='gaussian',
                                                                    normalize_for_velocity=False,
                                                                    zero_padding_scale=zero_padding_scale,
-                                                                   sigma_low=3,
+                                                                   sigma_low=sigma_low,
+                                                                   sigma_high=sigma_high,
                                                                    plot=False,
                                                                    pdf=False,
                                                                    gaussian_blur=True,
@@ -233,7 +237,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
             if pdf:
                 pdf_pages=PdfPages(pdf_filename)
 
-            plt.figure()
+            plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             plt.contourf(angle_rot_vec[:],
                          size_vec[:],
                          result_vec_angle[:,:].transpose()-angle_rot_vec[None,:],
@@ -507,7 +511,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
         if plot or pdf:
             if pdf:
                 pdf_pages=PdfPages(pdf_filename)
-            plt.figure()
+            fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             plt.contourf(angle_rot_vec,
                          frame_size_vec,
                          result_vec_angle.transpose()/(angle_rot_vec[None,:])-1,
@@ -521,10 +525,10 @@ def test_angular_displacement_estimation(size_angle=False,                      
             if pdf:
                 pdf_pages.savefig()
 
-            plt.figure()
+            fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             for i in range(len(frame_size_vec)):
-                plt.plot(angle_rot_vec[1:],
-                         result_vec_angle[1:,i].transpose()/(angle_rot_vec[1:])-1,
+                plt.plot(angle_rot_vec,
+                         result_vec_angle[:,i].transpose()/(angle_rot_vec[:])-1,
                          label=str(frame_size_vec[i]))
             plt.xlabel('Angle rotation [deg]')
             plt.ylabel('Relative inaccuracy')
@@ -533,7 +537,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
             if pdf:
                 pdf_pages.savefig()
 
-            plt.figure()
+            fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             plt.contourf(angle_rot_vec,
                          frame_size_vec,
                          result_vec_angle.transpose()-angle_rot_vec[None,:],
@@ -547,7 +551,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
             if pdf:
                 pdf_pages.savefig()
 
-            plt.figure()
+            fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             for i in range(len(frame_size_vec)):
                 plt.plot(angle_rot_vec,
                          result_vec_angle[:,i]-angle_rot_vec,
@@ -655,12 +659,20 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 pdf_pages=PdfPages(pdf_filename)
             fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
             #plt.figure()
-            plt.contourf(angle_rot_vec,
-                        elongation_vec,
-                        result_vec_angle.transpose()-angle_rot_vec[None,:],
-                        levels=51,
-                        cmap='jet')
-            plt.colorbar()
+            if plot_contour_values:
+                cs=ax.contour(angle_rot_vec,
+                            elongation_vec,
+                            result_vec_angle.transpose()/angle_rot_vec[None,:]-1,
+                            levels=51,
+                            cmap='jet')
+                ax.clabel(cs, fontsize=4)
+            else:
+                plt.contourf(angle_rot_vec,
+                               elongation_vec,
+                               result_vec_angle.transpose()/angle_rot_vec[None,:]-1,
+                               levels=51,
+                               cmap='jet')
+                plt.colorbar()
             plt.xlabel('Angle rotation [deg]')
             plt.ylabel('Elongation')
             plt.title('Inaccuracy of rotation estimation')
@@ -728,15 +740,62 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                                    return_results=True,
                                                    subtraction_order_for_velocity=1)
         plt.figure()
-        flap.plot('gaussian', plot_type='contour', slicing={'Sample':0}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf_obj.savefig()
-        plt.figure()
-        flap.plot('gaussian', plot_type='contour', slicing={'Sample':1}, axes=['Image x', 'Image y'], options={'Equal axes':True})
-        pdf_obj.savefig()
-        plt.figure()
-        flap.plot('GPI_FRAME_12_CCF', plot_type='contour', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
+
+        frame1_data=flap.get_data_object('gaussian', exp_id=0).slice_data(slicing={'Sample':0}).data
+        frame2_data=flap.get_data_object('gaussian', exp_id=0).slice_data(slicing={'Sample':1}).data
+        ccf_data=flap.get_data_object('GPI_FRAME_12_CCF', exp_id=0).slice_data(slicing={'Sample':0}).data
+
+        fig,axs=plt.subplots(1,2,figsize=(8.5/2.54,8.5/2.54/np.sqrt(2)))
+        ax=axs[0]
+        ax.contourf(np.arange(frame1_data.shape[0]),
+                    np.arange(frame1_data.shape[1]),
+                    frame1_data.T,
+                    levels=51)
+        ax.set_title('Gaussian frame #1')
+        ax.set_xlabel('x [pix]')
+        ax.set_ylabel('y [pix]')
+        ax.set_aspect('equal')
+
+        ax=axs[1]
+        ax.contourf(np.arange(frame1_data.shape[0]),
+                    np.arange(frame1_data.shape[1]),
+                    frame2_data.T,
+                    levels=51)
+        ax.set_title('Gaussian frame #2')
+        ax.set_xlabel('x [pix]')
+        ax.set_ylabel('y [pix]')
+        ax.set_aspect('equal')
+        plt.tight_layout(pad=0.1)
+        # flap.plot('gaussian', plot_type='contour', slicing={'Sample':0}, axes=['Image x', 'Image y'], options={'Equal axes':True})
+        # pdf_obj.savefig()
+        # plt.figure()
+        # flap.plot('gaussian', plot_type='contour', , axes=['Image x', 'Image y'], options={'Equal axes':True})
+        # pdf_obj.savefig()
+        # plt.figure()
+
+        # flap.plot('GPI_FRAME_12_CCF', plot_type='contour', slicing={'Sample':0}, axes=['Image x lag', 'Image y lag'], options={'Equal axes':True})
         pdf_obj.savefig()
         pdf_obj.close()
+
+        if save_data_into_txt:
+            file1=open(save_data_filename, 'w+')
+
+            file1.write("#Gaussian structure frame #1\n\n")
+            for i in range(len(frame1_data[0,:])):
+                string=''
+                for j in range(len(frame1_data[:,0])):
+                    string+=str(frame1_data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+
+            file1.write("\n#Gaussian structure frame #2\n\n")
+            for i in range(len(frame2_data[0,:])):
+                string=''
+                for j in range(len(frame2_data[:,0])):
+                    string+=str(frame2_data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
 
 
     if plot_example_event:
