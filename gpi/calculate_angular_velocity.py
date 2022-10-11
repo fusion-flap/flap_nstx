@@ -86,6 +86,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                         plot_skimage=False,                         #Splot scikit-image results instead of FLAP (only when plot_for_publication)
 
                                         sample_to_plot=None,                        #The sample numbers which should be plot for the paper. Should be a two element list.
+                                        plot_sample_frames=True,
                                         save_data_for_publication=False,
                                         data_filename=None,
 
@@ -435,7 +436,12 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             matplotlib.use('agg')
         if sample_to_plot is not None:
             #gs=GridSpec(3, len(sample_to_plot))
-            fig, axs = plt.subplots(3, len(sample_to_plot), figsize=(8.5/2.54, 13.7/2.54))
+            if plot_sample_frames:
+                fig, axs = plt.subplots(3, len(sample_to_plot), figsize=(8.5/2.54, 13.7/2.54))
+            else:
+                fig, axs = plt.subplots(2, len(sample_to_plot), figsize=(8.5/2.54, 8.5/2.54))
+
+
         else:
             axs=None
 
@@ -625,6 +631,7 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
                                                 pdf_test=pdf_test,
                                                 sample_number=sample_number,
                                                 sample_to_plot=sample_to_plot,
+                                                plot_sample_frames=plot_sample_frames,
                                                 i_log_or_not=i_log_or_not,
                                                 axs=axs,
                                                 frame2_fft_polar_log=frame2_fft_polar_log,
@@ -1165,6 +1172,7 @@ def plot_angular_velocity_calc_test(test=False,
                                     pdf_test=None,
                                     sample_number=None,
                                     sample_to_plot=None,
+                                    plot_sample_frames=True,
                                     i_log_or_not=0,
                                     axs=None,
                                     frame2_fft_polar_log=None,
@@ -1190,41 +1198,45 @@ def plot_angular_velocity_calc_test(test=False,
         x_text=0.0
         y_text=1.06
 
-        data=flap.get_data_object_ref('GPI_FRAME_2_FILTERED').data
-        ax=axs[0,ind_sample_to_plot]
-        ax.contourf(np.arange(data.shape[0]),
-                    np.arange(data.shape[1]),
-                    data.transpose(),
-                    levels=51)
-        ax.set_title('Frame #'+str(ind_sample_to_plot+1))
-        ax.set_xlabel('x [pix]')
-        ax.set_ylabel('y [pix]')
-        ax.set_aspect('equal')
+        if plot_sample_frames:
+            data=flap.get_data_object_ref('GPI_FRAME_2_FILTERED').data
+            ax=axs[0,ind_sample_to_plot]
+            ax.contourf(np.arange(data.shape[0]),
+                        np.arange(data.shape[1]),
+                        data.transpose(),
+                        levels=51)
+            ax.set_title('Frame #'+str(ind_sample_to_plot+1))
+            ax.set_xlabel('x [pix]')
+            ax.set_ylabel('y [pix]')
+            ax.set_aspect('equal')
 
-        if sample_number == sample_to_plot[0]:
-            corner_str='(a)'
+            if sample_number == sample_to_plot[0]:
+                corner_str='(a)'
+            else:
+                corner_str='(b)'
+
+            ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
+
+            # ax.xaxis.set_major_locator(MaxNLocator(5))
+            # ax.yaxis.set_major_locator(MaxNLocator(5))
+
+            if save_data_for_publication and data_filename is not None:
+                file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_frame.txt', 'w+')
+                data=flap.get_data_object_ref('GPI_FRAME_2').data
+                for i in range(len(data[0,:])):
+                    string=''
+                    for j in range(len(data[:,0])):
+                        string+=str(data[j,i])+'\t'
+                    string+='\n'
+                    file1.write(string)
+                file1.close()
+            elif save_data_for_publication and data_filename is None:
+                print('No data_filename was given. Data is not saved into txt.')
+        if plot_sample_frames:
+            row_ind=1
         else:
-            corner_str='(b)'
-
-        ax.text(x_text, y_text, corner_str, transform=ax.transAxes, size=9)
-
-        # ax.xaxis.set_major_locator(MaxNLocator(5))
-        # ax.yaxis.set_major_locator(MaxNLocator(5))
-
-        if save_data_for_publication and data_filename is not None:
-            file1=open(data_filename+'_'+str(time[i_frames]*1e3)+'_frame.txt', 'w+')
-            data=flap.get_data_object_ref('GPI_FRAME_2').data
-            for i in range(len(data[0,:])):
-                string=''
-                for j in range(len(data[:,0])):
-                    string+=str(data[j,i])+'\t'
-                string+='\n'
-                file1.write(string)
-            file1.close()
-        elif save_data_for_publication and data_filename is None:
-            print('No data_filename was given. Data is not saved into txt.')
-
-        ax=axs[1,ind_sample_to_plot]
+            row_ind=0
+        ax=axs[row_ind,ind_sample_to_plot]
         ax.contourf(np.arange(frame2_fft.shape[0])-frame2_fft.shape[0]//2,
                     np.arange(frame2_fft.shape[1])-frame2_fft.shape[1]//2,
                     frame2_fft.transpose(), levels=51)
@@ -1270,8 +1282,11 @@ def plot_angular_velocity_calc_test(test=False,
 
         elif save_data_for_publication and data_filename is None:
             print('No data_filename was given. Data is not saved into txt.')
-
-        ax=axs[2,ind_sample_to_plot]
+        if plot_sample_frames:
+            row_ind=2
+        else:
+            row_ind=1
+        ax=axs[row_ind,ind_sample_to_plot]
         #plt.subplot(gs[2,ind_sample_to_plot])
         xdata=np.arange(frame2_fft_polar_log.shape[0])
         ydata=np.arange(frame2_fft_polar_log.shape[1])
