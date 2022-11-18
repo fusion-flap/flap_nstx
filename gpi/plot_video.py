@@ -303,6 +303,10 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if not cache_data: #This needs to be enhanced to actually cache the data no matter what
         flap.delete_data_object('*')
 
+    if plot_separatrix or plot_flux:
+        print('Setting device_coordinates = True, plotting separatrix or flux is not available in image coordinates.')
+        device_coordinates = True
+
     if exp_id is not None:
         print("\n------- Reading NSTX GPI data --------")
         if cache_data:
@@ -420,12 +424,19 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if n_frame == 30:
         ny=6
         nx=5
-    if n_frame == 20:
+    elif n_frame == 20:
         ny=5
         nx=4
-    if n_frame == 9:
+    elif n_frame == 9:
         ny=3
         nx=3
+    else:
+        if len(n_frame) == 2:
+            ny=n_frame[0]
+            nx=n_frame[1]
+        else:
+            raise ValueError('The set n_frame doesn\'t have a corresponding setting. Please set it to n_frame=[nx,ny] ')
+
     gs=GridSpec(nx,ny)
 
     for index_grid_x in range(nx):
