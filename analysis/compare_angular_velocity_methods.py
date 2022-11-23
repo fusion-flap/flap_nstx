@@ -54,16 +54,16 @@ def compare_angular_velocity_methods(exp_id=139901,
     ax.plot(result_ccf['time'],
             result_ccf['data']['Angular velocity ccf log']['raw'],
             label='ccf')
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Angular velocity angle']['avg'],
             label='con,ang')
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Angular velocity ALI']['avg'],
             label='con,ALI')
-    ax.plot(result_watershed['time'],
+    ax.plot(result_watershed['Time'],
             result_watershed['derived']['Angular velocity angle']['avg'],
             label='wsh,ang')
-    ax.plot(result_watershed['time'],
+    ax.plot(result_watershed['Time'],
             result_watershed['derived']['Angular velocity ALI']['avg'],
             label='wsh,ALI')
     ax.set_xlabel('time [s]')
@@ -77,27 +77,27 @@ def compare_angular_velocity_methods(exp_id=139901,
             result_ccf['data']['Velocity ccf FLAP radial']['raw'],
             label='ccf')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial position']['avg'],
             label='con,pos')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial position']['avg'],
             label='wsh,pos')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial COG']['avg'],
             label='con,COG')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial COG']['avg'],
             label='wsh,COG')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial centroid']['avg'],
             label='con,cen')
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['derived']['Velocity radial centroid']['avg'],
             label='wsh,cen')
     ax.set_xlabel('time [s]')
@@ -108,16 +108,16 @@ def compare_angular_velocity_methods(exp_id=139901,
     fig,ax=plt.subplots(figsize=(8.5/2.54,8.5/2.54/np.sqrt(2)))
 
 
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['data']['Angle']['avg'],
             label='con,ang')
-    ax.plot(result_contour['time'],
+    ax.plot(result_contour['Time'],
             result_contour['data']['Angle of least inertia']['avg'],
             label='con,ALI')
-    ax.plot(result_watershed['time'],
+    ax.plot(result_watershed['Time'],
             result_watershed['data']['Angle']['avg'],
             label='wsh,ang')
-    ax.plot(result_watershed['time'],
+    ax.plot(result_watershed['Time'],
             result_watershed['data']['Angle of least inertia']['avg'],
             label='wsh,ALI')
     ax.set_xlabel('time [s]')

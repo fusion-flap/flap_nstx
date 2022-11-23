@@ -67,8 +67,6 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                          method='ccf',                          #ccf, contour or watershed
                                          angle_method='angle',                  #angle or ALI (angle of least incidence)
 
-                                         scaling_factor_analysis=False,
-
                                          calc_flap=True,
                                          warp_polar_order=1,
                                          subtraction_order=2,
@@ -298,7 +296,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                     start_time=time.time()
                     generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]],
                                                 angle_per_frame=angle_rot_vec[i_angle],
-                                                size=[10,15],
+                                                size=[20,40],
                                                 size_velocity=[scaling_factor_vec[j_scale],
                                                                scaling_factor_vec[j_scale]],
                                                 sampling_time=sampling_time,

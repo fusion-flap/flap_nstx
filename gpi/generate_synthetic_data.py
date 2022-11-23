@@ -264,6 +264,7 @@ def generate_displaced_gaussian(exp_id=0,
 
     size_arg_x=size[0]/(2*np.sqrt(2*np.log(2)))
     size_arg_y=size[1]/(2*np.sqrt(2*np.log(2)))
+
     for i_frames in range(n_frames):
 
         rot_arg=-angle_per_frame*i_frames/180.*np.pi

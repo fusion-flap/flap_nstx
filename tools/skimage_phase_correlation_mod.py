@@ -6,7 +6,7 @@ Created on Sat Sep 17 00:08:02 2022
 @author: mlampert
 """
 import numpy as np
-from skimage._shared.fft import fftmodule as fft
+
 from skimage.registration._masked_phase_cross_correlation import _masked_phase_cross_correlation
 from skimage.registration._phase_cross_correlation import _upsampled_dft, _compute_error, _compute_phasediff
 
