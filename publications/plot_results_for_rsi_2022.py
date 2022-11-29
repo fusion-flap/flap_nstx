@@ -771,7 +771,6 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                                                      nocalc=nocalc,
                                                      )
         nan_ind=np.where(results_elm['cccf']['data']['Correlation max']['raw'] < correlation_threshold)
-
         results_elm['cccf']['data']['Angular velocity ccf FLAP log']['raw'][nan_ind]=np.nan
 
 
@@ -787,13 +786,12 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                                                       )
 
         nan_ind=np.where(results_blob['cccf']['data']['Correlation max']['raw'] < correlation_threshold)
-
         results_blob['cccf']['data']['Angular velocity ccf FLAP log']['raw'][nan_ind]=np.nan
 
 
         plot_index_blob=np.logical_and(np.logical_not(np.isnan(results_blob['cccf']['data']['Angular velocity ccf FLAP log']['raw'])),
-                                      np.logical_and(results_blob['cccf']['time'] >= time_range_elm[0],
-                                                      results_blob['cccf']['time'] <= time_range_elm[1]))
+                                      np.logical_and(results_blob['cccf']['time'] >= time_range_blob[0],
+                                                      results_blob['cccf']['time'] <= time_range_blob[1]))
         """
         ANGULAR VELOCITY PLOTTING FOR ELMS
         """
@@ -803,50 +801,65 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
         fig, axs = plt.subplots(2,1, figsize=figsize)
 
         ax=axs[0]
-        ax.plot(results_blob['contour']['Time']*1e3,
-                results_blob['contour']['derived']['Angular velocity angle']['avg']/1e3,
-                label='contour',
-                )
-        ax.plot(results_blob['watershed']['Time']*1e3,
-                results_blob['watershed']['derived']['Angular velocity angle']['avg']/1e3,
-                label='watershed',
-                )
         ax.plot(results_blob['cccf']['time'][plot_index_blob]*1e3,
                 results_blob['cccf']['data']['Angular velocity ccf log']['raw'][plot_index_blob]/1e3,
                 label='CCCF',
                 lw=0.5,
                 )
-        ax.set_ylim([-10,10])
+        ax.plot(results_blob['contour']['Time']*1e3,
+                results_blob['contour']['derived']['Angular velocity angle']['avg']/1e3,
+                label='contour',
+                lw=0.2,
+                )
+
+        ax.plot(results_blob['watershed']['Time']*1e3,
+                results_blob['watershed']['derived']['Angular velocity angle']['avg']/1e3,
+                label='watershed',
+                lw=0.2,
+                )
+        ax.plot(results_blob['cccf']['time'][plot_index_blob]*1e3,
+                results_blob['cccf']['data']['Angular velocity ccf log']['raw'][plot_index_blob]/1e3,
+                lw=0.5,
+                color='tab:blue'
+                )
+        ax.set_ylim([-100,100])
         ax.set_title('Angular velocity for shot #141307')
-        ax.text(-0.2, 1.0, '(a)', transform=ax.transAxes, size=9)
-        ax.legend()
+        ax.text(-0.22, 1.05, '(a)', transform=ax.transAxes, size=9)
+        ax.legend(fontsize=7, loc='upper left')
 
         ax.set_xlabel('t [ms]')
-        ax.set_ylabel('$\omega \; [krad/s]$')
+        ax.set_ylabel('$\omega$ [krad/s]')
 
         ax=axs[1]
-        ax.plot(results_elm['contour']['Time']*1e3,
-                results_elm['contour']['derived']['Angular velocity angle']['avg']/1e3,
-                label='contour',
-                )
-        ax.plot(results_elm['watershed']['Time']*1e3,
-                results_elm['watershed']['derived']['Angular velocity angle']['avg']/1e3,
-                label='watershed',
-                )
 
         ax.plot(results_elm['cccf']['time'][plot_index_elm]*1e3,
                 results_elm['cccf']['data']['Angular velocity ccf log']['raw'][plot_index_elm]/1e3,
                 label='CCCF',
                 lw=0.5,
                 )
+        ax.plot(results_elm['contour']['Time']*1e3,
+                results_elm['contour']['derived']['Angular velocity angle']['avg']/1e3,
+                label='contour',
+                lw=0.2,
+                )
+        ax.plot(results_elm['watershed']['Time']*1e3,
+                results_elm['watershed']['derived']['Angular velocity angle']['avg']/1e3,
+                label='watershed',
+                lw=0.2,
+                )
+        ax.plot(results_elm['cccf']['time'][plot_index_elm]*1e3,
+                results_elm['cccf']['data']['Angular velocity ccf log']['raw'][plot_index_elm]/1e3,
+                color='tab:blue',
+                lw=0.5,
+                )
         ax.set_title('Angular velocity for shot #141319')
-        ax.text(-0.2, 1.0, '(b)', transform=ax.transAxes, size=9)
+        ax.text(-0.22, 1.05, '(b)', transform=ax.transAxes, size=9)
 
-        ax.legend()
-        ax.set_xlabel('$t-t_{ELM}\;[\mu s]$')
-        ax.set_ylabel('$\omega \; [krad/s]$')
-        ax.set_ylim([-100,100])
-        plt.tight_layout(pad=0.1)
+        ax.legend(fontsize=7, loc='upper left')
+        ax.set_xlabel('t [ms]')
+        ax.set_ylabel('$\omega$ [krad/s]')
+        ax.set_ylim([-300,300])
+        plt.tight_layout(pad=0.5)
         pdf_pages.savefig()
         pdf_pages.close()
 
