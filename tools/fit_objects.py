@@ -190,9 +190,9 @@ class FitEllipse:
         try:
             self._width_gt_height
         except:
-            self._calculate_axes_length_linalg_v2()
-        if not self._width_gt_height:
-            # Ensure that phi is the angle to rotate to the semi-major axis.
+            self._calculate_axes_length_linalg()
+        if self._width_gt_height:
+            # Ensure that phi is the angle to rotate to the semi-minor axis.
             phi += np.pi/2
         phi = phi % np.pi
         #Adjustment to be between [-pi/2,pi/2]

@@ -845,6 +845,15 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
     if time_range is None:
         time_range=[frame_properties['Time'][0],frame_properties['Time'][-1]]
 
+    nan_ind=np.where(frame_properties['Correlation max'] < correlation_threshold)
+    frame_properties['Velocity ccf FLAP'][nan_ind,:] = [np.nan,np.nan]
+    frame_properties['Angular velocity ccf'][nan_ind] = np.nan
+    frame_properties['Angular velocity ccf log'][nan_ind] = np.nan
+    frame_properties['Angular velocity ccf FLAP'][nan_ind] = np.nan
+    frame_properties['Angular velocity ccf FLAP log'][nan_ind] = np.nan
+    frame_properties['Expansion velocity ccf'][nan_ind] = np.nan
+    frame_properties['Expansion velocity ccf FLAP'][nan_ind] = np.nan
+
     #Plotting the results
     if plot or pdf:
         #This is a bit unusual here, but necessary due to the structure size calculation based on the contours which are not plot
@@ -856,15 +865,6 @@ def calculate_nstx_gpi_angular_velocity(exp_id=None,                            
             import matplotlib
             matplotlib.use('agg')
             import matplotlib.pyplot as plt
-
-        nan_ind=np.where(frame_properties['Correlation max'] < correlation_threshold)
-        frame_properties['Velocity ccf FLAP'][nan_ind,:] = [np.nan,np.nan]
-        frame_properties['Angular velocity ccf'][nan_ind] = np.nan
-        frame_properties['Angular velocity ccf log'][nan_ind] = np.nan
-        frame_properties['Angular velocity ccf FLAP'][nan_ind] = np.nan
-        frame_properties['Angular velocity ccf FLAP log'][nan_ind] = np.nan
-        frame_properties['Expansion velocity ccf'][nan_ind] = np.nan
-        frame_properties['Expansion velocity ccf FLAP'][nan_ind] = np.nan
 
         if plot_time_range is not None:
             if plot_time_range[0] < time_range[0] or plot_time_range[1] > time_range[1]:

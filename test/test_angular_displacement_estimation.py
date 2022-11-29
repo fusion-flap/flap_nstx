@@ -120,6 +120,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                          save_data_into_txt=False,
                                          save_data_filename=None,
                                          return_results=False,
+                                         convert_to_ellipse=False,
                                          ):
 
     wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
@@ -175,6 +176,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                                 size_velocity=[0,0],
                                                 sampling_time=sampling_time,
                                                 output_name='gaussian',
+                                                convert_to_ellipse=convert_to_ellipse,
                                                 n_frames=3)
                     if method == 'ccf':
                         result=calculate_nstx_gpi_angular_velocity(exp_id=0,
@@ -296,12 +298,13 @@ def test_angular_displacement_estimation(size_angle=False,                      
                     start_time=time.time()
                     generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]],
                                                 angle_per_frame=angle_rot_vec[i_angle],
-                                                size=[20,40],
+                                                size=[10,20],
                                                 size_velocity=[scaling_factor_vec[j_scale],
                                                                scaling_factor_vec[j_scale]],
                                                 sampling_time=sampling_time,
                                                 output_name='gaussian',
                                                 #use_image_instead=True,
+                                                convert_to_ellipse=convert_to_ellipse,
                                                 n_frames=3)
                     if method == 'ccf':
                         result=calculate_nstx_gpi_angular_velocity(exp_id=0,
