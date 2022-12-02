@@ -588,6 +588,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
     RESULTS FOR ROTATING BLOBS
     """
     if plot_figure == 12:
+        correlation_threshold=0.0
         filename='fig12_blob_rotation_estimate'
 
         frame_properties=calculate_nstx_gpi_angular_velocity(exp_id=exp_id_blob,
@@ -615,8 +616,8 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
 
 
         plot_index=np.logical_and(np.logical_not(np.isnan(frame_properties['Velocity ccf FLAP'][:,0])),
-                                  np.logical_and(frame_properties['Time'] >= time_range_elm[0],
-                                                 frame_properties['Time'] <= time_range_elm[1]))
+                                  np.logical_and(frame_properties['Time'] >= time_range_blob[0],
+                                                 frame_properties['Time'] <= time_range_blob[1]))
 
         #Plotting the radial velocity
 
@@ -637,7 +638,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                 frame_properties['Angular velocity ccf FLAP log'][plot_index]/1e3,
                 label='Angular velocity ccf FLAP log',
                 color='tab:blue')
-        ax.set_title('Angular velocity')
+        ax.set_title('Angular velocity for shot #141307')
         #ax.text(-0.5, 1.2, '(a)', transform=ax.transAxes, size=9)
         # ax.xaxis.set_major_locator(MaxNLocator(5))
         # ax.yaxis.set_major_locator(MaxNLocator(5))
@@ -784,7 +785,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                 frame_properties['Angular velocity ccf FLAP log'][plot_index]/1e3,
                 label='Angular velocity ccf FLAP log',
                 color='tab:blue')
-        ax.set_title('Angular velocity')
+        ax.set_title('Angular velocity for shot #141319; $t_{ELM}$=552.497ms')
         #ax.text(-0.5, 1.2, '(a)', transform=ax.transAxes, size=9)
         ax.xaxis.set_major_locator(MaxNLocator(5))
         ax.yaxis.set_major_locator(MaxNLocator(5))
