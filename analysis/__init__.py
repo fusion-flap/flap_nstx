@@ -15,3 +15,5 @@ from .plot_elm_rotation_vs_profiles import plot_elm_rotation_vs_gradient_before_
 from .analyze_thomson_filament_correlation_ultimate import read_gpi_results, read_thomson_results, plot_gpi_profile_dependence_ultimate
 
 from .analyze_shear_induced_rotation import calculate_shear_induced_angular_velocity, calculate_shear_layer_vpol, analyze_shear_distribution
+
+from .compare_angular_velocity_methods import compare_angular_velocity_methods

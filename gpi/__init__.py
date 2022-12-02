@@ -2,6 +2,7 @@ from .calculate_angular_velocity import calculate_nstx_gpi_angular_velocity
 from .calculate_correlation_matrix import plot_all_parameters_vs_all_other
 from .structure_segmentation import nstx_gpi_contour_structure_finder, nstx_gpi_watershed_structure_finder, FitEllipse, FitGaussian
 
+from .identify_structures import identify_structures
 from .normalize_gpi import normalize_gpi
 
 from .calculate_frame_by_frame_velocity import calculate_nstx_gpi_frame_by_frame_velocity

@@ -10,17 +10,23 @@ import numpy as np
 from numpy.linalg import eig, inv
 import scipy
 from skimage.measure import EllipseModel
-import matplotlib.pyplot as plt
 
 class FitEllipse:
 
     def __init__(self,
                  x=None,                                                        #The x coordinates of the input data as a numpy array
                  y=None,                                                        #The y coordinates of the input data as a numpy array
-                 method='linalg'                                                #Linalg or skimage
+                 method='linalg',                                                #linalg, skimage, leastsquare, or linalg_v0 (deprecated)
+                 elongation_base='size',                                        #size or axes
+                 test=False,
                  ):
-        if method not in ['linalg','skimage']:
-            raise ValueError('method needs to be either linalg or skimage!')
+
+        if method not in ['linalg',
+                          'skimage',
+                          'leastsquare',
+                          'linalg_v0']:
+            print(method)
+            raise ValueError('\n ^^^ The method needs to be either one of these ^^^!')
 
         """
         Initializes (fits) the ellipse onto the given x and y data points
@@ -46,16 +52,26 @@ class FitEllipse:
             y=y_new
 
             #raise ValueError('There should be at least 6 points defining the ellipse.')
-        self.xmean=np.mean(x)
-        self.ymean=np.mean(y)
+        self._xmean=np.mean(x)
+        self._ymean=np.mean(y)
+        self._elongation_base=elongation_base
+        self._test=test
 
         try:
+        #if True:
+
             if method=='linalg':
-                self._fit_ellipse(x, y)
+                self._fit_ellipse_linalg(x, y)
             elif method=='skimage':
                 self._fit_ellipse_skimage(x, y)
-        except:
+            elif method=='leastsquare':
+                self._fit_ellipse_leastsq(x, y)
+            if method=='linalg_v0':
+                self._fit_ellipse_linalg_v0(x, y)
+        except Exception as e:
+            print(e)
             self.set_invalid()
+
 
     def set_invalid(self):
 
@@ -64,46 +80,175 @@ class FitEllipse:
         self._center=np.asarray([np.nan,np.nan])
         self._parameters=np.asarray([np.nan]*6)
 
-    def _fit_ellipse(self,x,y):
-        """
-        Wrapper class for fitting an Ellipse and returning its important features.
-        It uses the least square approximation method combined with a Lagrangian
-        minimalization for the Eigenvalues of the problem.
-        Source:
-            https://stackoverflow.com/questions/39693869/fitting-an-ellipse-to-a-set-of-data-points-in-python/48002645
-            Fitzgibbon, Pilu and Fischer in Fitzgibbon, A.W., Pilu, M., and Fischer R.B., Direct least squares fitting of ellipsees,
-            Proc. of the 13th Internation Conference on Pattern Recognition, pp 253–257, Vienna, 1996
-        Rewritten as an object, np.argmax(np.abs(E)) modified to np.argmax(E).
+        print('Ellipse fitting failed')
+
+    def _fit_ellipse_linalg(self, x, y):
         """
 
-        xnew=x-self.xmean
-        ynew=y-self.ymean
+        Fit the coefficients a,b,c,d,e,f, representing an ellipse described by
+        the formula F(x,y) = ax^2 + bxy + cy^2 + dx + ey + f = 0 to the provided
+        arrays of data points x=[x1, x2, ..., xn] and y=[y1, y2, ..., yn].
 
-        xnew = xnew[:,np.newaxis]
-        ynew = ynew[:,np.newaxis]
+        Based on the algorithm of Halir and Flusser, "Numerically stable direct
+        least squares fitting of ellipses'.
 
-        D = np.hstack((xnew*xnew, xnew*ynew, ynew*ynew, xnew, ynew, np.ones_like(xnew)))
-        S = np.dot(D.T,D)
-        C = np.zeros([6,6])
-        C[0,2] = C[2,0] = 2; C[1,1] = -1
-        E, V =  eig(np.dot(inv(S), C))
-        #n = np.argmax(np.abs(E))
-        n = np.argmax(E)
+        https://scipython.com/blog/direct-linear-least-squares-fitting-of-an-ellipse/
 
-        self._parameters = V[:,n]
-        a,b=self._calculate_axes_length_linalg()
-        theta=self._calculate_angle_linalg()
+        """
+
+        D1 = np.vstack([x**2, x*y, y**2]).T
+        D2 = np.vstack([x, y, np.ones(len(x))]).T
+        S1 = D1.T @ D1
+        S2 = D1.T @ D2
+        S3 = D2.T @ D2
+        T = -np.linalg.inv(S3) @ S2.T
+        M = S1 + S2 @ T
+        C = np.array(((0, 0, 2), (0, -1, 0), (2, 0, 0)), dtype=float)
+        M = np.linalg.inv(C) @ M
+        eigval, eigvec = np.linalg.eig(M)
+        con = 4 * eigvec[0]* eigvec[2] - eigvec[1]**2
+        ak = eigvec[:, np.nonzero(con > 0)[0]]
+        self._parameters=np.concatenate((ak, T @ ak)).ravel()
 
         self._center=self._calculate_center_linalg()
-        if a < b:
-            self._axes_length=np.asarray([a,b])
-            self._angle=np.arcsin(np.sin(theta))
+        self._axes_length=self._calculate_axes_length_linalg()
+        self._angle=self._calculate_angle_linalg()
+
+    def _calculate_angle_linalg(self):
+        p=self._parameters
+        a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
+
+        # The angle of anticlockwise rotation of the major-axis from x-axis.
+        if b == 0:
+            phi = 0 if a < c else np.pi/2
         else:
-            self._axes_length=np.asarray([b,a])
-            self._angle=np.arcsin(np.sin(theta-np.pi/2))
+            phi = np.arctan((2.*b) / (a - c)) / 2
+            if a > c:
+                phi += np.pi/2
+        try:
+            self._width_gt_height
+        except:
+            self._calculate_axes_length_linalg()
+        if self._width_gt_height:
+            # Ensure that phi is the angle to rotate to the semi-major axis.
+            phi += np.pi/2
+        # phi = phi % np.pi
+        #Adjustment to be between [-pi/2,pi/2]
+        if phi > np.pi/2:
+            while phi > np.pi/2:
+                phi -= np.pi
+        else:
+            while phi < -np.pi/2:
+                phi += np.pi
+
+        return phi
+
+
+    def _calculate_axes_length_linalg(self):
+        p=self._parameters
+        a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
+        den = b**2 - a*c
+        if den > 0:
+            raise ValueError('Coeffs do not represent an ellipse: b^2 - 4ac must'
+                             ' be negative!')
+
+        num = 2 * (a*f**2 + c*d**2 + g*b**2 - 2*b*d*f - a*c*g)
+        fac = np.sqrt((a - c)**2 + 4*b**2)
+        # The semi-major and semi-minor axis lengths (these are not sorted).
+        ap = np.sqrt(num / den / (fac - a - c))
+        bp = np.sqrt(num / den / (-fac - a - c))
+
+        # Sort the semi-major and semi-minor axis lengths but keep track of
+        # the original relative magnitudes of width and height.
+        self._width_gt_height = True
+        if ap < bp:
+            self._width_gt_height = False
+            ap, bp = bp, ap
+        return np.asarray([ap,bp])
+
+    def _calculate_center_linalg(self):
+        p=self._parameters
+        a,b,c,d,f,g=p[0],p[1]/2,p[2],p[3]/2,p[4]/2,p[5]
+
+        den = b**2 - a*c
+        if den > 0:
+            raise ValueError('Coeffs do not represent an ellipse: b^2 - 4ac must'
+                             ' be negative!')
+
+        # The location of the ellipse centre.
+        return np.array([(c*d - b*f) / den,
+                         (a*f - b*d) / den])
+
+    def _fit_ellipse_leastsq(self,x,y):
+        """
+        Source: https://stackoverflow.com/questions/67537630/ellipse-fitting-to-determine-rotation-python
+
+        Realizes a simple least square fit. It needs to be tested, because there is no test for the
+        structure/fitting being a hyperbole.
+
+        Parameters
+        ----------
+        x : ndarray
+            x coordinates of the structure to be fit
+        y : ndarray
+            y coordinates of the structure to be fit
+
+        Returns
+        -------
+        None.
+
+        """
+
+        aat=np.zeros([5,5])
+
+        aat[0,:]=[np.sum(x**4),         np.sum(2 * x**3 * y),    np.sum(x**2 * y**2),  np.sum(2 * x**3),     np.sum(2 * x**2 * y)]
+        aat[1,:]=[np.sum(2 * x**3 * y), np.sum(4 * x**2 * y**2), np.sum(2 * x * y**3), np.sum(4 * x**2 * y), np.sum(4 * x * y**2)]
+        aat[2,:]=[np.sum(x**2 * y**2),  np.sum(2 * x * y**3),    np.sum(y**4),         np.sum(2 * x * y**2), np.sum(2 * y**3)]
+        aat[3,:]=[np.sum(2 * x**3),     np.sum(4 * x**2 * y),    np.sum(2 * x * y**2), np.sum(4 * x**2),     np.sum(4 * x * y)]
+        aat[4,:]=[np.sum(2 * x**2 * y), np.sum(4 * x * y**2),    np.sum(2 * y**3),     np.sum(4 * x * y),    np.sum(4 * y**2)]
+
+        coord_vec=np.asarray([np.sum(x**2), np.sum(2*x*y), np.sum(y**2), np.sum(2*x), np.sum(2*y)])
+
+        self._parameters=np.matmul(np.linalg.inv(aat), coord_vec)
+
+        self._axes_length=self._calculate_axes_length_leastsq()
+        self._angle=self._calculate_angle_leastsq()
+        self._center=self._calculate_center_leastsq()
+
+        if self._test:
+            print('parameters', self._parameters)
+            print('axes',self._axes_length)
+            print('angle',self._angle)
+            print('center',self._center)
+
+    def _calculate_angle_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f = p[0],p[1],p[2],p[3],p[4]
+
+        return np.pi/2 + 0.5*np.arctan2(2*b,a-c)
+
+    def _calculate_center_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f = p[0],p[1],p[2],p[3],p[4]
+
+        x0=(c*d-b*f)/(b**2 - a*c)
+        y0=(a*f-b*d)/(b**2 - a*c)
+        return np.array([x0,y0])
+
+    def _calculate_axes_length_leastsq(self):
+        p=self._parameters
+        a,b,c,d,f,g = p[0],p[1],p[2],p[3],p[4],-1
+
+
+        nom=2*(a*f**2 + c*d**2 + g*b**2 - 2*b*d*f - a*c*g)
+        denom_1=(b**2 - a*c) * (np.sqrt((a-c)**2 + 4 * b**2) - (a+c))
+        A=np.sqrt(nom/denom_1)
+        denom_2=(b**2 - a*c) * (-np.sqrt((a-c)**2 + 4 * b**2) - (a+c))
+        B=np.sqrt(nom/denom_2)
+
+        return np.asarray([A,B])
 
     def _fit_ellipse_skimage(self,x,y):
-
         coordinates=np.vstack((x.ravel(),y.ravel())).transpose()
         try:
             ellipse=EllipseModel()
@@ -115,12 +260,58 @@ class FitEllipse:
         self._center=np.asarray([xc,yc])
         if a < b:
             self._axes_length=np.asarray([a,b])
+            self._angle=theta #np.arcsin(np.sin(theta))
+        else:
+            self._axes_length=np.asarray([b,a])
+            self._angle=theta #np.arcsin(np.sin(theta-np.pi/2))
+
+    def _fit_ellipse_linalg_v0(self,x,y):
+        """
+        Wrapper class for fitting an Ellipse and returning its important features.
+        It uses the least square approximation method combined with a Lagrangian
+        minimalization for the Eigenvalues of the problem.
+        Source:
+            https://stackoverflow.com/questions/39693869/fitting-an-ellipse-to-a-set-of-data-points-in-python/48002645
+            Fitzgibbon, Pilu and Fischer in Fitzgibbon, A.W., Pilu, M., and Fischer R.B., Direct least squares fitting of ellipsees,
+            Proc. of the 13th Internation Conference on Pattern Recognition, pp 253–257, Vienna, 1996
+        Rewritten as an object, np.argmax(np.abs(E)) modified to np.argmax(E).
+        """
+
+        print("This version of the ellipse fitting is deprecated \
+              because of the 90degree angle fitting issue. \
+                  Please use method='linalg' instead of linalg_v0")
+
+
+        xnew=x-self._xmean
+        ynew=y-self._ymean
+
+        xnew = xnew[:,np.newaxis]
+        ynew = ynew[:,np.newaxis]
+
+        D = np.hstack((xnew*xnew, xnew*ynew, ynew*ynew, xnew, ynew, np.ones_like(xnew)))
+        S = np.dot(D.T,D)
+        C = np.zeros([6,6])
+        C[0,2] = C[2,0] = 2; C[1,1] = -1
+        E, V =  eig(np.dot(inv(S), C))
+        n = np.argmax(np.abs(E))
+        #n = np.argmax(E)
+
+        self._parameters = V[:,n]
+
+
+        a,b=self._calculate_axes_length_linalg_v0()
+        theta=self._calculate_angle_linalg_v0()
+        self._center=self._calculate_center_linalg_v0()
+        # theta=self._angle
+
+        if a < b:
+            self._axes_length=np.asarray([a,b])
             self._angle=np.arcsin(np.sin(theta))
         else:
             self._axes_length=np.asarray([b,a])
-            self._angle=np.arcsin(np.sin(theta-np.pi/2))
+            self._angle=np.arcsin(np.sin(theta))+np.pi/2
 
-    def _calculate_angle_linalg(self):
+    def _calculate_angle_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         if b == 0:
@@ -128,7 +319,7 @@ class FitEllipse:
         else:
             return np.arctan(2*b/(a-c))/2.
 
-    def _calculate_axes_length_linalg(self):
+    def _calculate_axes_length_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         up = 2*(a*f*f + c*d*d + g*b*b - 2*b*d*f - a*c*g)
@@ -138,12 +329,12 @@ class FitEllipse:
         res2=np.sqrt(up/down2)
         return np.array([res1, res2])
 
-    def _calculate_center_linalg(self):
+    def _calculate_center_linalg_v0(self):
         p=self._parameters
         b,c,d,f,g,a = p[1]/2, p[2], p[3]/2, p[4]/2, p[5], p[0]
         num = b*b-a*c
-        x0=(c*d-b*f)/num+self.xmean
-        y0=(a*f-b*d)/num+self.ymean
+        x0=(c*d-b*f)/num+self._xmean
+        y0=(a*f-b*d)/num+self._ymean
         return np.array([x0,y0])
 
     @property
@@ -158,6 +349,10 @@ class FitEllipse:
         return self._axes_length
 
     @property
+    def axes(self):
+        return self._axes_length
+
+    @property
     def center(self):
         """
         Returns the center of the ellipse.
@@ -166,8 +361,13 @@ class FitEllipse:
 
     @property
     def elongation(self):
-        size=self.size
-        return (size[0]-size[1])/(size[0]+size[1])
+        if self._elongation_base=='size':
+            size=self.size
+            return (size[0]-size[1])/(size[0]+size[1])
+
+        elif self._elongation_base=='axes':
+            axes=self.axes
+            return (axes[0]-axes[1])/(axes[0]+axes[1])
 
     @property
     def size(self):
@@ -204,7 +404,7 @@ class FitEllipse:
         # xsize=np.sqrt(bx**2-4*ax*cx)/np.abs(ax)
         # ysize=np.sqrt(by**2-4*ay*cy)/np.abs(ay)
 
-        if np.imag(xsize) != 0 or np.imag(xsize) !=0:
+        if np.imag(xsize) != 0 or np.imag(ysize) !=0:
             print('size is complex')
             xsize=np.nan
             ysize=np.nan

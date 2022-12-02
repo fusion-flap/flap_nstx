@@ -19,7 +19,7 @@ fn = os.path.join(thisdir,"../flap_nstx.cfg")
 flap.config.read(file_name=fn)
 wd=flap.config.get_all_section('Module NSTX_GPI')['Working directory']
 
-#Scientific library imports  
+#Scientific library imports
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.linalg import eig, inv
@@ -44,9 +44,9 @@ def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
                                   output_name='GPI_NORMALIZER',
                                   #add_flux_r=False,
                                   ):
-    
+
     #This function calculates the GPI normalizer image with which all the GPI
-    #images should be divided. Returns a flap data object. The inputs are 
+    #images should be divided. Returns a flap data object. The inputs are
     #expained next to the inputs.
 
     normalizer_options={'LP freq':f_high,
@@ -82,19 +82,19 @@ def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
         #    flap.add_coordinate(object_name, exp_id=exp_id, coordinates='Flux r')
     else:
         raise ValueError('The experiment ID needs to be set.')
-        
+
     if time_range is not None:
         sliced_object_name=object_name+'_'+str(time_range[0])+'_'+str(time_range[1])
         try:
             flap.get_data_object_ref(exp_id=exp_id,object_name=sliced_object_name)
         except:
             flap.slice_data(object_name,exp_id=exp_id,
-                            slicing={'Time':flap.Intervals(time_range[0],time_range[1])}, 
+                            slicing={'Time':flap.Intervals(time_range[0],time_range[1])},
                             output_name=object_name+'_'+str(time_range[0])+'_'+str(time_range[1])
                             )
         object_name=sliced_object_name
-        
-        
+
+
     #Highpass filter the data to get rid of the spikes
     if filter_data:
         filtered_data_object_name=object_name+'_FILTERED_LP_'+str(f_high)+'_'+design.replace(' ','')
@@ -107,11 +107,11 @@ def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
             flap.filter_data(object_name,exp_id=exp_id,
                              coordinate='Time',
                              options={'Type':'Lowpass',
-                                      'f_high':f_high, 
+                                      'f_high':f_high,
                                       'Design':design},
                                       output_name=filtered_data_object_name)
         object_name=filtered_data_object_name
-        
+
     if calc_around_max and time_range is None:
         #Calculate the average image for a time window around the maximum signal
         d=flap.slice_data(object_name,
@@ -130,14 +130,14 @@ def calculate_nstx_gpi_norm_coeff(exp_id=None,              # Experiment ID
                           summing={'Time':'Mean'},
                           output_name=output_name)
     object_name=output_name
-    
+
     d.info['Normalizer options']=normalizer_options
-    
+
     if test:
         plt.figure()
-        flap.plot(object_name, 
-                  axes=['Device R', 'Device z'], 
-                  exp_id=exp_id, 
+        flap.plot(object_name,
+                  axes=['Device R', 'Device z'],
+                  exp_id=exp_id,
                   plot_type='contour',
                   plot_options={'levels':21}
                   )
@@ -161,10 +161,10 @@ def calculate_nstx_gpi_reference(object_name=None,
         raise IOError('The given object_name doesn\'t exist in the FLAP storage.')
     if output_name is None:
         output_name=object_name+'_REF'
-        
+
     if reference_pixel is None and reference_position is None and reference_flux is None:
         raise ValueError('There is no reference given. Please set reference_pixel or reference_position or reference_flux.')
-        
+
     if filter_low is not None or filter_high is not None:
         if filter_low is not None and filter_high is None:
             filter_type='Highpass'
@@ -172,20 +172,20 @@ def calculate_nstx_gpi_reference(object_name=None,
             filter_type='Lowpass'
         if filter_low is not None and filter_high is None:
             filter_type='Bandpass'
-        
+
         flap.filter_data(object_name,exp_id=exp_id,
                          coordinate='Time',
                          options={'Type':filter_type,
                                   'f_low':filter_low,
-                                  'f_high':filter_high, 
+                                  'f_high':filter_high,
                                   'Design':filter_design},
                          output_name=object_name+'_FILTERED')
         object_name=object_name+'_FILTERED'
     slicing_dict={}
-    
+
     if time_range is not None:
         slicing_dict['Time']=flap.Intervals(time_range[0],time_range[1])
-        
+
     if reference_pixel is not None:
         #Single pixel correlation
         if reference_area is None:
@@ -200,12 +200,12 @@ def calculate_nstx_gpi_reference(object_name=None,
                 reference_pixel[0]=reference_area[0]
             if reference_pixel[1]-reference_area[0] < 0:
                 reference_pixel[1]=reference_area[0]
-                
+
             if reference_pixel[0]+reference_area[1] > input_object.data.shape[1]:
                 reference_pixel[0]=input_object.data.shape[1]-reference_area[1]
             if reference_pixel[1]+reference_area[1] > input_object.data.shape[2]:
                 reference_pixel[1]=input_object.data.shape[2]-reference_area[1]
-                
+
             slicing_dict['Image x']=flap.Intervals(reference_pixel[0]-reference_area[0],
                                                    reference_pixel[0]+reference_area[0])
             slicing_dict['Image y']=flap.Intervals(reference_pixel[1]-reference_area[1],
@@ -232,7 +232,7 @@ def calculate_nstx_gpi_reference(object_name=None,
                 summing_dict={'Device R':'Mean', 'Device z':'Mean'}
             except:
                 raise ValueError('Reference position is outside the measurement range.')
-                
+
     if reference_flux is not None:
         if len(reference_flux) != 2:
             raise ValueError('The reference position needs to be a 2 element list (Psi,z).')
@@ -252,22 +252,22 @@ def calculate_nstx_gpi_reference(object_name=None,
                                                       reference_flux[0]+reference_area[0])
                 slicing_dict['Device z']=flap.Intervals(reference_flux[1]-reference_area[1],
                                                         reference_flux[1]+reference_area[1])
-                summing_dict={'Flux r':'Mean', 'Device z':'Mean'}  
+                summing_dict={'Flux r':'Mean', 'Device z':'Mean'}
             except:
-                raise ValueError('Reference position is outside the measurement range.')    
-                
+                raise ValueError('Reference position is outside the measurement range.')
+
     reference_signal=flap.slice_data(object_name, exp_id=exp_id,
                                      slicing=slicing_dict,
                                      summing=summing_dict,
                                      output_name=output_name)
     return reference_signal
-    
-def find_filaments(data_object=None,      #FLAP data objectCould be set instead of exp_id and time_range 
+
+def find_filaments(data_object=None,      #FLAP data objectCould be set instead of exp_id and time_range
                    exp_id=None,           #Shot number
                    time_range=None,       #Time range for the filament finding
                    frange=[0.1e3,100e3],  #Frequency range to pre-condition the data
                    normalize=False,       #Normalize (divide) the data with the time average in time_range
-                   ref_pixel=[10,40],     #The pixel to find the peak in.                   
+                   ref_pixel=[10,40],     #The pixel to find the peak in.
                    horizontal_sum=False,  #Sum up the pixels vertically in xrange
                    xrange=[0,32],         #Range for summing up the pixels
                    vertical_sum=False,    #Sum up all the pixels vertically in yrange
@@ -276,14 +276,14 @@ def find_filaments(data_object=None,      #FLAP data objectCould be set instead 
                    cache_data=False,      #Try to gather the cached data (exp_id, timerange input)
                    return_index=False,     #Return the peak times instaed of the peak indices
                    test=False):           #Plot the resulting data along with the peaks
-    
+
     #Read signal
     if data_object is None:
         data_object='GPI_FILAMENTS'
         if time_range is None:
             print('The time range needs to set for the calculation.')
             return
-        else:    
+        else:
             if (type(time_range) is not list and len(time_range) != 2):
                 raise TypeError('time_range needs to be a list with two elements.')
         if exp_id is not None:
@@ -307,7 +307,7 @@ def find_filaments(data_object=None,      #FLAP data objectCould be set instead 
                                        slicing={'Time':flap.Intervals(time_range[0],
                                                                       time_range[1])},
                                        summing={'Time':'Mean'}).data
-            
+
             for i_x in range(d.data.shape[1]):
                 for i_y in range(d.data.shape[2]):
                     d.data[:,i_x,i_y]=d.data[:,i_x,i_y]/normalizer[i_x,i_y]
@@ -329,12 +329,12 @@ def find_filaments(data_object=None,      #FLAP data objectCould be set instead 
         if vertical_sum:
             slicing['Image y']=flap.Intervals(yrange[0],yrange[1])
             summing['Image y']='Mean'
-    flap.slice_data(data_object, 
+    flap.slice_data(data_object,
                     slicing=slicing,
                     summing=summing,
                     output_name='GPI_SLICED_FILAMENTS')
-    
-    #Filter signal to HPF 100Hz    
+
+    #Filter signal to HPF 100Hz
     d=flap.filter_data('GPI_SLICED_FILAMENTS',
                        coordinate='Time',
                        options={'Type':'Bandpass',
@@ -369,23 +369,19 @@ def detrend_multidim(data_object=None,
                      order=None,
                      test=False,
                      return_trend=False,
-                     output_name=None):
-    
+                     output_name=None,
+                     ):
+
     if exp_id is not None:
-        d=copy.deepcopy(flap.get_data_object(data_object, exp_id=exp_id))
+        d=copy.deepcopy(flap.get_data_object(data_object,
+                                             exp_id=exp_id))
     else:
         d=copy.deepcopy(flap.get_data_object(data_object))
-    
-    # if d.error is not None:
-    #     sigma_matrix=d.error
-    # else:
-    #     sigma_matrix=np.zeros(d.data.shape)
-    #     sigma_matrix[:,:]=1.
-    
+
     total_dim=len(d.data.shape)
     if total_dim > 4:
         raise TypeError('Dataset over 4 dimensions is not supported.')
-    ndim=len(coordinates)    
+    ndim=len(coordinates)
     if ndim > 3:
         raise ValueError('Detrend is not supported above 3D.')
     if ndim == 2:
@@ -394,7 +390,7 @@ def detrend_multidim(data_object=None,
         dim1=coord_obj_1.dimension_list
         dim2=coord_obj_2.dimension_list
         dim=np.unique(np.append(dim1,dim2))
-        
+
         #[1,j,j2,j3,i,ij,ij2,i2,i2j,i3]
         points=np.asarray([[i**k * j**l for k in range(order+1) for l in range(order-k+1)] for i in range(d.data.shape[dim[0]]) for j in range(d.data.shape[dim[1]])]) #The actual polynomial calculation
         c_matrix=np.linalg.inv(np.dot(points.T,points))
@@ -417,6 +413,7 @@ def detrend_multidim(data_object=None,
             alldim=np.arange(ndim)
             non_detrend_dim=np.where(np.logical_and(alldim != dim1,alldim != dim2))[0][0]
             n_fit=d.data.shape[non_detrend_dim]
+
             for i in range(n_fit):
                 index=[slice(None)] * total_dim
                 index[non_detrend_dim]=i
@@ -425,7 +422,7 @@ def detrend_multidim(data_object=None,
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
-                
+
     if ndim == 3:
         coord_obj_1=d.get_coordinate_object(coordinates[0])
         coord_obj_2=d.get_coordinate_object(coordinates[1])
@@ -434,7 +431,13 @@ def detrend_multidim(data_object=None,
         dim2=coord_obj_2.dimension_list
         dim3=coord_obj_3.dimension_list
         dim=np.unique(np.append(np.append(dim1,dim2),dim3))
-        points=np.asarray([[i**l * j**m * k**n for l in range(order+1) for m in range(order-l+1) for n in range(order-l-m+1)] for i in range(d.data.shape[dim[0]]) for j in range(d.data.shape[dim[1]]) for k in range(d.data.shape[dim[2]])])
+        points=np.asarray([[i**l * j**m * k**n for l in range(order+1)
+                                               for m in range(order-l+1)
+                                               for n in range(order-l-m+1)]
+                           for i in range(d.data.shape[dim[0]])
+                           for j in range(d.data.shape[dim[1]])
+                           for k in range(d.data.shape[dim[2]])])
+
         if ndim == total_dim:
             values=np.reshape(d.data,d.data.shape[dim[0]]*d.data.shape[dim[1]]*d.data.shape[dim[2]])
             coeff=np.dot(np.dot(np.linalg.inv(np.dot(points.T,points)),points.T),values)#This performs the linear regression
@@ -453,7 +456,7 @@ def detrend_multidim(data_object=None,
                 trend=np.dot(points,coeff)
                 trend=np.reshape(trend,[d.data.shape[dim[0]],d.data.shape[dim[1]],d.data.shape[dim[2]]])
                 d.data[tuple(index)]=d.data[tuple(index)]-trend
-                
+
     if output_name is not None:
         try:
             flap.add_data_object(d,output_name)
@@ -463,7 +466,7 @@ def detrend_multidim(data_object=None,
         return d
     else:
         return trend
-    
+
 def filename(exp_id=None,
              time_range=None,
              working_directory=None,
@@ -471,14 +474,14 @@ def filename(exp_id=None,
              frange=None,
              comment=None,
              extension=None):
-    
+
     if exp_id is None:
         raise ValueError('The exp_id needs to be set for the filename.')
     filename='NSTX_GPI_'+str(exp_id)
     if time_range is None:
         filename+='_whole'
     elif len(time_range) == 2 and type(time_range) == list:
-        
+
         filename+='_'+f"{time_range[0]:.6f}"+'_'+f"{time_range[1]:.6f}"
     else:
         raise ValueError('Time range should be a two element list.')
@@ -506,7 +509,7 @@ def filename(exp_id=None,
             filename+='.'+extension
         else:
             raise TypeError('Extension should be a string.')
-        
+
     return filename
 
 def polyfit_2D(x=None,
@@ -517,7 +520,7 @@ def polyfit_2D(x=None,
                irregular=False,
                return_covariance=False,
                return_fit=False):
-    
+
     if sigma is None:
         sigma=np.zeros(values.shape)
         sigma[:]=1.
@@ -538,19 +541,19 @@ def polyfit_2D(x=None,
             polynom=np.asarray([[i**k * j**l / sigma[i,j] for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
         else:
             polynom=np.asarray([[x[i,j]**k * y[i,j]**l / sigma[i,j] for k in range(order+1) for l in range(order-k+1)] for i in range(values.shape[0]) for j in range(values.shape[1])]) #The actual polynomial calculation
-            
+
         original_shape=values.shape
         values_reshape=np.reshape(values/sigma, values.shape[0]*values.shape[1])
-        
+
         covariance_matrix=np.linalg.inv(np.dot(polynom.T,polynom))
-        
+
         coefficients=np.dot(np.dot(covariance_matrix,polynom.T),values_reshape) #This performs the linear regression
-        
+
         if not return_fit:
             if return_covariance:
                 return (coefficients, covariance_matrix)
             else:
-                return coefficients 
+                return coefficients
         else:
             return np.reshape(np.dot(polynom,coefficients),original_shape)
     else:
@@ -565,7 +568,7 @@ def polyfit_2D(x=None,
             return np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values) #This performs the linear regression
         else:
             return np.dot(polynom,np.dot(np.dot(np.linalg.inv(np.dot(polynom.T,polynom)),polynom.T),values))
-        
+
 def subtract_photon_peak_2D(autocorr=None,     #INPUT autocorrelation metrix
                             order=2,           #Order of the fitting
                             neglect_range=1,   #Range to be substituted by the fit 1=middle value, 2=+-1 area around middle etc.
@@ -597,7 +600,7 @@ def subtract_photon_peak_2D(autocorr=None,     #INPUT autocorrelation metrix
 
     coeff=flap_nstx.analysis.polyfit_2D(x=x_to_be_fit,
                                         y=y_to_be_fit,
-                                        values=autocorr_to_be_fit, 
+                                        values=autocorr_to_be_fit,
                                         order=order,
                                         irregular=True)
     points=np.asarray([[x[k,l]**i * y[k,l]**j for k in range(x.shape[0]) for l in range(x.shape[1]) ] for i in range(order+1) for j in range(order-i+1)], dtype='float64')
@@ -606,9 +609,9 @@ def subtract_photon_peak_2D(autocorr=None,     #INPUT autocorrelation metrix
     _autocorr[tuple(middle_index)]=fit[tuple(middle_index)]
     return _autocorr
 
-        
+
 def make_plot_cursor_format(current, other):
-    """    
+    """
     The method is for displaying double cursors for the overplotted correlations
     in the velocity calculation.
     """
@@ -627,7 +630,7 @@ def make_plot_cursor_format(current, other):
 
 def signal_windowed_avg_err(x,windowsize):
     """
-    Returns the average and the square root of the variance of signal x in a 
+    Returns the average and the square root of the variance of signal x in a
     defined window size.
     """
     if len(x) < windowsize:
@@ -635,7 +638,7 @@ def signal_windowed_avg_err(x,windowsize):
     data_len=len(x)
     return_data=np.zeros(data_len)
     return_error=np.zeros(data_len)
-    
+
     return_data[0:windowsize]=np.mean(x[0:windowsize])
     return_error[0:windowsize]=np.sqrt(np.var(x[0:windowsize]))
     for i_data in range(windowsize,data_len):
@@ -790,12 +793,12 @@ def calculate_corr_acceptance_levels(n_data=160,
                                      n_rand=10000,
                                      recalc=False,
                                      verbose=False):
-    
+
     corr_accept_filename=wd+'/processed_data/correlation_coefficient_significance_threshold_'+str(n_data)+'_'+str(n_rand)+'.pickle'
     if not os.path.exists(corr_accept_filename) or recalc:
-            
+
         result=np.zeros([n_data,n_rand])
-        
+
         start_time=time.time()
         for i_rand in range(n_rand):
             for i_data in range(n_data):
@@ -814,5 +817,5 @@ def calculate_corr_acceptance_levels(n_data=160,
         pickle.dump(corr_accept,open(corr_accept_filename,'wb'))
     else:
         corr_accept=pickle.load(open(corr_accept_filename,'rb'))
-        
+
     return corr_accept

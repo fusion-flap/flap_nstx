@@ -49,7 +49,7 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
                        'End delay': 0,
                        'Download only': False
                        }
-    
+
     _options = flap.config.merge_options(default_options,options,data_source='NSTX_GPI')
     #folder decoder
     folder={
@@ -74,7 +74,7 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
         year=2009
     if (exp_id >= 137110):
         year=2010
-    
+
     if (year < 2006):
         cam='_0_'
     if (year == 2007 or year == 2008):
@@ -83,7 +83,7 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
         cam='_2_'
     if (year == 2010):
         cam='_5_'
-    
+
     if (year < 2006):
         file_name='nstx'+str(exp_id)+'.cin'
     else:
@@ -95,21 +95,24 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
     if not os.path.exists(_options['Local datapath']):
         raise SystemError("The local datapath cannot be found.")
         return
-    
+
     if not (os.path.exists(local_file_folder+file_name)):
         if not (os.path.exists(local_file_folder)):
             try:
                 os.mkdir(local_file_folder)
             except:
-                raise SystemError("The folder cannot be created." 
+                raise SystemError("The folder cannot be created."
                                   +"Dumping the file to scratch")
                 local_file_folder=_options['Local datapath']+'/scratch'
 
-        
+
         p = subprocess.Popen(["scp", _options['User']+"@"+_options['Server']+':'+
                               remote_file_name, local_file_folder])
         os.waitpid(p.pid, 0)
         if not (os.path.exists(local_file_folder+file_name)):
+            print('Couldn\'t run the following scp command: ')
+            print("scp", _options['User']+"@"+_options['Server']+':'+
+                                  remote_file_name, local_file_folder)
             raise SystemError("The file couldn't be transferred to the local directory.")
     if (_options['Download only']):
             d = flap.DataObject(data_array=np.asarray([0,1]),
@@ -124,14 +127,14 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
     images=pims.Cine(local_file_folder+file_name)
 
     data_arr=np.flip(np.asarray(images[:], dtype=np.int16),2) #The original data is 80x64, this line converts it to 64x80
-    
+
     #The header dict contains the capture information along with the entire image number and the first_image_no (when the recording started)
     #The frame_rate corresponds with the one from IDL.
     trigger_time=images.header_dict['first_image_no']/images.frame_rate
-    
-    
+
+
     coord = [None]*6
-    
+
     coord[0]=(copy.deepcopy(flap.Coordinate(name='Time',
                                                unit='s',
                                                mode=flap.CoordinateMode(equidistant=True),
@@ -163,19 +166,19 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
                                                shape=[],
                                                dimension_list=[2]
                                                )))
-    
+
     #Get the spatial calibration for the GPI data
     #This spatial calibration is based on the rz_map.dat which used a linear
     #approximation for the transformation between pixel and spatial coordinates
     #This needs to be updated as soon as more information is available on the
     #calibration coordinates.
-      
+
     coeff_r=np.asarray([3.75, 0.,   1402.8097])/1000. #The coordinates are in meters
     coeff_z=np.asarray([0.,   3.75, 70.544312])/1000. #The coordinates are in meters
 
 #   This part is not producing appropriate results due to the equidistant spacing and double
-#   coefficients. Slicing is only possible for single steps.    
-    
+#   coefficients. Slicing is only possible for single steps.
+
 #    coord[4]=(copy.deepcopy(flap.Coordinate(name='Device R',
 #                                               unit='m',
 #                                               mode=flap.CoordinateMode(equidistant=True),
@@ -183,7 +186,7 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
 #                                               step=[coeff_r[0],coeff_r[1]],
 #                                               dimension_list=[1,2]
 #                                               )))
-#    
+#
 #    coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
 #                                               unit='m',
 #                                               mode=flap.CoordinateMode(equidistant=True),
@@ -205,7 +208,7 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
                                             shape=r_coordinates.shape,
                                             dimension_list=[1,2]
                                             )))
-    
+
     coord[5]=(copy.deepcopy(flap.Coordinate(name='Device z',
                                            unit='m',
                                            mode=flap.CoordinateMode(equidistant=False),
@@ -213,15 +216,15 @@ def get_data_gpi(exp_id=None, data_name=None, no_data=False, options=None, coord
                                            shape=z_coordinates.shape,
                                            dimension_list=[1,2]
                                            )))
-    
+
     _options["Trigger time [s]"]=trigger_time
     _options["FPS"]=images.frame_rate
     _options["Sample time [s]"]=1/float(images.frame_rate)
-    _options["Exposure time [s]"]=images.tagged_blocks['exposure_only'][0] 
+    _options["Exposure time [s]"]=images.tagged_blocks['exposure_only'][0]
     _options["X size"]=images.frame_shape[0]
     _options["Y size"]=images.frame_shape[1]
     _options["Bits"]=images.bitmapinfo_dict["bi_bit_count"]
-    
+
     d = flap.DataObject(data_array=data_arr,
                         data_unit=flap.Unit(name='Signal',unit='Digit'),
                         coordinates=coord,
@@ -235,7 +238,7 @@ def add_coordinate_gpi(data_object,
                        coordinates,
                        exp_id=None,
                        options=None):
-    
+
     #This part of the code provides normalized flux coordinates for the GPI data
     if ('Flux r' in coordinates):
         try:
@@ -274,10 +277,10 @@ def add_coordinate_gpi(data_object,
             psi_values_spat_interpol[index_t,:,:]=(psi_values_spat_interpol[index_t,:,:]-psi_mag.data[index_t])/(psi_bdry.data[index_t]-psi_mag.data[index_t])
         psi_values_spat_interpol[np.isnan(psi_values_spat_interpol)]=0.
         psi_values_total_interpol=np.zeros(data_object.data.shape)
-        
+
         for index_r in range(gpi_r_coord.shape[1]):
             for index_z in range(gpi_r_coord.shape[2]):
-                psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])       
+                psi_values_total_interpol[:,index_r,index_z]=np.interp(gpi_time,psi_t_coord,psi_values_spat_interpol[:,index_r,index_z])
 
         psi_values_total_interpol[np.isnan(psi_values_total_interpol)]=0.
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Flux r',
@@ -288,7 +291,7 @@ def add_coordinate_gpi(data_object,
                                        dimension_list=[0,1,2]
                                        )))
         data_object.coordinates.append(new_coordinates)
-        
+
     if ('Flux theta' in coordinates):
         print("ADDING FLUX THETA IS DEPRECATED AND MIGHT FAIL.")
         try:
@@ -334,7 +337,7 @@ def add_coordinate_gpi(data_object,
             z_maxis=z_mag_axis.data
         except:
             raise ValueError("The flux data cannot be found.")
-        
+
         nlevel=101
         angle_values_spat_interpol=np.zeros([psi_t_coord.shape[0],gpi_r_coord.shape[1],gpi_r_coord.shape[2]])
         for index_t in range(psi_t_coord.shape[0]):
@@ -347,7 +350,7 @@ def add_coordinate_gpi(data_object,
                 n_paths=len(psi_contour.collections[index_collections].get_paths()) #Get the actual paths, there might be more for one constant outside the separatrix.
                 if n_paths > 0:
                     for index_paths in range(n_paths):
-                        path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices # Get the actual coordinates of the curve.   
+                        path=psi_contour.collections[index_collections].get_paths()[index_paths].vertices # Get the actual coordinates of the curve.
                         #The following code calculates the angles. The full arclength is calculated along with the partial arclengths.
                         # The angle is then difined as the fraction of the arclength fraction and the entire arclength.
                         arclength=0.
@@ -365,7 +368,7 @@ def add_coordinate_gpi(data_object,
                         #The angles needs to be measured from the midplane. Hence a correction rotation subtracted from the angle.
                         for index_path_points in range(len(path[:,0])):
                             if ((np.abs(path[index_path_points,1]-z_maxis[index_t]) <
-                                 np.abs(path[min_ind,1]-z_maxis[index_t]))   and 
+                                 np.abs(path[min_ind,1]-z_maxis[index_t]))   and
                                (path[index_path_points,0] > r_maxis[index_t])):
                                 min_ind=index_path_points
                         rotation=(current_path_angles[min_ind,2]/(arclength-arclength_0))*2.*np.pi
@@ -376,12 +379,12 @@ def add_coordinate_gpi(data_object,
                             if current_path_angles[i_angle,2] > np.pi:
                                 current_path_angles[i_angle,2] -= 2*np.pi
                             if current_path_angles[i_angle,2] < -np.pi:
-                                current_path_angles[i_angle,2] += 2*np.pi    
+                                current_path_angles[i_angle,2] += 2*np.pi
                         poloidal_coord=np.append(poloidal_coord,current_path_angles, axis=0)
-                        
+
             points=poloidal_coord[:,(1,0)]
-            values=poloidal_coord[:,2]                        
-                        
+            values=poloidal_coord[:,2]
+
             #No point of having coordinates outside the separatrix
             #The following needs to be done:
             #1. Calculate the angles at 90% of the separatrix
@@ -396,7 +399,7 @@ def add_coordinate_gpi(data_object,
             for index_bdry in range(len(points_at_fraction[0,:])):
                 bfrac_path.append((points_at_fraction[0,index_bdry],points_at_fraction[1,index_bdry]))
             bfrac_path=pltPath.Path(bfrac_path)
-            
+
             poloidal_coord_new=np.zeros([0,3])
             poloidal_coord_new=[[0,0,0]]
             for index_poloidal_coord in range(len(poloidal_coord[:,0])):
@@ -406,14 +409,14 @@ def add_coordinate_gpi(data_object,
             poloidal_coord_new=np.asarray(poloidal_coord_new)[1:-1]
             if (len(poloidal_coord_new[:,0]) < 4):
                 points=poloidal_coord[:,(1,0)]
-                values=poloidal_coord[:,2]    
-            else:      
+                values=poloidal_coord[:,2]
+            else:
             #3. Add points to poloidal coord vector with some resolution (close to the EFIT resolution)
                 for index_expansion in range(21):
                     zoom=(index_expansion * 0.05) + 1.
                     expanded_points=np.asarray([(boundary_data[0,:]-r_maxis[index_t])*zoom+r_maxis[index_t],
                                                 (boundary_data[1,:]-z_maxis[index_t])*zoom+z_maxis[index_t]])
-                    
+
                     new_points=np.asarray([expanded_points[0,:],expanded_points[1,:],values_at_fraction])
                     poloidal_coord_new=np.append(poloidal_coord_new,new_points.transpose(), axis=0)
                 points=poloidal_coord_new[:,(1,0)]
@@ -428,13 +431,13 @@ def add_coordinate_gpi(data_object,
             #if True:
                 plt.cla()
                 plt.tricontourf(points[:,1],points[:,0],values, levels=51)
-                #plt.colorbar()  
+                #plt.colorbar()
                 plt.scatter(gpi_r_coord[0,:,:],gpi_z_coord[0,:,:])
                 plt.scatter(r_bdry[index_t,:],z_bdry[index_t,:])
                 plt.axis('equal')
                 plt.show()
                 plt.pause(1)
-            
+
         #Temporal interpolation for the angle values
         angle_values_total_interpol=np.zeros(data_object.data.shape)
         for index_r in range(gpi_r_coord.shape[1]):
@@ -449,7 +452,7 @@ def add_coordinate_gpi(data_object,
                                        dimension_list=[0,1,2]
                                        )))
         data_object.coordinates.append(new_coordinates)
-        
+
     if ('Device theta' in coordinates):
         try:
             gpi_time=data_object.coordinate('Time')[0][:,0,0]
@@ -495,7 +498,7 @@ def add_coordinate_gpi(data_object,
         pixel_x_coord=data_object.coordinate('Image x')[0][0,:,:]-32
         pixel_y_coord=data_object.coordinate('Image y')[0][0,:,:]-40
         pixel_r_coord=np.sqrt(pixel_x_coord**2 + pixel_y_coord**2)
-        
+
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Image R',
                                unit='pix',
                                mode=flap.CoordinateMode(equidistant=False),
@@ -509,7 +512,7 @@ def add_coordinate_gpi(data_object,
         pixel_y_coord=data_object.coordinate('Image y')[0][0,:,:]-40
         pixel_theta_coord=copy.deepcopy(pixel_x_coord)
         pixel_theta_coord=np.arctan(pixel_y_coord/pixel_x_coord)
-        
+
         new_coordinates=(copy.deepcopy(flap.Coordinate(name='Image theta',
                                unit='rad',
                                mode=flap.CoordinateMode(equidistant=False),
@@ -518,5 +521,5 @@ def add_coordinate_gpi(data_object,
                                dimension_list=[1,2]
                                )))
         data_object.coordinates.append(new_coordinates)
-        
+
     return data_object
