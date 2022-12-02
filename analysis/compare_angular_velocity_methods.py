@@ -11,15 +11,28 @@ from flap_nstx.gpi import analyze_gpi_structures
 import matplotlib.pyplot as plt
 import numpy as np
 
-def compare_angular_velocity_methods(exp_id=139901,
-                                     time_range=[0.3245,0.3255],
+def compare_angular_velocity_methods(
+                                     exp_id=141319,
+                                     time_range=[0.552,0.553],
+
                                      nocalc=[True,False,False],
-                                     avg_or_max='max',
+                                     avg_or_max='avg',
                                      plot_watershed=False,
                                      return_results=False,
                                      plot=True,
+                                     correct_pi_rotation=False,
+                                     plot_str_by_str=False,
                                      ):
 
+
+    """
+    example shots:
+        exp_id=141307,
+        time_range=[0.484198-500e-6,
+                    0.484198+500e-6],
+        exp_id=139901
+        time_range=[0.3245,0.3255]
+    """
     result_ccf=calculate_nstx_gpi_angular_velocity(exp_id=exp_id,
                                                          time_range=time_range,
                                                          normalize='roundtrip',
@@ -43,23 +56,32 @@ def compare_angular_velocity_methods(exp_id=139901,
                                           str_finding_method='contour',
                                           test_structures=False,
                                           return_results=True,
-                                          plot=False,
-                                          pdf=False,
+                                          plot=plot_str_by_str,
+                                          pdf=plot_str_by_str,
                                           ellipse_method='linalg',
                                           fit_shape='ellipse',
-                                          prev_str_weighting='max_intensity')
+                                          plot_str_by_str=plot_str_by_str)
 
     result_watershed=analyze_gpi_structures(exp_id=exp_id,
                                             time_range=time_range,
-                                            plot=False,
-                                            pdf=False,
+                                            plot=plot_str_by_str,
+                                            pdf=plot_str_by_str,
                                             nocalc=nocalc[2],
                                             str_finding_method='watershed',
                                             test_structures=False,
                                             return_results=True,
                                             ellipse_method='linalg',
                                             fit_shape='ellipse',
-                                            prev_str_weighting='max_intensity')
+                                            plot_str_by_str=plot_str_by_str)
+
+    if correct_pi_rotation:
+        for ali_angle in ['ALI','angle']:
+            for result in [result_contour,result_watershed]:
+                ind_pos=np.where(result['derived']['Angular velocity '+ali_angle][avg_or_max] >= np.pi/2/2.5e-6)
+                ind_neg=np.where(result['derived']['Angular velocity '+ali_angle][avg_or_max] <= -np.pi/2/2.5e-6)
+                result['derived']['Angular velocity '+ali_angle][avg_or_max][ind_pos] -= np.pi/2.5e-6
+                result['derived']['Angular velocity '+ali_angle][avg_or_max][ind_neg] += np.pi/2.5e-6
+
     if plot:
         import matplotlib
         matplotlib.use('qt5agg')

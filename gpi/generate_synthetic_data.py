@@ -233,6 +233,7 @@ def generate_displaced_gaussian(exp_id=0,
                                 n_frames=3,
                                 use_image_instead=False,
                                 convert_to_ellipse=False,
+                                noise_level=None,
                                 ):
     try:
         if len(displacement) != 2:
@@ -307,8 +308,10 @@ def generate_displaced_gaussian(exp_id=0,
             frame[ind]=255.
             ind=np.where(frame<=half_int)
             frame[ind]=0.
-
         data_arr[i_frames,:,:]+=frame
+
+        if noise_level is not None:
+            data_arr[i_frames,:,:] *= (((np.random.rand(frame_size[0],frame_size[1])-0.5)*2)*noise_level+1)
 
     if use_image_instead:
         image_path='/Users/mlampert/work/NSTX_workspace/horse.png'

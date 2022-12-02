@@ -356,7 +356,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
         pdf=PdfPages(wd+fig_dir+'/'+filename+'.pdf')
 
         plt.figure()
-        ax,fig=plt.subplots(figsize=(8.5/2.54,2))
+        fig,ax=plt.subplots(figsize=(8.5/2.54,2))
         for i in range(0,7,1):
             plt.plot(time, ang_vel[:,(10-i)]/1e3+i*100, label=str((10-i)/10))
 
@@ -439,38 +439,124 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
         filename='fig9_rot_estimation_angle_vs_elongation'
         test_angular_displacement_estimation(elongation_angle=True,
 
-                                             method='ccf',
-                                             angle_method='angle',
+                                              method='ccf',
+                                              angle_method='angle',
 
-                                             n_angle=38,
-                                             angle_range=[-85,85],
+                                              n_angle=38,
+                                              angle_range=[-85,85],
 
-                                             n_size=9,
-                                             size_range=[6,33],
+                                              n_size=9,
+                                              size_range=[6,33],
 
-                                             n_scale=10,
-                                             scale_range=[0.01,0.19],
+                                              n_scale=10,
+                                              scale_range=[0.01,0.19],
 
-                                             n_elongation=21,
-                                             elongation_range=[1.,3.],
+                                              n_elongation=21,
+                                              elongation_range=[1.,3.],
 
-                                             frame_size_range=[8,200],
-                                             frame_size_step=8,
+                                              frame_size_range=[8,200],
+                                              frame_size_step=8,
 
-                                             nocalc=nocalc,
-                                             pdf=True,
-                                             pdf_filename=wd+fig_dir+'/'+filename+'.pdf',
-                                             plot=False,
-                                             sigma_low=sigma_low,sigma_high=sigma_high,
-                                             save_data_into_txt=save_data_into_txt,
-                                             save_data_filename=wd+fig_dir+'/data_accessibility/'+filename+'.txt'
-                                             )
+                                              nocalc=nocalc,
+                                              pdf=True,
+                                              pdf_filename=wd+fig_dir+'/'+filename+'.pdf',
+                                              plot=False,
+                                              sigma_low=sigma_low,sigma_high=sigma_high,
+                                              save_data_into_txt=save_data_into_txt,
+                                              save_data_filename=wd+fig_dir+'/data_accessibility/'+filename+'.txt'
+                                              )
+
+    if plot_figure == 10:
+        filename='fig10_rot_estimation_angle_vs_noise'
+        n_noise=20
+        n_angle=38
+        results=test_angular_displacement_estimation(noise_angle=True,
+
+                                                     method='ccf',
+                                                     angle_method='angle',
+
+                                                     n_angle=n_angle,
+                                                     angle_range=[-85.,85.],
+
+                                                     n_noise=n_noise,
+                                                     noise_range=[0.0,2.0],
+                                                     noise_repeat=25,
+
+                                                     nocalc=nocalc,
+                                                     pdf=False,
+                                                     plot=False,
+                                                     sigma_low=sigma_low,
+                                                     sigma_high=sigma_high,
+                                                     save_data_into_txt=False,
+                                                     return_results=True
+                                                     )
+        angle_rot_vec=results['angle_rot_vec']
+        noise_vec=results['noise_vec']
+        result_vec_angle=results['result_vec_angle']
+
+        pdf_pages=PdfPages(wd+fig_dir+'/'+filename+'.pdf',)
+
+        fig, axs = plt.subplots(2,1,figsize=(8.5/2.54,8.5/2.54*2))
+        ax=axs[0]
+        fig1=ax.contourf(angle_rot_vec[:],
+                     noise_vec[:],
+                     np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1),
+                     levels=51,
+                     cmap='jet')
+        plt.colorbar(fig1, ax=ax)
+        ax.set_xlabel('Angle of rotation [deg]')
+        ax.set_ylabel('Relative noise level')
+        ax.set_title('Average inaccuracy of \n noisy angle rotation estimation')
+        ax.text(-0.24, 1.07, '(a)', transform=ax.transAxes, size=9)
+
+        ax=axs[1]
+        fig2=ax.contourf(angle_rot_vec[:],
+                         noise_vec[:],
+                         np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, axis=2)).T,
+                         levels=51,
+                         cmap='jet')
+        plt.colorbar(fig2,ax=ax)
+        ax.set_xlabel('Angle of rotation [deg]')
+        ax.set_ylabel('Relative noise level')
+        ax.set_title('Standard deviation of inaccuracy of \n noisy angle rotation estimation')
+        ax.text(-0.24, 1.07, '(b)', transform=ax.transAxes, size=9)
+        plt.tight_layout(pad=0.5)
+
+        pdf_pages.savefig()
+        pdf_pages.close()
+
+        if save_data_into_txt:
+            data=np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1)
+            stddev=np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, avis=2)).T
+
+            file1=open(wd+fig_dir+'/data_accessibility/'+filename+'.txt', 'w+')
+            file1.write('#Angle rotation vector in pixels\n')
+            for i in range(1, len(angle_rot_vec)):
+                file1.write(str(angle_rot_vec[i])+'\t')
+            file1.write('\n#Relative noise level\n')
+            for i in range(1, len(noise_vec)):
+                file1.write(str(noise_vec[i])+'\t')
+            file1.write('\n#Mean relative uncertainty of the angular rotation estimation\n')
+            for i in range(1,len(data[0,:])):
+                string=''
+                for j in range(1,len(data[:,0])):
+                    string+=str(data[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.write('\n#Stddev relative uncertainty of the angular rotation estimation\n')
+            for i in range(1,len(stddev[0,:])):
+                string=''
+                for j in range(1,len(stddev[:,0])):
+                    string+=str(stddev[j,i])+'\t'
+                string+='\n'
+                file1.write(string)
+            file1.close()
 
     """
     EXAMPLE ROTATING BLOBS
     """
-    if plot_figure == 10:
-        filename='fig10_blob_rotation_example'
+    if plot_figure == 11:
+        filename='fig11_blob_rotation_example'
         plt.figure()
         ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
         show_nstx_gpi_video_frames(exp_id=exp_id_blob,
@@ -501,8 +587,8 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
     """
     RESULTS FOR ROTATING BLOBS
     """
-    if plot_figure == 11:
-        filename='fig11_blob_rotation_estimate'
+    if plot_figure == 12:
+        filename='fig12_blob_rotation_estimate'
 
         frame_properties=calculate_nstx_gpi_angular_velocity(exp_id=exp_id_blob,
                                                              time_range=time_range_blob,
@@ -611,8 +697,8 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
     """
     EXAMPLE ROTATING ELM FILAMENTS
     """
-    if plot_figure == 12:
-        filename='fig12_elm_filament_example'
+    if plot_figure == 13:
+        filename='fig13_elm_filament_example'
         plt.figure()
         ax,fig=plt.subplots(figsize=(8.5/2.54,8.5/2.54))
         pdf=PdfPages(wd+fig_dir+'/'+filename+'.pdf')
@@ -644,8 +730,8 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
     """
     RESULTS FOR ROTATING FILAMENTS
     """
-    if plot_figure == 13:
-        filename='fig13_elm_filament_estimation'
+    if plot_figure == 14:
+        filename='fig14_elm_filament_estimation'
 
         frame_properties=calculate_nstx_gpi_angular_velocity(exp_id=exp_id_elm,
                                                              time_range=time_range_elm,
@@ -756,14 +842,13 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                 file1.write(str(expansion_velocity[i])+'\t')
             file1.close()
 
-    if plot_figure == 14:
-        filename='fig14_method_comparison'
+    if plot_figure == 15:
+        filename='fig15_method_comparison'
 
         pdf_filename=wd+fig_dir+'/'+filename+'.pdf'
         pdf_pages=PdfPages(pdf_filename)
 
         from flap_nstx.analysis import compare_angular_velocity_methods
-        nocalc=[True,True,True]
         results_elm=compare_angular_velocity_methods(exp_id=exp_id_elm,
                                                      time_range=time_range_elm,
                                                      plot=False,

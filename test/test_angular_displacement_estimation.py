@@ -8,6 +8,7 @@ Created on Thu Oct  7 11:51:52 2021
 
 import os
 import time
+import copy
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -63,6 +64,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                                          scaling_factor_angle=False,
                                          frame_size_angle=False,
                                          elongation_angle=False,
+                                         noise_angle=False,
 
                                          method='ccf',                          #ccf, contour or watershed
                                          angle_method='angle',                  #angle or ALI (angle of least incidence)
@@ -90,6 +92,10 @@ def test_angular_displacement_estimation(size_angle=False,                      
 
                                          n_size=12,
                                          size_range=[4,40],
+
+                                         n_noise=20,
+                                         noise_range=[0.0,1.0],
+                                         noise_repeat=16,
 
                                          #Frame size analysis
                                          frame_size_range=[8,200],              #Frame size range for the analysis of frame size dependence
@@ -130,6 +136,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
     else:
         import matplotlib
         matplotlib.use('qt5agg')
+
     if size_angle:
         comment_str='_size_angle'
     elif frame_size_angle:
@@ -138,6 +145,8 @@ def test_angular_displacement_estimation(size_angle=False,                      
         comment_str='_scaling_factor_angle'
     elif elongation_angle:
         comment_str='_elongation_angle'
+    elif noise_angle:
+        comment_str='_noise_angle'
     else:
         comment_str=''
 
@@ -158,6 +167,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
     scaling_factor_vec=np.arange(n_scale)/(n_scale-1)*(scale_range[1]-scale_range[0])+scale_range[0]
     size_vec=np.arange(n_size)/(n_size-1)*(size_range[1]-size_range[0])+size_range[0]
     frame_size_vec=np.arange(frame_size_range[0],frame_size_range[1],step=frame_size_step)
+    noise_vec=np.arange(n_noise)/(n_noise-1)*(noise_range[1]-noise_range[0])+noise_range[0]
 
     sampling_time=2.5e-6
     """
@@ -224,7 +234,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
 
                 finish_time=time.time()
                 rem_time=(finish_time-start_time)*(n_angle-i_angle)
-                print('Remaining time from the calculation: '+str(int(np.mod(rem_time,60)))+'min.')
+                print('Remaining time from the calculation: '+str(int(rem_time//60))+'min.')
             if plot:
                 plt.figure()
                 plt.contourf(angle_rot_vec, size_vec, result_vec_angle.transpose(),)
@@ -363,7 +373,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                     #raise ValueError('asdf')
                 finish_time=time.time()
                 rem_time=(finish_time-start_time)*(n_angle-i_angle)
-                print('Remaining time from the calculation: '+str(int(np.mod(rem_time,60)))+'min.')
+                print('Remaining time from the calculation: '+str(int((rem_time//60)))+'min.')
 
             pickle.dump([result_vec_scale, result_vec_angle, angle_rot_vec, scaling_factor_vec], open(pickle_filename, 'wb'))
         else:
@@ -434,11 +444,11 @@ def test_angular_displacement_estimation(size_angle=False,                      
                     file1.write(string)
                 file1.close()
 
-    if return_results:
-        return {'angle_rot_vec':angle_rot_vec,
-                'result_vec_angle':result_vec_angle,
-                'scaling_factor_vec':scaling_factor_vec,
-                'result_vec_scale':result_vec_scale}
+        if return_results:
+            return {'angle_rot_vec':angle_rot_vec,
+                    'result_vec_angle':result_vec_angle,
+                    'scaling_factor_vec':scaling_factor_vec,
+                    'result_vec_scale':result_vec_scale}
     """
     **************************************************
     ANALYSIS OF THE FRAME SIZE DISPLACEMENT ESTIMATION
@@ -716,6 +726,170 @@ def test_angular_displacement_estimation(size_angle=False,                      
             return {'angle_rot_vec':angle_rot_vec,
                     'elongation_vec':elongation_vec,
                     'result_vec_angle':result_vec_angle}
+
+    if noise_angle:
+        if not nocalc:
+            result_vec_angle=np.zeros([n_angle,n_noise, noise_repeat])
+            for i_angle in range(n_angle):
+                for j_noise in range(n_noise):
+                    try:
+                        rem_time=(finish_time-start_time)*(n_angle*n_noise-i_angle*n_noise-j_noise)
+                        print('\n\nRemaining time from the calculation: '+str(int((rem_time//60)))+'min.\n\n')
+                    except:
+                        pass
+                    start_time=time.time()
+                    for k_repeat in range(noise_repeat):
+                        generate_displaced_gaussian(displacement=[0,0], #[0,pol_disp_vec[i_pol]],
+                                                    angle_per_frame=angle_rot_vec[i_angle],
+                                                    noise_level=noise_vec[j_noise],
+                                                    size=[10,20],
+                                                    size_velocity=[0,0],
+                                                    sampling_time=sampling_time,
+                                                    output_name='gaussian',
+                                                    convert_to_ellipse=convert_to_ellipse,
+                                                    n_frames=3)
+                        if method == 'ccf':
+                            result=calculate_nstx_gpi_angular_velocity(exp_id=0,
+                                                                       data_object='gaussian',
+                                                                       normalize_for_velocity=False,
+                                                                       zero_padding_scale=zero_padding_scale,
+                                                                       sigma_low=sigma_low,
+                                                                       sigma_high=sigma_high,
+                                                                       plot=False,
+                                                                       pdf=False,
+                                                                       gaussian_blur=True,
+                                                                       nocalc=False,
+                                                                       return_results=True,
+                                                                       log_polar_data_shape=(360,320),
+                                                                       subtraction_order_for_velocity=subtraction_order)
+                            result_vec_angle[i_angle,j_noise,k_repeat]=copy.deepcopy(result['Angle difference FLAP'])
+                        else:
+                            result=analyze_gpi_structures(data_object='gaussian',
+                                                          nocalc=nocalc,
+                                                          str_finding_method=method,
+                                                          structure_pixel_calc=False,
+                                                          test_structures=False,
+                                                          return_results=True,
+                                                          plot=False,
+                                                          pdf=False,
+                                                          ellipse_method='linalg',
+                                                          fit_shape='ellipse',
+                                                          prev_str_weighting='max_intensity')
+
+                            if angle_method == 'angle':
+                                try:
+                                    result_vec_angle[i_angle,j_noise,k_repeat]=(result['data']['Angle']['max'][1]-result['data']['Angle']['max'][0])/np.pi*180
+                                except:
+                                    print(result['data']['Angle']['max'])
+                                    raise ValueError('Wrong angle')
+
+                            elif angle_method == 'ALI':
+                                result_vec_angle[i_angle,j_noise,k_repeat]=(result['data']['Angle of least inertia']['max'][1]-
+                                                                  result['data']['Angle of least inertia']['max'][0])/np.pi*180.
+                        if result_vec_angle[i_angle,j_noise, k_repeat] > 90:
+                            result_vec_angle[i_angle,j_noise, k_repeat]-=180
+
+                        if result_vec_angle[i_angle,j_noise, k_repeat] < -90:
+                            result_vec_angle[i_angle,j_noise, k_repeat]+=180
+
+                    finish_time=time.time()
+
+            pickle.dump([result_vec_angle, angle_rot_vec, noise_vec], open(pickle_filename, 'wb'))
+        else:
+            result_vec_angle, angle_rot_vec, noise_vec = pickle.load(open(pickle_filename, 'rb'))
+
+        if plot or pdf:
+            if pdf:
+                pdf_pages=PdfPages(pdf_filename)
+
+            plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+            plt.contourf(angle_rot_vec[:],
+                         noise_vec[:],
+                         np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1),
+                         levels=51,
+                         cmap='jet')
+            plt.colorbar()
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('Relative noise level')
+            plt.title('Average Inaccuracy of \n angle rotation estimation')
+            plt.tight_layout(pad=0.5)
+            if pdf:
+                pdf_pages.savefig()
+
+
+            plt.figure()
+            for i in range(1,n_noise):
+                plt.plot(angle_rot_vec,
+                         np.mean(result_vec_angle,axis=2)[:,i]-angle_rot_vec,
+                         label=str(noise_vec[i]))
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('Inaccuracy [pix]')
+            plt.title('Inaccuracy of angle estimation')
+            plt.legend()
+            plt.tight_layout(pad=0.5)
+            if pdf:
+                pdf_pages.savefig()
+
+            plt.subplots(figsize=(8.5/2.54,8.5/2.54))
+            plt.contourf(angle_rot_vec[:],
+                         noise_vec[:],
+                         np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, axis=2)).T,
+                         levels=51,
+                         cmap='jet')
+            plt.colorbar()
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('Relative noise level')
+            plt.title('Stddev of Inaccuracy of \n angle rotation estimation')
+            plt.tight_layout(pad=0.5)
+            if pdf:
+                pdf_pages.savefig()
+
+
+            plt.figure()
+            for i in range(1,n_noise):
+                plt.plot(angle_rot_vec,
+                         np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, axis=2))[:,i],
+                         label=str(noise_vec[i]))
+            plt.xlabel('Angle rotation [deg]')
+            plt.ylabel('Inaccuracy [pix]')
+            plt.title('Stddev of inaccuracy of angle estimation')
+            plt.legend()
+            plt.tight_layout(pad=0.5)
+            if pdf:
+                pdf_pages.savefig()
+                pdf_pages.close()
+
+            if save_data_into_txt:
+                data=np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1)
+                stddev=np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, avis=2)).T
+
+                file1=open(text_filename, 'w+')
+                file1.write('#Angle rotation vector in pixels\n')
+                for i in range(1, len(angle_rot_vec)):
+                    file1.write(str(angle_rot_vec[i])+'\t')
+                file1.write('\n#Relative noise level\n')
+                for i in range(1, len(noise_vec)):
+                    file1.write(str(noise_vec[i])+'\t')
+                file1.write('\n#Mean relative uncertainty of the angular rotation estimation\n')
+                for i in range(1,len(data[0,:])):
+                    string=''
+                    for j in range(1,len(data[:,0])):
+                        string+=str(data[j,i])+'\t'
+                    string+='\n'
+                    file1.write(string)
+                file1.write('\n#Stddev relative uncertainty of the angular rotation estimation\n')
+                for i in range(1,len(stddev[0,:])):
+                    string=''
+                    for j in range(1,len(stddev[:,0])):
+                        string+=str(stddev[j,i])+'\t'
+                    string+='\n'
+                    file1.write(string)
+                file1.close()
+
+        if return_results:
+            return {'angle_rot_vec':angle_rot_vec,
+                    'result_vec_angle':result_vec_angle,
+                    'noise_vec':noise_vec}
 
     if plot_sample_gaussian:
         if pdf:

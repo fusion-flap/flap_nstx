@@ -949,11 +949,11 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     if np.sum(str_overlap_matrix[ind_str1[0],:]) == 1:
                         structures_2[j_str2]['Label'] = structures_1[int(ind_str1[0])]['Label']
                         structures_2[j_str2]=calculate_differential_keys(structure_2=structures_2[j_str2],
-                                                                          structure_1=structures_1[int(ind_str1[0])],
-                                                                          sample_time=sample_time,
-                                                                          fit_shape=fit_shape)
+                                                                         structure_1=structures_1[int(ind_str1[0])],
+                                                                         sample_time=sample_time,
+                                                                         fit_shape=fit_shape)
 
-                    #If splitting is happening, that's handled later.
+                    #If splitting is happening, it's handled later.
                     else:
                         pass
                 #Previous structures merge
@@ -970,9 +970,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                 ind_high=ind_str1
                         structures_2[j_str2]['Label']=structures_1[int(ind_high)]['Label']
                         structures_2[j_str2]=calculate_differential_keys(structure_2=structures_2[j_str2],
-                                                                          structure_1=structures_1[int(ind_high)],
-                                                                          sample_time=sample_time,
-                                                                          fit_shape=fit_shape)
+                                                                         structure_1=structures_1[int(ind_high)],
+                                                                         sample_time=sample_time,
+                                                                         fit_shape=fit_shape)
                         for ind_str1 in ind_merge[0]:
                             structures_2[j_str2]['Parent'].append(structures_1[int(ind_str1)]['Label'])
                             structures_1[int(ind_str1)]['Merges']=True
@@ -1067,9 +1067,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                             if ind_str2 == ind_high:
                                 structures_2[ind_str2]['Label']=structures_1[j_str1]['Label']
                                 structures_2[ind_str2]=calculate_differential_keys(structure_2=structures_2[ind_str2],
-                                                                                    structure_1=structures_1[j_str1],
-                                                                                    sample_time=sample_time,
-                                                                                    fit_shape=fit_shape)
+                                                                                   structure_1=structures_1[j_str1],
+                                                                                   sample_time=sample_time,
+                                                                                   fit_shape=fit_shape)
                             else:
                                 structures_2[ind_str2]['Label']=highest_label+1
                                 highest_label += 1
@@ -1092,6 +1092,13 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                     #Check the new frame if it has overlap with the old frame
                     for j_str1 in range(n_str1):
                         if structures_2[j_str2]['Half path'].intersects_path(structures_1[j_str1]['Half path']):
+
+                            """
+                            This weighting scheme handles the multiple overlapping structures. E.g.,
+                            if two structures merge, their intensities are weighted with their
+                            prev_str_weighting setting for the resulting differential quantity.
+                            """
+
                             if prev_str_weighting == 'number':
                                 prev_str_weight.append(1.)
                             elif prev_str_weighting == 'intensity':
@@ -1105,19 +1112,19 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                     prev_str_weight.append(0.)
 
                             structures_2[j_str2]['Velocity radial COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[0]-
-                                                                               structures_1[j_str1]['Polygon'].center_of_gravity[0])/sample_time)
+                                                                                structures_1[j_str1]['Polygon'].center_of_gravity[0])/sample_time)
                             structures_2[j_str2]['Velocity poloidal COG'].append((structures_2[j_str2]['Polygon'].center_of_gravity[1]-
-                                                                                 structures_1[j_str1]['Polygon'].center_of_gravity[1])/sample_time)
+                                                                                  structures_1[j_str1]['Polygon'].center_of_gravity[1])/sample_time)
 
                             structures_2[j_str2]['Velocity radial centroid'].append((structures_2[j_str2]['Polygon'].centroid[0]-
-                                                                                    structures_1[j_str1]['Polygon'].centroid[0])/sample_time)
+                                                                                     structures_1[j_str1]['Polygon'].centroid[0])/sample_time)
                             structures_2[j_str2]['Velocity poloidal centroid'].append((structures_2[j_str2]['Polygon'].centroid[1]-
-                                                                                      structures_1[j_str1]['Polygon'].centroid[1])/sample_time)
+                                                                                       structures_1[j_str1]['Polygon'].centroid[1])/sample_time)
 
                             structures_2[j_str2]['Velocity radial position'].append((structures_2[j_str2][fit_shape].center[0]-
-                                                                                    structures_1[j_str1][fit_shape].center[0])/sample_time)
+                                                                                     structures_1[j_str1][fit_shape].center[0])/sample_time)
                             structures_2[j_str2]['Velocity poloidal position'].append((structures_2[j_str2][fit_shape].center[1]-
-                                                                                      structures_1[j_str1][fit_shape].center[1])/sample_time)
+                                                                                       structures_1[j_str1][fit_shape].center[1])/sample_time)
 
                             structures_2[j_str2]['Expansion fraction area'].append(np.sqrt(structures_2[j_str2]['Polygon'].area/
                                                                                            structures_1[j_str1]['Polygon'].area))
@@ -1127,9 +1134,9 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                                                            structures_1[j_str1][fit_shape].axes_length[1]))
 
                             structures_2[j_str2]['Angular velocity angle'].append((structures_2[j_str2][fit_shape].angle-
-                                                                                  structures_1[j_str1][fit_shape].angle)/sample_time)
+                                                                                   structures_1[j_str1][fit_shape].angle)/sample_time)
                             structures_2[j_str2]['Angular velocity ALI'].append((structures_2[j_str2]['Polygon'].principal_axes_angle-
-                                                                                structures_1[j_str1]['Polygon'].principal_axes_angle)/sample_time)
+                                                                                 structures_1[j_str1]['Polygon'].principal_axes_angle)/sample_time)
 
                             n_str1_overlap[j_str1]+=1.
 
@@ -1466,6 +1473,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
     if return_results:
         return frame_properties
+
 
 #Wrapper function for calculating differential key results.
 def calculate_differential_keys(structure_2=None,
