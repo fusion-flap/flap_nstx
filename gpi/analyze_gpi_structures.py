@@ -1362,7 +1362,7 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
 
                 if pdf:
                     pdf_pages.savefig()
-        else:
+        else: #plot_str_by_str=True
 
             frame_properties['structures'][i_frames]
             max_str_label=0
@@ -1405,7 +1405,6 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                     if key_str not in struct_by_struct[ind_structure].keys():
                                         struct_by_struct[ind_structure][key_str]=[]
                                     struct_by_struct[ind_structure][key_str].append(frame_properties['structures'][i_frames][j_str][key_str])
-
                             struct_by_struct[ind_structure]['Time'].append(frame_properties['Time'][i_frames])
 
             #return struct_by_struct
@@ -1430,8 +1429,8 @@ def analyze_gpi_structures(exp_id=None,                          #Shot number
                                                label=str(ind_str),
                                                s=5,
                                                marker='o')
-                        except:
-                            pass
+                        except Exception as e:
+                            print(e)
                     ax.set_ylabel(frame_properties['data'][key]['label']+' '+'['+frame_properties['data'][key]['unit']+']')
                 else:
                     for ind_str in range(len(struct_by_struct)):

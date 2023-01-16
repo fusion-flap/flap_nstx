@@ -303,6 +303,10 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if not cache_data: #This needs to be enhanced to actually cache the data no matter what
         flap.delete_data_object('*')
 
+    if plot_separatrix or plot_flux:
+        print('Setting device_coordinates = True, plotting separatrix or flux is not available in image coordinates.')
+        device_coordinates = True
+
     if exp_id is not None:
         print("\n------- Reading NSTX GPI data --------")
         if cache_data:
@@ -420,12 +424,19 @@ def show_nstx_gpi_video_frames(exp_id=None,
     if n_frame == 30:
         ny=6
         nx=5
-    if n_frame == 20:
+    elif n_frame == 20:
         ny=5
         nx=4
-    if n_frame == 9:
+    elif n_frame == 9:
         ny=3
         nx=3
+    else:
+        if len(n_frame) == 2:
+            ny=n_frame[0]
+            nx=n_frame[1]
+        else:
+            raise ValueError('The set n_frame doesn\'t have a corresponding setting. Please set it to n_frame=[nx,ny] ')
+
     gs=GridSpec(nx,ny)
 
     for index_grid_x in range(nx):
@@ -443,15 +454,19 @@ def show_nstx_gpi_video_frames(exp_id=None,
             slicing={'Time':d.coordinate('Time')[0][0,0]}
 
             if plot_flux and device_coordinates:
-                flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
+                flap.slice_data('PSI RZ OBJ',slicing=slicing,
+                                output_name='PSI RZ SLICE',
+                                options={'Interpolation':'Linear'})
                 oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
                                                   'Plot':True,
                                                   'Colormap':None,
                                                   'nlevel':51}}
 
             if plot_separatrix and device_coordinates:
-                flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
-                flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
+                flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',
+                                options={'Interpolation':'Linear'})
+                flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',
+                                options={'Interpolation':'Linear'})
                 oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
                                                      'Data object Y':'SEP Y SLICE',
                                                      'Plot':True,
@@ -490,18 +505,21 @@ def show_nstx_gpi_video_frames(exp_id=None,
                     string_add=str(sample)
                 else:
                     string_add=str(time)
+
                 if data_filename is None:
                     filename=wd+'/data_accessibility/NSTX_GPI_video_frames_'+str(exp_id)+'_'+string_add+'.txt'
                 else:
-                    filename=data_filename
-                file1=open(filename, 'w+')
-                for i in range(len(data[0,:])):
-                    string=''
-                    for j in range(len(data[:,0])):
-                        string+=str(data[j,i])+'\t'
-                    string+='\n'
-                    file1.write(string)
-                file1.close()
+                    filename=data_filename+'_'+string_add+'.txt'
+
+                with open(filename, 'w+') as file1:
+                    file1.write()
+                    for i in range(len(data[0,:])):
+                        string=''
+                        for j in range(len(data[:,0])):
+                            string+=str(data[j,i])+'\t'
+                        string+='\n'
+                        file1.write(string)
+                    file1.close()
 
             actual_time=d.coordinate('Time')[0][0,0]
             #plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')

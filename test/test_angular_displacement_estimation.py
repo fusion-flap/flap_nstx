@@ -278,10 +278,10 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 data=result_vec_angle[1:,1:]
 
                 file1=open(text_filename, 'w+')
-                file1.write('#Angle rotation vector in pixels\n')
+                file1.write('#Angle of rotation [deg]\n')
                 for i in range(1, len(angle_rot_vec)):
                     file1.write(str(angle_rot_vec[i])+'\t')
-                file1.write('\n#Size vector in pixels\n')
+                file1.write('\n#Size [pix]\n')
                 for i in range(1, len(size_vec)):
                     file1.write(str(size_vec[i])+'\t')
                 file1.write('\n#Relative uncertainty of the angular rotation estimation\n')
@@ -429,10 +429,10 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 data=result_vec_angle[1:,1:]
 
                 file1=open(text_filename, 'w+')
-                file1.write('#Angle rotation vector in pixels\n')
+                file1.write('#Angle of rotation [deg]\n')
                 for i in range(1, len(angle_rot_vec)):
                     file1.write(str(angle_rot_vec[i])+'\t')
-                file1.write('\n#Size vector in pixels\n')
+                file1.write('\n#Size [pix]\n')
                 for i in range(1, len(size_vec)):
                     file1.write(str(size_vec[i])+'\t')
                 file1.write('\n#Relative uncertainty of the angular rotation estimation\n')
@@ -577,7 +577,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 pdf_pages.close()
 
             if save_data_into_txt:
-                data=result_vec_angle[1:,1:]
+                data=result_vec_angle.transpose()/(angle_rot_vec[None,:])-1
 
                 file1=open(text_filename, 'w+')
                 file1.write('#Angle rotation vector in pixels\n')
@@ -586,7 +586,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 file1.write('\n#Size vector in pixels\n')
                 for i in range(len(size_vec)):
                     file1.write(str(size_vec[i])+'\t')
-                file1.write('\n#Relative uncertainty of the anglular rotation estimation\n')
+                file1.write('\n#Relative uncertainty of the angular rotation estimation\n')
                 for i in range(len(data[0,:])):
                     string=''
                     for j in range(len(data[:,0])):
@@ -705,7 +705,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 pdf_pages.close()
 
             if save_data_into_txt:
-                data=result_vec_angle
+                data=result_vec_angle.transpose()/angle_rot_vec[None,:]-1
 
                 file1=open(text_filename, 'w+')
                 file1.write('#Angle rotation vector in pixels\n')
@@ -714,7 +714,7 @@ def test_angular_displacement_estimation(size_angle=False,                      
                 file1.write('\n#Elongation vector\n')
                 for i in range(0, len(elongation_vec)):
                     file1.write(str(elongation_vec[i])+'\t')
-                file1.write('\n#Relative uncertainty of the anglular rotation estimation\n')
+                file1.write('\n#Relative uncertainty of the angular rotation estimation\n')
                 for i in range(0,len(data[0,:])):
                     string=''
                     for j in range(1,len(data[:,0])):
