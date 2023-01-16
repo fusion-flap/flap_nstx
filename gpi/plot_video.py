@@ -443,15 +443,19 @@ def show_nstx_gpi_video_frames(exp_id=None,
             slicing={'Time':d.coordinate('Time')[0][0,0]}
 
             if plot_flux and device_coordinates:
-                flap.slice_data('PSI RZ OBJ',slicing=slicing,output_name='PSI RZ SLICE',options={'Interpolation':'Linear'})
+                flap.slice_data('PSI RZ OBJ',slicing=slicing,
+                                output_name='PSI RZ SLICE',
+                                options={'Interpolation':'Linear'})
                 oplot_options['contour']={'flux':{'Data object':'PSI RZ SLICE',
                                                   'Plot':True,
                                                   'Colormap':None,
                                                   'nlevel':51}}
 
             if plot_separatrix and device_coordinates:
-                flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',options={'Interpolation':'Linear'})
-                flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',options={'Interpolation':'Linear'})
+                flap.slice_data('SEP X OBJ',slicing=slicing,output_name='SEP X SLICE',
+                                options={'Interpolation':'Linear'})
+                flap.slice_data('SEP Y OBJ',slicing=slicing,output_name='SEP Y SLICE',
+                                options={'Interpolation':'Linear'})
                 oplot_options['path']={'separatrix':{'Data object X':'SEP X SLICE',
                                                      'Data object Y':'SEP Y SLICE',
                                                      'Plot':True,
@@ -490,18 +494,21 @@ def show_nstx_gpi_video_frames(exp_id=None,
                     string_add=str(sample)
                 else:
                     string_add=str(time)
+
                 if data_filename is None:
                     filename=wd+'/data_accessibility/NSTX_GPI_video_frames_'+str(exp_id)+'_'+string_add+'.txt'
                 else:
-                    filename=data_filename
-                file1=open(filename, 'w+')
-                for i in range(len(data[0,:])):
-                    string=''
-                    for j in range(len(data[:,0])):
-                        string+=str(data[j,i])+'\t'
-                    string+='\n'
-                    file1.write(string)
-                file1.close()
+                    filename=data_filename+'_'+string_add+'.txt'
+
+                with open(filename, 'w+') as file1:
+                    file1.write()
+                    for i in range(len(data[0,:])):
+                        string=''
+                        for j in range(len(data[:,0])):
+                            string+=str(data[j,i])+'\t'
+                        string+='\n'
+                        file1.write(string)
+                    file1.close()
 
             actual_time=d.coordinate('Time')[0][0,0]
             #plt.title(str(exp_id)+' @ '+f"{actual_time*1000:.4f}"+'ms')

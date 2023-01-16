@@ -200,6 +200,10 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                  'GPI_DETREND_VEL',
                  'GPI_GAUSS_BLUR'
                  ]
+        labels=['Fig. 3 (a)',
+                'Fig. 3 (b)',
+                'Fig. 3 (c)',
+                'Fig. 3 (d)']
 
         titles=['Raw frame',
                 'Normalized',
@@ -237,7 +241,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                 ax.set_aspect('equal')
 
                 if save_data_into_txt:
-                    file1.write('\n#'+signals[index_grid_x]+' data\n\n')
+                    file1.write('\n#'+signals[ind]+' data ('+labels[ind]+')\n\n')
                     for i in range(len(data[0,:])):
                         string=''
                         for j in range(len(data[:,0])):
@@ -265,7 +269,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                                                    plot=False,
                                                    pdf=True,
                                                    pdf_filename=wd+fig_dir+'/'+filename+'.pdf',
-                                                   nocalc=False,
+                                                   nocalc=nocalc,
                                                    plot_scatter=False,
                                                    plot_for_publication=True,
                                                    gaussian_blur=True,
@@ -293,7 +297,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                                                    plot=False,
                                                    pdf=True,
                                                    pdf_filename=wd+fig_dir+'/'+filename+'.pdf',
-                                                   nocalc=False,
+                                                   nocalc=nocalc,
                                                    plot_scatter=False,
                                                    plot_for_publication=False,
                                                    gaussian_blur=True,
@@ -499,10 +503,10 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
         fig, axs = plt.subplots(2,1,figsize=(8.5/2.54,8.5/2.54*2))
         ax=axs[0]
         fig1=ax.contourf(angle_rot_vec[:],
-                     noise_vec[:],
-                     np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1),
-                     levels=51,
-                     cmap='jet')
+                         noise_vec[:],
+                         np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1),
+                         levels=51,
+                         cmap='jet')
         plt.colorbar(fig1, ax=ax)
         ax.set_xlabel('Angle of rotation [deg]')
         ax.set_ylabel('Relative noise level')
@@ -527,26 +531,26 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
 
         if save_data_into_txt:
             data=np.abs(np.mean(result_vec_angle,axis=2).transpose()/angle_rot_vec[None,:]-1)
-            stddev=np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, avis=2)).T
+            stddev=np.sqrt(np.var(result_vec_angle/angle_rot_vec[:,None,None]-1, axis=2)).T
 
             file1=open(wd+fig_dir+'/data_accessibility/'+filename+'.txt', 'w+')
-            file1.write('#Angle rotation vector in pixels\n')
-            for i in range(1, len(angle_rot_vec)):
+            file1.write('#Angle of rotation (deg) \n')
+            for i in range(0, len(angle_rot_vec)):
                 file1.write(str(angle_rot_vec[i])+'\t')
             file1.write('\n#Relative noise level\n')
-            for i in range(1, len(noise_vec)):
+            for i in range(0, len(noise_vec)):
                 file1.write(str(noise_vec[i])+'\t')
             file1.write('\n#Mean relative uncertainty of the angular rotation estimation\n')
-            for i in range(1,len(data[0,:])):
+            for i in range(0,len(data[0,:])):
                 string=''
-                for j in range(1,len(data[:,0])):
+                for j in range(0,len(data[:,0])):
                     string+=str(data[j,i])+'\t'
                 string+='\n'
                 file1.write(string)
             file1.write('\n#Stddev relative uncertainty of the angular rotation estimation\n')
-            for i in range(1,len(stddev[0,:])):
+            for i in range(0,len(stddev[0,:])):
                 string=''
-                for j in range(1,len(stddev[:,0])):
+                for j in range(0,len(stddev[:,0])):
                     string+=str(stddev[j,i])+'\t'
                 string+='\n'
                 file1.write(string)
@@ -848,13 +852,16 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
 
         pdf_filename=wd+fig_dir+'/'+filename+'.pdf'
         pdf_pages=PdfPages(pdf_filename)
-
+        if nocalc:
+            nocalc_all=[True,True,True]
+        else:
+            nocalc_all=[False,False,False]
         from flap_nstx.analysis import compare_angular_velocity_methods
         results_elm=compare_angular_velocity_methods(exp_id=exp_id_elm,
                                                      time_range=time_range_elm,
                                                      plot=False,
                                                      return_results=True,
-                                                     nocalc=nocalc,
+                                                     nocalc=nocalc_all,
                                                      )
         nan_ind=np.where(results_elm['cccf']['data']['Correlation max']['raw'] < correlation_threshold)
         results_elm['cccf']['data']['Angular velocity ccf FLAP log']['raw'][nan_ind]=np.nan
@@ -868,7 +875,7 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
                                                       time_range=time_range_blob,
                                                       plot=False,
                                                       return_results=True,
-                                                      nocalc=nocalc,
+                                                      nocalc=nocalc_all,
                                                       )
 
         nan_ind=np.where(results_blob['cccf']['data']['Correlation max']['raw'] < correlation_threshold)
@@ -949,22 +956,46 @@ def plot_results_for_rsi_2022_paper(plot_figure=2,
         pdf_pages.savefig()
         pdf_pages.close()
 
-        # if save_data_into_txt:
-        #     filename=wd+fig_dir+'/data_accessibility/'+filename+'.txt'
-        #     file1=open(filename, 'w+')
-        #     time=frame_properties['Time']
-        #     angular_velocity=frame_properties['Angular velocity ccf FLAP']
-        #     expansion_velocity=frame_properties['Expansion velocity ccf FLAP']
+        if save_data_into_txt:
+            for ind_res in ['elm','blob']:
+                if ind_res == 'blob':
+                    result=results_blob
+                    filename_cur=wd+fig_dir+'/data_accessibility/'+filename+'(a).txt'
+                    plot_index=plot_index_blob
+                elif ind_res == 'elm':
+                    result=results_elm
+                    filename_cur=wd+fig_dir+'/data_accessibility/'+filename+'(b).txt'
+                    plot_index=plot_index_elm
 
-        #     file1.write('#Time (ms)\n')
-        #     for i in range(1, len(time)):
-        #         file1.write(str(time[i])+'\t')
+                with open(filename_cur, 'w+') as file1:
+                    time1=result['cccf']['time'][plot_index]*1e3
+                    data1=result['cccf']['data']['Angular velocity ccf log']['raw'][plot_index]/1e3
 
-        #     file1.write('\n#Angular velocity (rad/s)\n')
-        #     for i in range(1, len(angular_velocity)):
-        #         file1.write(str(angular_velocity[i])+'\t')
+                    time2=result['contour']['Time']*1e3
+                    data2=result['contour']['derived']['Angular velocity angle']['avg']/1e3
 
-        #     file1.write('\n#Expansion velocity (1/s)\n')
-        #     for i in range(1, len(expansion_velocity)):
-        #         file1.write(str(expansion_velocity[i])+'\t')
-        #     file1.close()
+                    time3=result['watershed']['Time']*1e3
+                    data3=result['watershed']['derived']['Angular velocity angle']['avg']/1e3
+
+                    file1.write('#Time (ms)\n')
+                    for i in range(0, len(time1)):
+                        file1.write(str(time1[i])+'\t')
+                    file1.write('\n#Angular velocity CCCF (rad/s)\n')
+                    for i in range(0, len(data1)):
+                        file1.write(str(data1[i])+'\t')
+
+                    file1.write('\n\n#Time (ms)\n')
+                    for i in range(0, len(time2)):
+                        file1.write(str(time2[i])+'\t')
+                    file1.write('\n#Angular velocity contour (rad/s)\n')
+                    for i in range(0, len(data2)):
+                        file1.write(str(data2[i])+'\t')
+
+                    file1.write('\n\n#Time (ms)\n')
+                    for i in range(0, len(time3)):
+                        file1.write(str(time3[i])+'\t')
+                    file1.write('\n#Angular velocity watershed (rad/s)\n')
+                    for i in range(0, len(data3)):
+                        file1.write(str(data3[i])+'\t')
+
+                    file1.close()
